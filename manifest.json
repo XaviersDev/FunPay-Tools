@@ -1,0 +1,95 @@
+{
+    "manifest_version": 3,
+    "name": "FunPay Tools",
+    "version": "2.1",
+    "description": "Помощник для продавцов на FunPay с AI, шаблонами и кастомизацией.",
+    "permissions": [
+        "storage",
+        "tabs",
+        "cookies",
+        "alarms",
+        "offscreen",
+        "notifications"
+    ],
+    "host_permissions": [
+        "https://fptools-ai-server.vercel.app/*",
+        "https://funpay.com/*",
+        "https://cdn.jsdelivr.net/*",
+        "https://fonts.googleapis.com/*",
+        "https://fonts.gstatic.com/*"
+    ],
+    "action": {
+        "default_popup": "popup/popup.html",
+        "default_title": "FP Tools"
+    },
+    "icons": {
+        "128": "icons/icon128.png"
+    },
+    "background": {
+        "service_worker": "background/background.js",
+        "type": "module"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "https://funpay.com/*"
+            ],
+            "js": [
+                "content/theme_flash_fix.js"
+            ],
+            "run_at": "document_start",
+            "all_frames": true
+        },
+        {
+            "matches": [
+                "https://funpay.com/*"
+            ],
+            "js": [
+                "content/scripts/jquery.js",
+                "content/utils.js",
+                "content/features/cursor_fx.js",
+                "content/ui/settings_loader.js",
+                "content/features/font_tools.js",
+                "content/features/accounts.js",
+                "content/features/ai_chat.js",
+                "content/features/auto_delivery.js",
+                "content/features/discord.js",
+                "content/features/homepage_redesign.js",
+                "content/features/lot_cloning.js",
+                "content/features/lot_management.js",
+                "content/features/templates.js",
+                "content/features/theme.js",
+                "content/features/exact_price.js",
+                "content/features/user_notes.js",
+                "content/features/image_generator.js",
+                "content/features/custom_sound.js",
+                "content/features/misc.js",
+                "content/features/ui_enhancements.js",
+                "content/features/review_sorter.js",
+                "content/features/ai_lot_creator.js",
+                "content/features/currency_calculator.js",
+                "content/features/notes.js",
+                "content/features/auto_review.js",
+                "content/features/overview_tour.js",
+                "content/ui/main_popup.js",
+                "content/content_script.js"
+            ],
+            "css": [
+                "css/content_styles.css",
+                "css/image_generator.css",
+                "css/ai_creator.css"
+            ],
+            "run_at": "document_idle"
+        }
+    ],
+    "web_accessible_resources": [
+        {
+            "resources": [
+                "sounds/*.mp3"
+            ],
+            "matches": [
+                "https://funpay.com/*"
+            ]
+        }
+    ]
+}
