@@ -1,4 +1,4 @@
-const VERCEL_API_URL = 'https://fptools-ai-server.vercel.app/api/ai'; 
+const VERCEL_API_URL = 'https://fptools.onrender.com/api/ai'; 
 const API_SECRET_KEY = 'fptoolsdim';
 
 const SYSTEM_PROMPT = 'You are a text editing model. Follow user instructions precisely.';
