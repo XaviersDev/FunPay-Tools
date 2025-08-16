@@ -29,11 +29,11 @@ function initializeLotManagement() {
                 offersHeader.append(selectBtn, reactivateBtn, controlsContainer.hide());
             }
         } else if (isCategoryTradePage) {
-            $('body').addClass('fp-category-trade-page'); // Класс-маркер для CSS
+            $('body').addClass('fp-category-trade-page');
             const raiseButtonWrapper = $('.js-lot-raise').closest('[class*="col-"]');
             if (raiseButtonWrapper.length) {
                 const controlsRow = raiseButtonWrapper.parent();
-                controlsRow.addClass('fp-original-controls'); // Пометим оригинальные кнопки
+                controlsRow.addClass('fp-original-controls');
                 
                 const fpToolsControls = $('<div class="row row-10 fp-tools-offer-controls"></div>');
                 const selectBtnWrapper = $('<div class="col-sm-6 mb10"></div>').append(selectBtn);
@@ -46,8 +46,9 @@ function initializeLotManagement() {
                 controlsRow.parent().append(controlsContainer);
             }
         }
-
+        
         createReactivationPopup();
+        createPriceEditorPopup();
 
         selectBtn.on('click', function() {
             if(isProfileSalesPage) {
@@ -85,7 +86,6 @@ function initializeLotManagement() {
 
 function toggleSelectionMode(enable) {
     if (enable) {
-        // Добавляем пустую ячейку-заголовок для выравнивания
         if ($('.tc-header').length && $('.action-lots-header-cell').length === 0) {
             $('.tc-header').prepend('<div class="action-lots-header-cell"></div>');
         }
@@ -109,6 +109,7 @@ function setupActionProcessing() {
             <div class="actions">
                 <span class="log">Выберите действие</span>
                 <div>
+                    <button class="action-lot price-editor">Редактор цен</button>
                     <button class="action-lot dublicate">Дублировать</button>
                     <button class="action-lot deactivate-lot">Отключить</button>
                     <button class="action-lot delete-lot">Удалить</button>
@@ -155,14 +156,10 @@ function setupActionProcessing() {
     function getCsrfToken() {
         try {
             const appDataString = document.body.getAttribute('data-app-data');
-            if (!appDataString) throw new Error('Атрибут data-app-data не найден.');
             const appData = JSON.parse(appDataString);
-            const csrfToken = appData['csrf-token'];
-            if (!csrfToken) throw new Error('CSRF-токен не найден в data-app-data.');
-            return csrfToken;
+            return appData['csrf-token'];
         } catch (e) {
             const errorMsg = `Критическая ошибка: ${e.message}`;
-            console.error(`[FP Tools] ${errorMsg}`);
             updateLog(errorMsg, true);
             if (typeof showNotification === 'function') showNotification(errorMsg, true);
             return null;
@@ -194,7 +191,6 @@ function setupActionProcessing() {
             formData.delete('location');
             return new URLSearchParams(formData).toString();
         } catch (error) {
-            console.error(`[FP Tools] Ошибка получения параметров лота #${offerId}:`, error);
             throw error;
         }
     }
@@ -218,7 +214,6 @@ function setupActionProcessing() {
             const offerLink = $lotLink.attr('href');
 
             if (!offerLink) {
-                console.warn('[FP Tools] Не найдена ссылка на лот, пропуск.');
                 errorCount++;
                 continue;
             }
@@ -235,7 +230,6 @@ function setupActionProcessing() {
             }
 
             if (!offerId || !nodeId) {
-                console.warn(`[FP Tools] Не удалось определить ID лота (${offerId}) или категории (${nodeId}), пропуск.`);
                 errorCount++;
                 continue;
             }
@@ -276,7 +270,6 @@ function setupActionProcessing() {
                 result = await response.json();
 
                 if (result && (result.error === 0 || result.error === false || typeof result.error === 'undefined') && result.done !== false) {
-                    console.log(`[FP Tools] Действие '${actionType}' для лота #${offerId} успешно.`);
                     successCount++;
                     
                     if (actionType === 'delete') {
@@ -301,7 +294,6 @@ function setupActionProcessing() {
                     throw new Error(errorMessage);
                 }
             } catch (error) {
-                console.error(`[FP Tools] Не удалось выполнить действие (${actionType}) для лота #${offerId}:`, error);
                 updateLog(`Ошибка "${lotName}": ${error.message}`, true);
                 errorCount++;
             }
@@ -319,10 +311,98 @@ function setupActionProcessing() {
         }
         toggleActions(false);
     }
+    
+    async function processPriceChange(changeValueStr) {
+        const match = changeValueStr.match(/^([+-])(\d+(\.\d+)?)$/);
+        if (!match) {
+            if (typeof showNotification === 'function') showNotification('Неверный формат. Используйте +10 или -5.5', true);
+            return;
+        }
 
+        const operation = match[1];
+        const value = parseFloat(match[2]);
+        const selectedCheckboxes = $('.lot-box input:checked').get();
+        if (selectedCheckboxes.length === 0) return;
+
+        const csrfToken = getCsrfToken();
+        if (!csrfToken) return;
+
+        toggleActions(true);
+        let successCount = 0;
+        let errorCount = 0;
+        const isProfileSalesPage = window.location.pathname.includes('/users/');
+
+        for (const checkbox of selectedCheckboxes) {
+            const $lotLink = $(checkbox).closest('a.tc-item');
+            const lotName = $lotLink.find(".tc-desc-text").text().trim();
+            const offerLink = $lotLink.attr('href');
+
+            if (!offerLink) { errorCount++; continue; }
+
+            const offerIdMatch = offerLink.match(/(?:offer=|id=)(\d+)/);
+            const offerId = offerIdMatch ? offerIdMatch[1] : $lotLink.data('offer');
+            
+            let nodeId;
+            if (isProfileSalesPage) {
+                nodeId = $lotLink.closest('.offer').find('.offer-list-title a').attr('href').split('lots/')[1].split('/')[0];
+            } else {
+                const nodeIdMatch = window.location.pathname.match(/\/lots\/(\d+)/);
+                nodeId = nodeIdMatch ? nodeIdMatch[1] : null;
+            }
+
+            if (!offerId || !nodeId) { errorCount++; continue; }
+
+            updateLog(`Изменение цены: ${lotName}...`);
+
+            try {
+                const lotParams = await getLotParams(nodeId, offerId);
+                const formData = new URLSearchParams(lotParams);
+                const currentPrice = parseFloat(formData.get('price'));
+                if (isNaN(currentPrice)) throw new Error("Не удалось получить текущую цену.");
+
+                const newPrice = operation === '+' ? currentPrice + value : currentPrice - value;
+                formData.set('price', Math.max(0, newPrice).toFixed(2));
+                formData.set('csrf_token', csrfToken);
+                
+                const response = await fetch("https://funpay.com/lots/offerSave", {
+                    method: "POST", headers: { "X-Requested-With": "XMLHttpRequest", 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' }, body: formData
+                });
+                
+                if (!response.ok) throw new Error(`Ошибка сети: ${response.statusText}`);
+                const result = await response.json();
+                
+                if (result && (result.error === 0 || result.error === false)) {
+                    successCount++;
+                    $lotLink.find('.tc-price').text(`${newPrice.toFixed(2)} ₽`);
+                } else {
+                    throw new Error(result.msg || 'Ошибка API FunPay');
+                }
+            } catch (error) {
+                updateLog(`Ошибка "${lotName}": ${error.message}`, true);
+                errorCount++;
+            }
+            await new Promise(resolve => setTimeout(resolve, 700));
+        }
+        
+        const finalText = `Завершено. Цены изменены: ${successCount}, ошибки: ${errorCount}.`;
+        if (typeof showNotification === 'function') showNotification(finalText, errorCount > 0);
+        updateLog(finalText, errorCount > 0);
+        toggleActions(false);
+    }
+    
     $actionsBar.on('click', '.delete-lot', () => processSelectedLots('delete'));
     $actionsBar.on('click', '.dublicate', () => processSelectedLots('duplicate'));
     $actionsBar.on('click', '.deactivate-lot', () => processSelectedLots('deactivate'));
+    
+    $(document).on('click', '.actions .price-editor', function() {
+        $('#fp-price-editor-overlay').fadeIn(200);
+    });
+    
+    $('#fp-price-editor-apply').on('click', function() {
+        const value = $('#fp-price-change-input').val();
+        $('#fp-price-editor-overlay').fadeOut(200);
+        processPriceChange(value);
+    });
 }
 
 async function reactivateLot(offerId, nodeId, button) {
@@ -371,7 +451,6 @@ async function reactivateLot(offerId, nodeId, button) {
             throw new Error(result.msg || 'Ошибка API FunPay');
         }
     } catch (error) {
-        console.error("Reactivation failed:", error);
         button.disabled = false;
         button.textContent = 'Включить';
         if (typeof showNotification === 'function') showNotification(`Ошибка: ${error.message}`, true);
@@ -408,13 +487,40 @@ function createReactivationPopup() {
     });
 }
 
+function createPriceEditorPopup() {
+    if ($('#fp-price-editor-overlay').length > 0) return;
+    const popupHtml = `
+        <div id="fp-price-editor-overlay">
+            <div id="fp-price-editor-popup">
+                <h3>Редактор цен</h3>
+                <p>Введите значение, на которое нужно изменить цену. Например: <strong>+10</strong> (повысить на 10) или <strong>-5.5</strong> (понизить на 5.5).</p>
+                <input type="text" id="fp-price-change-input" placeholder="+10 или -5.5">
+                <div class="price-editor-actions">
+                    <button id="fp-price-editor-cancel">Отмена</button>
+                    <button id="fp-price-editor-apply">Применить</button>
+                </div>
+            </div>
+        </div>
+    `;
+    $('body').append(popupHtml);
+    
+    $('#fp-price-editor-overlay').on('click', function(e) {
+        if ($(e.target).is('#fp-price-editor-overlay')) {
+            $(this).fadeOut(200);
+        }
+    });
+    $('#fp-price-editor-cancel').on('click', function() {
+        $('#fp-price-editor-overlay').fadeOut(200);
+    });
+}
+
 async function showReactivationPopup() {
     const { fpToolsDeactivatedLots = [] } = await chrome.storage.local.get('fpToolsDeactivatedLots');
     const list = $('.fp-reactivate-list');
     list.empty();
     
     if (fpToolsDeactivatedLots.length === 0) {
-        list.html('<li style="text-align:center; color:#888;">Нет отключенных лотов.</li>');
+        list.html('<li style="text-align:center; color:#888;">Нет отключенных лотов. (которые вы отключали через выбор лотов от расширения)</li>');
     } else {
         fpToolsDeactivatedLots.sort((a, b) => b.deactivatedAt - a.deactivatedAt).forEach(lot => {
             const date = new Date(lot.deactivatedAt).toLocaleString();

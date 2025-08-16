@@ -93,7 +93,6 @@ async function runSalesUpdateCycle() {
         });
 
     } catch (e) {
-        // console.error("FP Tools: Error during sales update cycle:", e.message);
     } finally {
         console.log("FP Tools: Sales update cycle finished.");
         const existingContexts = await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] });
@@ -179,7 +178,6 @@ async function runEventCheckCycle() {
         }
 
     } catch (e) {
-        // console.error("FP Tools: Error during event check cycle:", e.message);
     }
 }
 
@@ -248,6 +246,12 @@ async function processReviewNotification(orderId, settings, myUsername) {
         const orderPageHtml = await orderPageResponse.text();
 
         const reviewDetails = await parseHtmlViaOffscreen(orderPageHtml, 'parseOrderPageForReview');
+
+        if (reviewDetails && reviewDetails.sellerName && reviewDetails.sellerName !== myUsername) {
+            console.log(`FP Tools: Skipping review for order #${orderId}. User is not the seller. (Seller: ${reviewDetails.sellerName}, User: ${myUsername})`);
+            return;
+        }
+
         if (!reviewDetails || !reviewDetails.stars) {
             console.log(`FP Tools: No review found on order page #${orderId} or parsing failed.`);
             return;
@@ -359,7 +363,6 @@ async function getAuthDetailsForBackground() {
             };
         }
     } catch (e) {
-        // console.error("FP Tools: Failed to fetch main page for auth details:", e);
     }
     return {};
 }
@@ -428,7 +431,6 @@ async function runDiscordCheckCycle() {
         await chrome.storage.local.set({ processedIds: updatedProcessedIds });
 
     } catch (e) {
-        // console.error("FP Tools: Error during Discord check cycle:", e.message);
     }
 }
 
@@ -542,6 +544,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         chrome.storage.local.remove([
             'fpToolsSalesData', 'fpToolsFirstOrderId', 'fpToolsLastOrderId', 'fpToolsSalesLastUpdate'
         ]).then(() => sendResponse({success: true}));
+        return true;
+    }
+    if (request.action === 'getUserLotsList') {
+        (async () => {
+            try {
+                const response = await fetch(`https://funpay.com/users/${request.userId}/`);
+                const html = await response.text();
+                const lots = await parseHtmlViaOffscreen(html, 'parseUserLotsList');
+                sendResponse(lots);
+            } catch (e) {
+                sendResponse(null);
+            }
+        })();
         return true;
     }
     

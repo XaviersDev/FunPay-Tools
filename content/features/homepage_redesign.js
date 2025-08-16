@@ -38,8 +38,13 @@ function createGameIcon(game) {
     link.style.animationDuration = `${(Math.random() * 5 + 8).toFixed(2)}s`;
     const firstLetter = game.name.charAt(0).toUpperCase();
     const avatarColor = stringToHslColor(game.name, 70, 60);
-    const cleanGameName = game.name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9-]/g, '');
-    const domain = `${cleanGameName}.com`;
+    let domain;
+    if (game.name.toLowerCase() === 'telegram') {
+        domain = 'web.telegram.org';
+    } else {
+        const cleanGameName = game.name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9-]/g, '');
+        domain = `${cleanGameName}.com`;
+    }
     const iconUrl = `https://www.google.com/s2/favicons?sz=64&domain=${domain}`;
     link.innerHTML = `
         <div class="fp-fallback-icon" style="background-color: ${avatarColor};">${firstLetter}</div>
@@ -82,8 +87,13 @@ function createRedesignedUI(allGamesData, yourGamesData) {
         card.className = 'game-card';
         const firstLetter = game.name.charAt(0).toUpperCase();
         const avatarColor = stringToHslColor(game.name);
-        const cleanGameName = game.name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9-]/g, '');
-        const domain = `${cleanGameName}.com`;
+        let domain;
+        if (game.name.toLowerCase() === 'telegram') {
+            domain = 'web.telegram.org';
+        } else {
+            const cleanGameName = game.name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9-]/g, '');
+            domain = `${cleanGameName}.com`;
+        }
         const iconUrl = `https://www.google.com/s2/favicons?sz=64&domain=${domain}`;
         const categoriesHTML = game.categories.map(cat => `<a href="${cat.url}" class="category-tag">${cat.name}</a>`).join('');
         card.innerHTML = `
@@ -163,6 +173,12 @@ function setupSearchFilter() {
 }
 
 function initializeRedesign() {
+    // Удаляем стандартный фильтр игр FunPay, так как у нас есть свой.
+    const promoFilterForm = document.querySelector('.promo-games-filter');
+    if (promoFilterForm) {
+        promoFilterForm.remove();
+    }
+
     if (document.body.classList.contains('funpay-redesigned')) return;
     const originalContentContainer = document.querySelector('#content');
     if (!originalContentContainer) return;

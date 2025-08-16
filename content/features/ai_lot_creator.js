@@ -9,6 +9,12 @@ function createAIGeneratorUI() {
     if (!header) return;
     if (document.getElementById('fp-tools-ai-gen-btn-wrapper')) return;
 
+    let actionsContainer = document.querySelector('.fp-tools-lot-edit-actions-container');
+    if (!actionsContainer) {
+        actionsContainer = createElement('div', { class: 'fp-tools-lot-edit-actions-container' });
+        header.parentNode.insertBefore(actionsContainer, header.nextSibling);
+    }
+
     const wrapper = createElement('div', { id: 'fp-tools-ai-gen-btn-wrapper' });
     const button = createElement('button', { class: 'fp-tools-ai-gen-btn', id: 'fp-tools-ai-gen-btn' });
     button.innerHTML = `
@@ -19,7 +25,8 @@ function createAIGeneratorUI() {
     const canvas = createElement('canvas', { id: 'fp-tools-ai-gen-canvas' });
     
     wrapper.append(overlay, canvas, button);
-    header.parentNode.insertBefore(wrapper, header.nextSibling);
+    
+    actionsContainer.appendChild(wrapper);
 
     const modal = createModal();
     document.body.appendChild(modal);
@@ -232,4 +239,58 @@ async function handleAIGeneration() {
     }
 }
 
+function addTranslateButton() {
+    const enTabLink = document.querySelector('.lot-fields-multilingual .nav-tabs li[data-locale="en"] a');
+    if (!enTabLink || document.getElementById('fp-tools-translate-btn')) {
+        return;
+    }
+
+    const translateBtn = createElement('button', {
+        type: 'button',
+        id: 'fp-tools-translate-btn',
+        title: 'Перевести'
+    }, {}, 'Перевод');
+
+    enTabLink.parentNode.insertBefore(translateBtn, enTabLink.nextSibling);
+
+    translateBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        translateBtn.textContent = 'Перевожу...';
+        translateBtn.disabled = true;
+
+        try {
+            const data = {
+                title: document.querySelector('input[name="fields[summary][ru]"]').value,
+                description: document.querySelector('textarea[name="fields[desc][ru]"]').value,
+                buyerMessage: document.querySelector('textarea[name="fields[payment_msg][ru]"]').value
+            };
+
+            if (!data.title && !data.description) {
+                showNotification('Нечего переводить. Заполните русские поля.', true);
+                return;
+            }
+
+            const result = await chrome.runtime.sendMessage({ action: 'translateLotText', data: data });
+
+            if (result && result.success) {
+                document.querySelector('input[name="fields[summary][en]"]').value = result.data.title || '';
+                document.querySelector('textarea[name="fields[desc][en]"]').value = result.data.description || '';
+                document.querySelector('textarea[name="fields[payment_msg][en]"]').value = result.data.buyerMessage || '';
+                showNotification('Текст успешно переведен!', false);
+            } else {
+                throw new Error(result.error || 'Неизвестная ошибка перевода.');
+            }
+
+        } catch (error) {
+            showNotification(`Ошибка перевода: ${error.message}`, true);
+        } finally {
+            translateBtn.textContent = 'Перевод';
+            translateBtn.disabled = false;
+        }
+    });
+}
+
 createAIGeneratorUI();
+addTranslateButton();
