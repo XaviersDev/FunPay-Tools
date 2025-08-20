@@ -282,7 +282,12 @@ function initializeViewPromoIcons() {
             priceContainer.appendChild(iconContainer);
         }
 
-        const promoIcon = createElement('div', { class: 'promo-offer-icon fpt-promo-offer-highlight fp-tools-promo-icon' }, { marginLeft: '4px' });
+        const promoIcon = createElement('div', { 
+            class: 'promo-offer-icon fpt-promo-offer-highlight fp-tools-promo-icon',
+            title: 'Промо-лот'
+        }, { 
+            marginLeft: '4px' 
+        });
         iconContainer.appendChild(promoIcon);
     });
 }

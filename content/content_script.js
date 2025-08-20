@@ -50,7 +50,7 @@
                             if (!document.querySelector('.review-response-btn')) addReviewResponseButton();
                         }
                         if (node.querySelector('.contact-item.unread') || node.matches('.contact-item.unread')) {
-                            logNewMessagesToDiscord();
+                            
                         }
                         if (node.querySelector('textarea.textarea-lot-secrets') || node.matches('textarea.textarea-lot-secrets')) {
                             if (!document.getElementById('ad-manager-placeholder')) initializeAutoDeliveryManager();
@@ -114,7 +114,6 @@
         addChatTemplateButtons();
         initializeExactPrice();
         addReviewResponseButton();
-        logNewMessagesToDiscord();
         setupAIChatFeature();
         initializeFontTools();
         if(settings.enableCustomTheme !== false) applyCustomTheme();
@@ -130,6 +129,8 @@
         initializeCustomSound();
         initializeReviewSorter();
         initializeOverviewTour();
+        initializeMagicStickStyler();
+        initializeMarketAnalytics();
 
         chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             if (request.action === 'logToAutoBumpConsole') {

@@ -4101,3 +4101,107 @@ body.funpay-redesigned .promo-games {
     background: #0088cc;
 }
 
+i.promo-offer-icon {
+    display: none
+}
+
+
+.chat-msg-item .media-user-name {
+    display: flex;        
+    align-items: center;  
+}
+
+.chat-msg-author-label.label-primary {
+    background-color: rgba(45, 107, 179, 0.25);
+    color: #8cb4e0;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border: 1px solid rgba(45, 107, 179, 0.4);
+    margin-left: 8px;
+}
+
+.chat-msg-item .media-user-name .chat-msg-date {
+    margin-left: auto; 
+}
+
+.chat-msg-item .alert.alert-info {
+    background: linear-gradient(135deg, rgba(45, 107, 179, 0.15), rgba(83, 67, 161, 0.15));
+    border-radius: 8px;
+    border: none;
+    border-left: 3px solid #2d6bb3;
+    padding: 12px 15px 12px 20px;
+    color: #d0d0d0;
+    backdrop-filter: blur(2px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.chat-msg-item .alert.alert-info .alert-icon {
+    display: none
+}
+
+.chat-msg-item .alert.alert-info .chat-msg-text {
+    line-height: 1.6;
+    font-size: 14px;
+}
+
+.chat-msg-item .alert.alert-info .chat-msg-text a {
+    color: #58a6ff;
+    font-weight: 600;
+    text-decoration: none;
+    border-bottom: 1px dashed rgba(88, 166, 255, 0.5);
+    transition: color 0.2s ease, border-bottom-color 0.2s ease;
+}
+
+.chat-msg-item .alert.alert-info .chat-msg-text a:hover {
+    color: #8abfff;
+    border-bottom-color: rgba(138, 191, 255, 0.8);
+}
+
+@media (min-width: 768px) {
+  #header .container {
+    width: 75%; 
+    max-width: 100%;
+    padding-left: 20px;
+    padding-right: 20px;
+    box-sizing: border-box;
+  }
+}
+
+#fpTools-market-analytics-btn {
+    margin-bottom: 10px;
+    background: linear-gradient(45deg, #16a085, #f4d03f);
+    color: white;
+    border: none;
+}
+#fpTools-market-analytics-btn:hover {
+    opacity: 0.9;
+    color: white;
+}
+
+.fp-tools-analytics-container {
+    background: rgba(20, 20, 20, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 25px;
+    margin-bottom: 30px;
+    backdrop-filter: blur(10px);
+}
+.stat-card-min-price { border-left: 4px solid #F44336; }
+.stat-card-max-price { border-left: 4px solid #4CAF50; }
+
+#fpTools-market-analytics-btn {
+    margin-bottom: 10px;
+    background: #4a4f59;
+    color: #e0e0e0;
+    border: 1px solid #5c6375;
+    transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+#fpTools-market-analytics-btn:hover {
+    background-color: #5c6375;
+    border-color: #7d859c;
+    color: #fff;
+    transform: translateY(-0.7px);
+}

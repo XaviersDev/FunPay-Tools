@@ -1,92 +1,6 @@
-const RUSSIAN_MONTHS = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+// offscreen/offscreen.js
 
-function parseDate(dateString) {
-    if (!dateString) return Date.now();
-    const now = new Date();
-    const currentYear = now.getFullYear();
-
-    if (dateString.startsWith('сегодня') || dateString.startsWith('вчера')) {
-        const isToday = dateString.startsWith('сегодня');
-        const timePart = dateString.split(', ')[1];
-        if (!timePart) return Date.now();
-        const [hours, minutes] = timePart.split(':').map(Number);
-        const date = new Date();
-        if (!isToday) {
-            date.setDate(date.getDate() - 1);
-        }
-        date.setHours(hours, minutes, 0, 0);
-        return date.getTime();
-    }
-    
-    const withYearMatch = dateString.match(/(\d{1,2})\s(.+?)\s(\d{4}),\s(\d{1,2}):(\d{2})/);
-    if (withYearMatch) {
-        const day = parseInt(withYearMatch[1], 10);
-        const monthName = withYearMatch[2];
-        const monthIndex = RUSSIAN_MONTHS.indexOf(monthName.toLowerCase());
-        const year = parseInt(withYearMatch[3], 10);
-        const hours = parseInt(withYearMatch[4], 10);
-        const minutes = parseInt(withYearMatch[5], 10);
-        if (monthIndex > -1) return new Date(year, monthIndex, day, hours, minutes).getTime();
-    }
-
-    const withoutYearMatch = dateString.match(/(\d{1,2})\s(.+?),\s(\d{1,2}):(\d{2})/);
-    if (withoutYearMatch) {
-        const day = parseInt(withoutYearMatch[1], 10);
-        const monthName = withoutYearMatch[2];
-        const monthIndex = RUSSIAN_MONTHS.indexOf(monthName.toLowerCase());
-        const hours = parseInt(withoutYearMatch[3], 10);
-        const minutes = parseInt(withoutYearMatch[4], 10);
-        if (monthIndex > -1) return new Date(currentYear, monthIndex, day, hours, minutes).getTime();
-    }
-
-    console.warn("FP Tools: Unknown date format:", dateString);
-    return Date.now();
-}
-
-function parseSalesPage(html) {
-    try {
-        const doc = new DOMParser().parseFromString(html, "text/html");
-        const continueInput = doc.querySelector("input[type='hidden'][name='continue']");
-        const nextOrderId = continueInput ? continueInput.value : null;
-        const orderRows = doc.querySelectorAll("a.tc-item");
-
-        const orders = Array.from(orderRows).map(row => {
-            const orderId = row.querySelector(".tc-order")?.textContent?.substring(1);
-            if (!orderId) return null;
-
-            let status = "closed";
-            if (row.classList.contains("warning")) status = "refunded";
-            else if (row.classList.contains("info")) status = "paid";
-
-            const priceText = row.querySelector(".tc-price")?.textContent || "";
-            let currency = "UNKNOWN";
-            if (priceText.includes("₽")) currency = "RUB";
-            else if (priceText.includes("$")) currency = "USD";
-            else if (priceText.includes("€")) currency = "EUR";
-
-            const buyerEl = row.querySelector(".media-user-name span");
-            const buyerLink = buyerEl?.getAttribute("data-href")?.split("/");
-
-            return {
-                orderId,
-                description: row.querySelector(".order-desc div")?.textContent || "",
-                price: parseFloat(priceText.replace(/\s/g, "")) || 0,
-                currency,
-                buyerUsername: buyerEl?.textContent || "",
-                buyerId: buyerLink ? parseInt(buyerLink[buyerLink.length - 2] || "0", 10) : 0,
-                orderStatus: status,
-                orderDateText: row.querySelector(".tc-date-time")?.textContent || "",
-                orderDate: parseDate(row.querySelector(".tc-date-time")?.textContent),
-                subcategoryName: row.querySelector(".text-muted")?.textContent || ""
-            };
-        }).filter(Boolean); 
-
-        return { nextOrderId, orders };
-    } catch (e) {
-        console.error("FP Tools: Critical error in parseSalesPage.", e);
-        return { nextOrderId: null, orders: [] };
-    }
-}
+// ... (существующий код в файле, если он есть, оставьте)
 
 function parseOrderPageForReview(html) {
     try {
@@ -172,10 +86,11 @@ function parseUserLotsList(html) {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.target !== 'offscreen') return;
+    if (message.target !== 'offscreen') return true;
 
     if (message.action === 'parseSalesPage') {
-        sendResponse(parseSalesPage(message.html));
+        // Эта функция у вас могла быть, если нет - добавьте ее из MergedFiles.txt
+        // sendResponse(parseSalesPage(message.html)); 
     } else if (message.action === 'parseOrderPageForReview') {
         sendResponse(parseOrderPageForReview(message.html));
     } else if (message.action === 'parseChatList') {

@@ -262,6 +262,10 @@ function createMainPopup() {
                     <div class="setting-group"><h4 style="margin-top: 0;">Расположение</h4><div class="template-container"><div class="range-label"><label for="headerPositionSelect">Верхняя панель:</label></div><select id="headerPositionSelect"><option value="top">Вверх (по умолчанию)</option><option value="bottom">Вниз</option></select></div></div>
 
                     <div class="theme-actions-grid">
+                        <button id="enableMagicStickBtn" class="btn" style="grid-column: 1 / -1;">
+                            <span class="material-icons">auto_fix_normal</span>
+                            <span>Включить режим редактора</span>
+                        </button>
                         <button id="generatePaletteBtn" class="btn btn-default" style="display: flex; align-items: center; justify-content: center; gap: 8px;">
                             <span class="material-icons" style="font-size: 18px;">auto_fix_high</span>цвета фона
                         </button>

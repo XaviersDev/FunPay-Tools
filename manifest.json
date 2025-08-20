@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
     "name": "FunPay Tools",
-    "version": "2.1",
-    "description": "Помощник для продавцов на FunPay с AI, шаблонами и кастомизацией.",
+    "version": "2.3",
+    "description": "🔥 Лучшее расширение для FunPay! ⚡ 50+ инструментов • 🤖 ИИ-помощник • 📈 Аналитика • 🚀 Автоматизация • 💰 Больше продаж!",
     "permissions": [
         "storage",
         "tabs",
@@ -53,9 +53,9 @@
                 "content/features/accounts.js",
                 "content/features/ai_chat.js",
                 "content/features/auto_delivery.js",
-                "content/features/discord.js",
                 "content/features/homepage_redesign.js",
                 "content/features/lot_cloning.js",
+                "content/features/market_analytics.js",
                 "content/features/lot_management.js",
                 "content/features/templates.js",
                 "content/features/theme.js",
@@ -71,13 +71,15 @@
                 "content/features/notes.js",
                 "content/features/auto_review.js",
                 "content/features/overview_tour.js",
+                "content/features/magicstick.js",
                 "content/ui/main_popup.js",
                 "content/content_script.js"
             ],
             "css": [
                 "css/content_styles.css",
                 "css/image_generator.css",
-                "css/ai_creator.css"
+                "css/ai_creator.css",
+                "css/live_styler.css"
             ],
             "run_at": "document_idle"
         }

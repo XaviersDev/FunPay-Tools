@@ -1,3 +1,5 @@
+// background/background.js
+
 import { fetchAIResponse, fetchAILotGeneration, fetchAITranslation, fetchAIReviewResponse } from './ai.js';
 import { BUMP_ALARM_NAME, startAutoBump, stopAutoBump, runBumpCycle } from './autobump.js';
 
@@ -5,15 +7,77 @@ const OFFSCREEN_DOCUMENT_PATH = 'offscreen/offscreen.html';
 const EVENT_CHECK_ALARM_NAME = 'fpToolsEventCheck';
 const DISCORD_LOG_ALARM_NAME = 'fpToolsDiscordCheck';
 
-let lastChatTag = null; 
-const processedReviewMessages = new Set(); 
-let knownChats = new Set();
-let isFirstRun = true;
+// "Память" фонового скрипта для отслеживания событий
+let lastChatTag = null;
+const processedReviewMessages = new Set();
 
+// --- НОВАЯ "ПАМЯТЬ" СПЕЦИАЛЬНО ДЛЯ DISCORD ---
 let lastDiscordChatTag = null;
-const processedDiscordMessageIds = new Set();
+// const processedDiscordMessageIds = new Set(); // <--- УДАЛЯЕМ ЭТУ СТРОКУ
 
-async function parseHtmlViaOffscreen(html, action = 'parseSalesPage') {
+// --- НАДЁЖНАЯ ФУНКЦИЯ АУТЕНТИФИКАЦИИ ---
+async function getAuthDetailsForBackground() {
+    const goldenKeyCookie = await chrome.cookies.get({ url: 'https://funpay.com', name: 'golden_key' });
+    if (!goldenKeyCookie || !goldenKeyCookie.value) {
+        console.error("FP Tools: golden_key не найден. Пользователь не авторизован.");
+        return {};
+    }
+    const golden_key = goldenKeyCookie.value;
+
+    const tabs = await chrome.tabs.query({ url: "https://funpay.com/*" });
+    for (const tab of tabs) {
+        try {
+            if (tab.discarded) continue;
+            const response = await chrome.tabs.sendMessage(tab.id, { action: "getAppData" });
+            if (response && response.success) {
+                const appData = Array.isArray(response.data) ? response.data[0] : response.data;
+                if (appData && appData['csrf-token'] && appData.userId) {
+                    console.log("FP Tools: Auth-данные получены из активной вкладки.");
+                    return {
+                        golden_key: golden_key,
+                        csrf_token: appData['csrf-token'],
+                        userId: appData.userId,
+                        username: appData.userName,
+                    };
+                }
+            }
+        } catch (e) {
+            console.warn(`FP Tools: Не удалось получить appData из вкладки ${tab.id}. Пробую следующую.`);
+        }
+    }
+
+    console.log("FP Tools: Не удалось получить appData от вкладок, делаю прямой запрос к FunPay...");
+    try {
+        const response = await fetch("https://funpay.com/", {
+            headers: { "cookie": `golden_key=${golden_key}` }
+        });
+        if (!response.ok) throw new Error(`Статус ответа: ${response.status}`);
+        const text = await response.text();
+
+        const appDataMatch = text.match(/<body[^>]*data-app-data="([^"]+)"/);
+        if (appDataMatch && appDataMatch[1]) {
+            const appDataString = appDataMatch[1].replace(/&quot;/g, '"');
+            const appData = JSON.parse(appDataString);
+            const userData = Array.isArray(appData) ? appData[0] : appData;
+            if (userData && userData['csrf-token'] && userData.userId) {
+                console.log("FP Tools: Auth-данные успешно получены через прямой запрос.");
+                return {
+                    golden_key: golden_key,
+                    csrf_token: userData['csrf-token'],
+                    userId: userData.userId,
+                    username: userData.userName,
+                };
+            }
+        }
+        throw new Error("Не удалось найти data-app-data в HTML страницы.");
+    } catch (e) {
+        console.error("FP Tools: Прямой запрос для получения appData также провалился.", e.message);
+        return { golden_key };
+    }
+}
+
+// Функция для парсинга HTML через offscreen документ
+async function parseHtmlViaOffscreen(html, action) {
     const existingContexts = await chrome.runtime.getContexts({
         contextTypes: ['OFFSCREEN_DOCUMENT'],
         documentUrls: [chrome.runtime.getURL(OFFSCREEN_DOCUMENT_PATH)]
@@ -34,80 +98,13 @@ async function parseHtmlViaOffscreen(html, action = 'parseSalesPage') {
     });
 }
 
-async function runSalesUpdateCycle() {
-    console.log("FP Tools: Starting sales update cycle.");
-    try {
-        const data = await chrome.storage.local.get(['fpToolsSalesData', 'fpToolsFirstOrderId', 'fpToolsLastOrderId']);
-        let sales = data.fpToolsSalesData || {};
-        let firstId = data.fpToolsFirstOrderId || null;
-        let lastId = data.fpToolsLastOrderId || null;
-
-        const goldenKeyCookie = await chrome.cookies.get({ url: 'https://funpay.com', name: 'golden_key' });
-        if (!goldenKeyCookie) throw new Error("golden_key not found.");
-        const headers = { 'Cookie': `golden_key=${goldenKeyCookie.value}` };
-
-        const initialResponse = await fetch('https://funpay.com/orders/trade', { headers });
-        if (!initialResponse.ok) throw new Error(`Initial fetch failed: ${initialResponse.status}`);
-        const initialHtml = await initialResponse.text();
-        const { orders: newestOrders } = await parseHtmlViaOffscreen(initialHtml, 'parseSalesPage');
-        
-        if (newestOrders && newestOrders.length > 0) {
-            newestOrders.forEach(o => sales[o.orderId] = o);
-            firstId = newestOrders[0].orderId;
-            if (!lastId) {
-                lastId = newestOrders[newestOrders.length - 1].orderId;
-            }
-        }
-        
-        let currentLastId = lastId;
-        for (let i = 0; i < 200; i++) {
-            if (!currentLastId) break;
-            
-            const postResponse = await fetch('https://funpay.com/orders/trade', { 
-                method: 'POST', 
-                headers: { ...headers, 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-                body: `continue=${currentLastId}`
-            });
-            if (!postResponse.ok) break;
-            
-            const postHtml = await postResponse.text();
-            const { nextOrderId, orders } = await parseHtmlViaOffscreen(postHtml, 'parseSalesPage');
-
-            if (!orders || orders.length === 0) break;
-            
-            let reachedExisting = false;
-            orders.forEach(o => {
-                if(sales[o.orderId] && o.orderId !== currentLastId) reachedExisting = true;
-                sales[o.orderId] = o;
-            });
-            
-            currentLastId = orders[orders.length - 1].orderId;
-            if (reachedExisting || !nextOrderId) break;
-        }
-
-        await chrome.storage.local.set({
-            fpToolsSalesData: sales,
-            fpToolsFirstOrderId: firstId,
-            fpToolsLastOrderId: currentLastId,
-            fpToolsSalesLastUpdate: Date.now()
-        });
-
-    } catch (e) {
-    } finally {
-        console.log("FP Tools: Sales update cycle finished.");
-        const existingContexts = await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] });
-        if (existingContexts.length > 0) {
-            await chrome.offscreen.closeDocument();
-        }
-    }
-}
-
+// Главный цикл проверки событий (Авто-отзывы и Приветствия)
 async function runEventCheckCycle() {
-    console.log("FP Tools: Running event check cycle...");
-    const { fpToolsAutoReview, fpToolsGreetings } = await chrome.storage.local.get(['fpToolsAutoReview', 'fpToolsGreetings']);
+    console.log("FP Tools: Запуск цикла проверки событий...");
+    const settings = await chrome.storage.local.get(['fpToolsAutoReview', 'fpToolsGreetings', 'knownChatIds', 'initialGreetingRunDoneFor']);
 
-    const isAutoReviewEnabled = fpToolsAutoReview && fpToolsAutoReview.enabled;
-    const isGreetingsEnabled = fpToolsGreetings && fpToolsGreetings.enabled;
+    const isAutoReviewEnabled = settings.fpToolsAutoReview && settings.fpToolsAutoReview.enabled;
+    const isGreetingsEnabled = settings.fpToolsGreetings && settings.fpToolsGreetings.enabled;
 
     if (!isAutoReviewEnabled && !isGreetingsEnabled) {
         chrome.alarms.clear(EVENT_CHECK_ALARM_NAME);
@@ -116,7 +113,15 @@ async function runEventCheckCycle() {
 
     try {
         const auth = await getAuthDetailsForBackground();
-        if (!auth.golden_key || !auth.csrf_token || !auth.userId) throw new Error("Не удалось получить данные авторизации.");
+        if (!auth.golden_key || !auth.csrf_token || !auth.userId) {
+            throw new Error("Не удалось получить данные авторизации.");
+        }
+
+        const allKnownChats = settings.knownChatIds || {};
+        const currentUserKnownChats = new Set(allKnownChats[auth.userId] || []);
+        
+        const allInitialRuns = settings.initialGreetingRunDoneFor || [];
+        const isInitialRunForThisUser = !allInitialRuns.includes(auth.userId);
 
         const runnerPayload = {
             objects: JSON.stringify([{
@@ -138,49 +143,66 @@ async function runEventCheckCycle() {
             },
             body: new URLSearchParams(runnerPayload).toString()
         });
-        
+
         if (!response.ok) throw new Error(`Runner request failed: ${response.status}`);
-        
+
         const data = await response.json();
         const chatObject = data.objects.find(o => o.type === "chat_bookmarks");
-        
+
         if (!chatObject || !chatObject.data || !chatObject.data.html) return;
 
         lastChatTag = chatObject.tag;
 
         const parsedChats = await parseHtmlViaOffscreen(chatObject.data.html, 'parseChatList');
+        
+        if (isGreetingsEnabled && isInitialRunForThisUser && settings.fpToolsGreetings.cacheInitialChats !== false) {
+            console.log(`FP Tools: Первый запуск для пользователя ${auth.userId}, кэширую существующие чаты...`);
+            parsedChats.forEach(c => currentUserKnownChats.add(c.chatId));
+            
+            allKnownChats[auth.userId] = Array.from(currentUserKnownChats);
+            allInitialRuns.push(auth.userId);
 
-        if (isFirstRun) {
-            knownChats = new Set(parsedChats.map(c => c.chat_id));
-            isFirstRun = false;
-            console.log(`FP Tools: Initialized with ${knownChats.size} known chats.`);
+            await chrome.storage.local.set({ 
+                knownChatIds: allKnownChats,
+                initialGreetingRunDoneFor: allInitialRuns
+            });
+            console.log(`FP Tools: Для пользователя ${auth.userId} закэшировано ${currentUserKnownChats.size} чатов.`);
             return;
         }
-
+        
+        let newChatsFound = false;
         for (const chat of parsedChats) {
-            if (isGreetingsEnabled && !knownChats.has(chat.chat_id)) {
-                console.log(`FP Tools: Found new chat with ${chat.chat_name} (ID: ${chat.chat_id}). Sending greeting.`);
-                knownChats.add(chat.chat_id);
-                processGreeting(chat, fpToolsGreetings, auth);
+            if (isGreetingsEnabled && !currentUserKnownChats.has(chat.chatId)) {
+                console.log(`FP Tools: Обнаружен новый чат с ${chat.chatName} (ID: ${chat.chatId}) для пользователя ${auth.userId}. Отправка приветствия.`);
+                currentUserKnownChats.add(chat.chatId);
+                newChatsFound = true;
+                processGreeting(chat, settings.fpToolsGreetings, auth);
             }
 
             if (isAutoReviewEnabled) {
                 const reviewRegex = /(написал отзыв к заказу|изменил отзыв к заказу) #([A-Z0-9]{8})/;
-                const match = chat.last_message_text.match(reviewRegex);
-
-                if (match && !processedReviewMessages.has(chat.node_msg_id)) {
+                const match = chat.messageText.match(reviewRegex);
+                if (match && !processedReviewMessages.has(chat.msgId)) {
                     const orderId = match[2];
-                    console.log(`FP Tools: Found new review notification for order #${orderId}.`);
-                    processedReviewMessages.add(chat.node_msg_id);
-                    processReviewNotification(orderId, fpToolsAutoReview, auth.username);
+                    console.log(`FP Tools: Обнаружено уведомление об отзыве для заказа #${orderId}.`);
+                    processedReviewMessages.add(chat.msgId);
+                    processReviewNotification(orderId, settings.fpToolsAutoReview, auth.username);
                 }
             }
         }
+        
+        if (newChatsFound) {
+            allKnownChats[auth.userId] = Array.from(currentUserKnownChats);
+            await chrome.storage.local.set({ knownChatIds: allKnownChats });
+        }
 
     } catch (e) {
+        console.error(`FP Tools: Ошибка в цикле проверки событий: ${e.message}`);
     }
 }
 
+
+// Функция отправки приветствия
 async function processGreeting(chat, settings, auth) {
     try {
         const template = settings.text || "{welcome}, {buyername}!";
@@ -195,19 +217,19 @@ async function processGreeting(chat, settings, auth) {
         
         let processedText = template
             .replace(/{welcome}/g, getWelcomeMessage())
-            .replace(/{buyername}/g, chat.chat_name);
+            .replace(/{buyername}/g, chat.chatName);
         
         const aiRegex = /\{ai:([^}]+)\}/g;
         let match;
         while ((match = aiRegex.exec(processedText)) !== null) {
             const aiPrompt = match[1];
-            const aiResult = await fetchAIResponse(aiPrompt, "[Новый чат]", auth.username, "generate");
+            const aiResult = await fetchAIResponse(aiPrompt, `[Новый чат с пользователем ${chat.chatName}]`, auth.username, "generate");
             processedText = processedText.replace(match[0], aiResult.success ? aiResult.data : `[Ошибка AI]`);
         }
 
         const runnerPayload = {
             action: "chat_message",
-            data: { node: chat.chat_id, content: processedText }
+            data: { node: chat.chatId, content: processedText }
         };
 
         const postResponse = await fetch('https://funpay.com/runner/', {
@@ -223,37 +245,38 @@ async function processGreeting(chat, settings, auth) {
             }).toString()
         });
 
-        if (!postResponse.ok) throw new Error(`Network error on sending greeting: ${postResponse.status}`);
+        if (!postResponse.ok) throw new Error(`Ошибка сети при отправке приветствия: ${postResponse.status}`);
         const result = await postResponse.json();
         if (result.response && result.response.error) throw new Error(result.response.error);
         
-        console.log(`FP Tools: Greeting sent to ${chat.chat_name}.`);
+        console.log(`FP Tools: Приветствие отправлено ${chat.chatName}.`);
 
     } catch (error) {
-        console.error(`FP Tools: Failed to send greeting to ${chat.chat_name}:`, error);
+        console.error(`FP Tools: Не удалось отправить приветствие ${chat.chatName}:`, error);
     }
 }
 
+// Функция для обработки отзывов
 async function processReviewNotification(orderId, settings, myUsername) {
     try {
         const auth = await getAuthDetailsForBackground();
-        if (!auth.golden_key || !auth.csrf_token || !auth.userId) throw new Error("Auth details unavailable for processing.");
-        
+        if (!auth.golden_key || !auth.csrf_token || !auth.userId) throw new Error("Данные для авторизации недоступны.");
+
         const orderPageResponse = await fetch(`https://funpay.com/orders/${orderId}/`, {
             headers: { "cookie": `golden_key=${auth.golden_key}` }
         });
-        if (!orderPageResponse.ok) throw new Error(`Failed to fetch order page for ${orderId}`);
+        if (!orderPageResponse.ok) throw new Error(`Не удалось загрузить страницу заказа #${orderId}`);
         const orderPageHtml = await orderPageResponse.text();
 
         const reviewDetails = await parseHtmlViaOffscreen(orderPageHtml, 'parseOrderPageForReview');
 
         if (reviewDetails && reviewDetails.sellerName && reviewDetails.sellerName !== myUsername) {
-            console.log(`FP Tools: Skipping review for order #${orderId}. User is not the seller. (Seller: ${reviewDetails.sellerName}, User: ${myUsername})`);
+            console.log(`FP Tools: Пропуск отзыва к заказу #${orderId}. Пользователь не является продавцом. (Продавец: ${reviewDetails.sellerName}, Пользователь: ${myUsername})`);
             return;
         }
 
         if (!reviewDetails || !reviewDetails.stars) {
-            console.log(`FP Tools: No review found on order page #${orderId} or parsing failed.`);
+            console.log(`FP Tools: Отзыв на странице заказа #${orderId} не найден или произошла ошибка парсинга.`);
             return;
         }
 
@@ -263,7 +286,7 @@ async function processReviewNotification(orderId, settings, myUsername) {
         if (settings.mode === 'ai') {
             const prompt = settings.aiPrompt || "Напиши вежливую благодарность за {stars} звездочку. Товар: {lotname}.";
             const finalPrompt = prompt.replace('{stars}', stars).replace('{lotname}', lotName);
-            
+
             const aiResponse = await fetchAIReviewResponse({
                 prompt: finalPrompt, stars, lotName, myUsername
             });
@@ -273,7 +296,6 @@ async function processReviewNotification(orderId, settings, myUsername) {
             } else {
                 throw new Error(aiResponse.error || 'Ошибка генерации ответа ИИ.');
             }
-
         } else if (settings.mode === 'manual') {
             replyText = settings.manualReplies[stars] || '';
         } else if (settings.mode === 'random') {
@@ -283,7 +305,10 @@ async function processReviewNotification(orderId, settings, myUsername) {
             }
         }
 
-        if (!replyText.trim()) return;
+        if (!replyText.trim()) {
+            console.log(`FP Tools: Текст ответа для ${stars}⭐ пуст. Пропуск.`);
+            return;
+        }
 
         const now = new Date();
         const dateStr = `${now.getDate().toString().padStart(2, '0')}.${(now.getMonth() + 1).toString().padStart(2, '0')}.${now.getFullYear()}`;
@@ -306,11 +331,11 @@ async function processReviewNotification(orderId, settings, myUsername) {
             body: formData.toString()
         });
 
-        if (!postResponse.ok) throw new Error(`Network error on posting review: ${postResponse.status}`);
+        if (!postResponse.ok) throw new Error(`Ошибка сети при публикации ответа: ${postResponse.status}`);
         const result = await postResponse.json();
         if (result.error) throw new Error(result.msg || 'Неизвестная ошибка API FunPay.');
 
-        console.log(`FP Tools: Successfully posted auto-reply for order #${orderId}`);
+        console.log(`FP Tools: Успешно опубликован авто-ответ для заказа #${orderId}`);
         chrome.notifications.create(`review-${orderId}-${Date.now()}`, {
             type: 'basic',
             iconUrl: 'icons/icon128.png',
@@ -319,8 +344,8 @@ async function processReviewNotification(orderId, settings, myUsername) {
         });
 
     } catch (error) {
-        console.error(`FP Tools: Failed to process review for order #${orderId}:`, error);
-        chrome.notifications.create(`review-error-${orderId}-${Date.now()}`,{
+        console.error(`FP Tools: Не удалось обработать отзыв к заказу #${orderId}:`, error);
+        chrome.notifications.create(`review-error-${orderId}-${Date.now()}`, {
             type: 'basic',
             iconUrl: 'icons/icon128.png',
             title: 'FP Tools: Ошибка авто-ответа',
@@ -329,68 +354,66 @@ async function processReviewNotification(orderId, settings, myUsername) {
     }
 }
 
-async function getAuthDetailsForBackground() {
-    const goldenKeyCookie = await chrome.cookies.get({ url: 'https://funpay.com', name: 'golden_key' });
-    if (!goldenKeyCookie) return {};
-    
-    const tabs = await chrome.tabs.query({ url: "https://funpay.com/*" });
-    for (const tab of tabs) {
-        try {
-            const response = await chrome.tabs.sendMessage(tab.id, { action: "getAppData" });
-            if (response && response.success) {
-                const appData = response.data[0] || response.data;
-                return {
-                    golden_key: goldenKeyCookie.value,
-                    csrf_token: appData['csrf-token'],
-                    userId: appData.userId,
-                    username: appData.userName,
-                };
+// --- СЕКЦИЯ РАБОТЫ С DISCORD ---
+async function sendDiscordNotification(chat, settings) {
+    let content = "";
+    if (settings.pingEveryone) content += "@everyone ";
+    if (settings.pingHere) content += "@here ";
+
+    const payload = {
+        content: content.trim(),
+        embeds: [{
+            author: {
+                name: chat.chatName,
+                url: `https://funpay.com/chat/?node=${chat.chatId}`,
+                icon_url: chat.avatarUrl || 'https://funpay.com/img/layout/avatar.png'
+            },
+            description: chat.messageText.substring(0, 2000),
+            color: 5814783,
+            footer: {
+                text: `FP Tools • ${new Date().toLocaleTimeString()}`
             }
-        } catch (e) {}
-    }
+        }]
+    };
 
     try {
-        const mainPage = await fetch("https://funpay.com/", { headers: { "cookie": `golden_key=${goldenKeyCookie.value}` } });
-        const text = await mainPage.text();
-        const appDataMatch = text.match(/<body data-app-data="([^"]+)">/);
-        if(appDataMatch) {
-            const appData = JSON.parse(appDataMatch[1].replace(/&quot;/g, '"'))[0];
-             return {
-                golden_key: goldenKeyCookie.value,
-                csrf_token: appData['csrf-token'],
-                userId: appData.userId,
-                username: appData.userName,
-            };
+        const response = await fetch(settings.webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+            console.error('FP Tools: Не удалось отправить сообщение в Discord, статус:', response.status);
+        } else {
+            console.log(`FP Tools: Уведомление о сообщении от ${chat.chatName} отправлено в Discord.`);
         }
-    } catch (e) {
+    } catch (error) {
+        console.error('FP Tools: Ошибка при отправке сообщения в Discord:', error);
     }
-    return {};
 }
 
+// Новый цикл проверки специально для Discord
 async function runDiscordCheckCycle() {
-    console.log("FP Tools: Running Discord check cycle...");
-    const { fpToolsDiscord } = await chrome.storage.local.get('fpToolsDiscord');
+    // ИЗМЕНЕНИЕ: Загружаем хранилище отправленных сообщений вместе с настройками
+    const { fpToolsDiscord, fpToolsProcessedDiscordIds } = await chrome.storage.local.get(['fpToolsDiscord', 'fpToolsProcessedDiscordIds']);
 
     if (!fpToolsDiscord || !fpToolsDiscord.enabled || !fpToolsDiscord.webhookUrl) {
         chrome.alarms.clear(DISCORD_LOG_ALARM_NAME);
         return;
     }
+    
+    // ИЗМЕНЕНИЕ: Используем Set, инициализированный из хранилища
+    const processedDiscordMessageIds = new Set(fpToolsProcessedDiscordIds || []);
 
     try {
         const auth = await getAuthDetailsForBackground();
-        if (!auth.golden_key || !auth.csrf_token || !auth.userId) throw new Error("Не удалось получить данные авторизации.");
-
-        const { lastTag, processedIds } = await chrome.storage.local.get({
-            lastTag: '0000000000',
-            processedIds: []
-        });
-        const processedSet = new Set(processedIds);
+        if (!auth.golden_key || !auth.csrf_token || !auth.userId) throw new Error("Нет данных авторизации для Discord-цикла.");
 
         const runnerPayload = {
             objects: JSON.stringify([{
                 type: "chat_bookmarks",
                 id: auth.userId,
-                tag: lastTag,
+                tag: lastDiscordChatTag || "0000000000",
                 data: false
             }]),
             request: false,
@@ -406,85 +429,50 @@ async function runDiscordCheckCycle() {
             },
             body: new URLSearchParams(runnerPayload).toString()
         });
-        
-        if (!response.ok) throw new Error(`Runner request failed: ${response.status}`);
-        
+
+        if (!response.ok) throw new Error(`Runner-запрос для Discord провалился: ${response.status}`);
+
         const data = await response.json();
         const chatObject = data.objects.find(o => o.type === "chat_bookmarks");
-        
+
         if (!chatObject || !chatObject.data || !chatObject.data.html) return;
 
-        const newTag = chatObject.tag;
-        await chrome.storage.local.set({ lastTag: newTag });
+        lastDiscordChatTag = chatObject.tag;
 
         const parsedChats = await parseHtmlViaOffscreen(chatObject.data.html, 'parseChatList');
-
+        
+        let newMessagesToSend = false;
         for (const chat of parsedChats) {
-            if (chat.isUnread && !processedSet.has(chat.msgId)) {
-                console.log(`FP Tools: Found new message from ${chat.chatName}, sending to Discord.`);
-                sendDiscordNotification(chat, fpToolsDiscord);
-                processedSet.add(chat.msgId);
+            // ИЗМЕНЕНИЕ: Проверяем по Set, как и раньше
+            if (chat.isUnread && !processedDiscordMessageIds.has(chat.msgId)) {
+                await sendDiscordNotification(chat, fpToolsDiscord);
+                processedDiscordMessageIds.add(chat.msgId);
+                newMessagesToSend = true;
             }
         }
-        
-        const updatedProcessedIds = Array.from(processedSet).slice(-200);
-        await chrome.storage.local.set({ processedIds: updatedProcessedIds });
+
+        // ИЗМЕНЕНИЕ: Если были отправлены новые сообщения, сохраняем обновленный Set в хранилище
+        if (newMessagesToSend) {
+            let idsToStore = Array.from(processedDiscordMessageIds);
+            // Ограничиваем размер хранилища, чтобы оно не росло бесконечно
+            if (idsToStore.length > 200) {
+                idsToStore = idsToStore.slice(-200); // Оставляем только 200 последних ID
+            }
+            await chrome.storage.local.set({ fpToolsProcessedDiscordIds: idsToStore });
+        }
 
     } catch (e) {
+        console.error(`FP Tools: Ошибка в цикле проверки Discord: ${e.message}`);
     }
 }
 
-async function sendDiscordNotification(chat, settings) {
-    let content = "";
-    if (settings.pingEveryone) content += "@everyone ";
-    if (settings.pingHere) content += "@here ";
 
-    const embed = {
-        author: {
-            name: chat.chatName,
-            url: `https://funpay.com/chat/?node=${chat.chatId}`,
-            icon_url: chat.avatarUrl || 'https://funpay.com/img/layout/avatar.png'
-        },
-        description: chat.messageText,
-        color: 3447003,
-        timestamp: new Date().toISOString(),
-        footer: {
-            text: "FunPay Tools"
-        }
-    };
-
-    const payload = {
-        content: content.trim(),
-        embeds: [embed]
-    };
-
-    try {
-        const response = await fetch(settings.webhookUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`FP Tools: Discord webhook error: ${response.status}`, errorText);
-            if (response.status === 404 || response.status === 401) {
-                chrome.notifications.create(`discord-error-${Date.now()}`, {
-                    type: 'basic', iconUrl: 'icons/icon128.png',
-                    title: 'FP Tools: Ошибка Discord',
-                    message: `Не удалось отправить уведомление. Пожалуйста, проверьте правильность Webhook URL.`
-                });
-            }
-        }
-    } catch (error) {
-        console.error('FP Tools: Failed to send Discord notification:', error.message);
-    }
-}
-
+// --- Главный обработчик сообщений ---
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.target === 'offscreen') {
         return;
     }
-    
+
     if (request.action === "getAIProcessedText") {
         fetchAIResponse(request.text, request.context, request.myUsername, request.type).then(sendResponse);
         return true;
@@ -559,10 +547,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         })();
         return true;
     }
-    
+
     return false;
 });
 
+// --- Обработчики будильников ---
 chrome.alarms.onAlarm.addListener(async (alarm) => {
     if (alarm.name === BUMP_ALARM_NAME) {
         await runBumpCycle();
@@ -614,13 +603,22 @@ chrome.runtime.onInstalled.addListener((details) => {
             hideBalance: false,
             viewSellersPromo: true,
             fpToolsAutoReview: { enabled: false, mode: 'ai' },
-            fpToolsGreetings: { enabled: false, text: '{welcome}, {buyername}!' },
+            fpToolsGreetings: { enabled: false, text: '{welcome}, {buyername}!', cacheInitialChats: true },
             fpToolsDiscord: { enabled: false, webhookUrl: '', pingEveryone: false, pingHere: false }
         });
-    } else {
-        setupInitialAlarms();
+    } else if (details.reason === 'update') {
+        chrome.storage.local.get(['fpToolsGreetings'], (settings) => {
+            if (typeof settings.fpToolsGreetings?.cacheInitialChats === 'undefined') {
+                const updatedGreetings = settings.fpToolsGreetings || { enabled: false, text: '{welcome}, {buyername}!' };
+                updatedGreetings.cacheInitialChats = true;
+                chrome.storage.local.set({ fpToolsGreetings: updatedGreetings });
+            }
+        });
     }
+    
+    setupInitialAlarms();
 });
+
 
 chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
@@ -634,7 +632,6 @@ chrome.storage.onChanged.addListener((changes, area) => {
                 chrome.alarms.get(EVENT_CHECK_ALARM_NAME, (alarm) => {
                     if (!alarm) {
                         chrome.alarms.create(EVENT_CHECK_ALARM_NAME, { delayInMinutes: 1, periodInMinutes: 1 });
-                        isFirstRun = true;
                         runEventCheckCycle();
                     }
                 });
@@ -660,6 +657,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 chrome.runtime.onUpdateAvailable.addListener(function(details) {
-  console.log("FP Tools: доступно обновление до версии " + details.version + ". применение...");
-  chrome.runtime.reload();
+    console.log("FP Tools: доступно обновление до версии " + details.version + ". применение...");
+    chrome.runtime.reload();
 });
+
+// Пустая функция для совместимости
+function runSalesUpdateCycle() {}
