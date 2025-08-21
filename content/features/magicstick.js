@@ -5,7 +5,7 @@ class MagicStickStyler {
         this.isActive = false;
         this.hoveredEl = null;
         this.selectedEl = null;
-        this.activeSelector = null; // Новый! Хранит выбранный пользователем селектор
+        this.activeSelector = null;
         this.isClickThroughActive = false;
         this.savedStyles = {}; // { 'selector': { 'property': 'value' } }
 
@@ -14,7 +14,7 @@ class MagicStickStyler {
             panelEl: null,
             exitBtn: null,
             myStylesModal: null,
-            selectorModal: null, // Новый!
+            selectorModal: null,
             dynamicStyleTag: null,
             persistentStyleTag: null
         };
@@ -127,19 +127,30 @@ class MagicStickStyler {
     updatePanelValues() {
         if (!this.selectedEl) return;
         const computed = window.getComputedStyle(this.selectedEl);
-        
+        const selector = this.activeSelector;
+        const hoverSelector = selector + ':hover';
+
         const getCleanValue = (prop, unit = 'px') => {
             let val = computed.getPropertyValue(prop);
             if (unit) val = val.replace(unit, '');
             return parseFloat(val) || 0;
         };
         
-        document.getElementById('ms-selected-element-name').textContent = this.activeSelector || this.getElementDisplayName(this.selectedEl);
+        document.getElementById('ms-selected-element-name').textContent = selector || this.getElementDisplayName(this.selectedEl);
         document.getElementById('ms-color').value = this.rgbToHex(computed.color);
-        document.getElementById('ms-bg-color').value = this.rgbToHex(computed.backgroundColor);
         document.getElementById('ms-font-size').value = getCleanValue('font-size');
         document.getElementById('ms-opacity').value = getCleanValue('opacity', '');
         document.getElementById('ms-border-radius').value = getCleanValue('border-radius');
+        
+        const bgColor = this.rgbToHex(computed.backgroundColor, true);
+        document.getElementById('ms-bg-color').value = bgColor.hex;
+        document.getElementById('ms-bg-opacity').value = bgColor.alpha;
+
+        const hoverStyles = this.savedStyles[hoverSelector] || {};
+        const underlineBtn = document.getElementById('ms-hover-underline');
+        underlineBtn.classList.toggle('active', hoverStyles['text-decoration'] === 'underline');
+        document.getElementById('ms-hover-color').value = hoverStyles['color'] || '#ffffff';
+        document.getElementById('ms-hover-scale').value = parseFloat(hoverStyles['transform']?.replace('scale(', '')) || 1;
     }
 
     applyStyle(property, value, unit = '') {
@@ -151,6 +162,50 @@ class MagicStickStyler {
         }
         
         this.savedStyles[selector][property] = `${value}${unit}`;
+        this.updateDynamicStyles();
+    }
+    
+    // Применяет transition для плавности
+    applyTransition(property) {
+        if (!this.activeSelector) return;
+        const selector = this.activeSelector;
+        
+        if (!this.savedStyles[selector]) {
+            this.savedStyles[selector] = {};
+        }
+
+        let existingTransition = this.savedStyles[selector]['transition'] || '';
+        let transitions = existingTransition.split(',').map(s => s.trim()).filter(Boolean);
+        
+        // Удаляем старый transition для этого свойства, если он есть
+        transitions = transitions.filter(t => !t.startsWith(property));
+        
+        // Добавляем новый
+        transitions.push(`${property} 0.2s ease`);
+        
+        this.savedStyles[selector]['transition'] = transitions.join(', ');
+        this.updateDynamicStyles();
+    }
+    
+    applyHoverStyle(property, value, unit = '') {
+        if (!this.activeSelector) return;
+        const hoverSelector = this.activeSelector + ':hover';
+
+        if (!this.savedStyles[hoverSelector]) {
+            this.savedStyles[hoverSelector] = {};
+        }
+
+        if (value === null || value === '') {
+             delete this.savedStyles[hoverSelector][property];
+             if (Object.keys(this.savedStyles[hoverSelector]).length === 0) {
+                delete this.savedStyles[hoverSelector];
+             }
+        } else {
+            this.savedStyles[hoverSelector][property] = `${value}${unit}`;
+            // Добавляем плавность для этого свойства
+            this.applyTransition(property);
+        }
+
         this.updateDynamicStyles();
     }
     
@@ -230,6 +285,7 @@ class MagicStickStyler {
     
     deleteStyle(selector) {
         delete this.savedStyles[selector];
+        delete this.savedStyles[selector + ':hover'];
         this.updateDynamicStyles();
         this.saveStylesToStorage();
         this.showMyStyles();
@@ -253,7 +309,6 @@ class MagicStickStyler {
         const selectors = new Set();
         let el = element;
 
-        // 1. Самые специфичные селекторы (ID, классы)
         const tagName = el.tagName.toLowerCase();
         if (el.id) {
             selectors.add(`#${el.id}`);
@@ -265,7 +320,6 @@ class MagicStickStyler {
             }
         }
 
-        // 2. Селекторы с родителями
         let currentSelector = '';
         for (let i = 0; i < 4 && el; i++) {
             const elTag = el.tagName.toLowerCase();
@@ -280,7 +334,7 @@ class MagicStickStyler {
             }
             
             currentSelector = currentSelector ? `${simpleSelector} > ${currentSelector}` : simpleSelector;
-            if (i > 0) { // Не добавляем селектор самого элемента дважды
+            if (i > 0) {
                 selectors.add(currentSelector);
             }
             
@@ -288,13 +342,11 @@ class MagicStickStyler {
             if (!el || el.tagName === 'BODY' || el.tagName === 'HTML') break;
         }
 
-        // 3. Более общие селекторы (просто классы)
         if (element.className && typeof element.className === 'string') {
             const classes = element.className.trim().split(/\s+/).filter(Boolean);
             classes.forEach(c => selectors.add(`.${c}`));
         }
         
-        // 4. Самый общий - тег
         selectors.add(tagName);
 
         return Array.from(selectors);
@@ -357,10 +409,47 @@ class MagicStickStyler {
         };
 
         createHandler('ms-color', 'color');
-        createHandler('ms-bg-color', 'background-color');
         createHandler('ms-font-size', 'font-size', 'px');
         createHandler('ms-opacity', 'opacity', '');
         createHandler('ms-border-radius', 'border-radius', 'px');
+        
+        const applyBackgroundColor = () => {
+            const color = document.getElementById('ms-bg-color').value;
+            const opacity = document.getElementById('ms-bg-opacity').value;
+            this.applyStyle('background-color', this.hexToRgba(color, opacity));
+        };
+        document.getElementById('ms-bg-color').addEventListener('input', applyBackgroundColor);
+        document.getElementById('ms-bg-opacity').addEventListener('input', applyBackgroundColor);
+        document.getElementById('ms-bg-reset').addEventListener('click', () => this.resetStyle('background-color'));
+        
+        const underlineBtn = document.getElementById('ms-hover-underline');
+        underlineBtn.addEventListener('click', () => {
+            underlineBtn.classList.toggle('active');
+            if (underlineBtn.classList.contains('active')) {
+                this.applyHoverStyle('text-decoration', 'underline');
+            } else {
+                this.applyHoverStyle('text-decoration', 'none');
+            }
+        });
+
+        document.getElementById('ms-hover-color').addEventListener('input', e => this.applyHoverStyle('color', e.target.value));
+        document.getElementById('ms-hover-scale').addEventListener('input', e => {
+            const scaleValue = e.target.value;
+            if (scaleValue === '1') {
+                this.applyHoverStyle('transform', null);
+            } else {
+                this.applyHoverStyle('transform', `scale(${scaleValue})`);
+            }
+        });
+
+        document.getElementById('ms-hover-reset').addEventListener('click', () => {
+            if (!this.activeSelector) return;
+            const hoverSelector = this.activeSelector + ':hover';
+            delete this.savedStyles[hoverSelector];
+            this.resetStyle('transition'); // Сбрасываем и плавность
+            this.updateDynamicStyles();
+            this.updatePanelValues(); 
+        });
 
         document.getElementById('ms-continue-click-btn').addEventListener('click', (e) => {
             this.isClickThroughActive = !this.isClickThroughActive;
@@ -405,13 +494,30 @@ class MagicStickStyler {
                 <div class="ms-panel-section ms-target-info">
                     <div id="ms-selected-element-name">Элемент не выбран</div>
                 </div>
-                <div class="ms-panel-section ms-controls-grid">
-                    ${this.createControl('ms-color', 'color_lens', 'Цвет текста', 'color')}
-                    ${this.createControl('ms-bg-color', 'palette', 'Цвет фона', 'color')}
+                
+                <div class="ms-panel-section ms-panel-main-controls">
+                    ${this.createControl('ms-color', 'format_color_text', 'Цвет текста', 'color')}
+                     <div class="ms-control-group">
+                        ${this.createControl('ms-bg-color', 'palette', 'Цвет фона', 'color', {}, 'ms-bg-reset')}
+                        ${this.createControl('ms-bg-opacity', 'opacity', 'Прозрачность фона', 'range', {min: 0, max: 1, step: 0.05, value: 1})}
+                    </div>
                     ${this.createControl('ms-font-size', 'format_size', 'Размер шрифта', 'range', {min: 8, max: 48, step: 1})}
-                    ${this.createControl('ms-opacity', 'opacity', 'Прозрачность', 'range', {min: 0, max: 1, step: 0.05})}
                     ${this.createControl('ms-border-radius', 'rounded_corner', 'Скругление', 'range', {min: 0, max: 50, step: 1})}
+                    ${this.createControl('ms-opacity', 'blur_on', 'Общая прозр.', 'range', {min: 0, max: 1, step: 0.05})}
                 </div>
+                
+                 <div class="ms-panel-section ms-hover-controls">
+                    <div class="ms-section-title">
+                        <span>Эффекты наведения</span>
+                        <button id="ms-hover-reset" class="ms-reset-btn" data-title="Сбросить все эффекты наведения"><span class="material-icons">refresh</span></button>
+                    </div>
+                    <div class="ms-hover-grid">
+                         ${this.createHoverButton('ms-hover-underline', 'format_underlined', 'Подчеркивание')}
+                         ${this.createControl('ms-hover-color', 'format_color_text', 'Цвет текста', 'color')}
+                         ${this.createControl('ms-hover-scale', 'zoom_in_map', 'Увеличение', 'range', {min:0.8, max: 1.5, step: 0.05, value: 1})}
+                    </div>
+                </div>
+
                 <div class="ms-panel-section ms-actions">
                     <button id="ms-continue-click-btn" data-title="Продолжить нажатие"><span class="material-icons">ads_click</span></button>
                     <button id="ms-hide-btn" data-title="Скрыть элемент"><span class="material-icons">visibility_off</span></button>
@@ -441,18 +547,27 @@ class MagicStickStyler {
         `;
     }
 
-    createControl(id, icon, title, type, attrs = {}) {
+    createControl(id, icon, title, type, attrs = {}, resetId = null) {
         const attrString = Object.entries(attrs).map(([key, val]) => `${key}="${val}"`).join(' ');
+        const resetButton = resetId ? `<button id="${resetId}" class="ms-reset-btn" data-title="Сбросить"><span class="material-icons">refresh</span></button>` : '';
         return `
             <div class="ms-control" data-title="${title}">
                 <span class="material-icons">${icon}</span>
                 <input type="${type}" id="${id}" ${attrString}>
-                <button class="ms-reset-btn" data-title="Сбросить"><span class="material-icons">refresh</span></button>
+                ${resetButton || ''}
             </div>
         `;
     }
+
+    createHoverButton(id, icon, title) {
+        return `
+            <div class="ms-control" data-title="${title}">
+                <span class="material-icons">${icon}</span>
+                <button id="${id}" class="ms-toggle-btn"></button>
+            </div>
+        `
+    }
     
-    // --- Helpers ---
     isStylerUI(el) {
         return el.closest('#ms-panel, #ms-exit-btn, #ms-my-styles-modal, #ms-selector-modal');
     }
@@ -469,20 +584,42 @@ class MagicStickStyler {
             }
         };
     }
-    
-    rgbToHex(rgb) {
-        if (!rgb || !rgb.startsWith('rgb')) return '#000000';
+
+    rgbToHex(rgb, returnAlpha = false) {
+        if (!rgb || !rgb.startsWith('rgb')) {
+            return returnAlpha ? { hex: '#000000', alpha: 0 } : '#000000';
+        }
         let parts = rgb.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)$/);
-        if (!parts || parts[4] === "0") return '#000000'; // Считаем прозрачный фон черным
+        if (!parts) {
+            return returnAlpha ? { hex: '#000000', alpha: 1 } : '#000000';
+        }
+        
         let r = parseInt(parts[1], 10);
         let g = parseInt(parts[2], 10);
         let b = parseInt(parts[3], 10);
-        return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).padStart(6, '0');
+        let a = parts[4] !== undefined ? parseFloat(parts[4]) : 1;
+
+        if (a === 0 && returnAlpha) {
+            return { hex: '#000000', alpha: 0 };
+        }
+        
+        const hex = "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).padStart(6, '0');
+        
+        return returnAlpha ? { hex: hex, alpha: a } : hex;
+    }
+
+    hexToRgba(hex, alpha) {
+        let r = 0, g = 0, b = 0;
+        if (hex.length == 4) {
+            r = "0x" + hex[1] + hex[1]; g = "0x" + hex[2] + hex[2]; b = "0x" + hex[3] + hex[3];
+        } else if (hex.length == 7) {
+            r = "0x" + hex[1] + hex[2]; g = "0x" + hex[3] + hex[4]; b = "0x" + hex[5] + hex[6];
+        }
+        return `rgba(${+r},${+g},${+b},${alpha})`;
     }
 }
 
 function initializeMagicStickStyler() {
-    // Используем `window` для хранения инстанса, чтобы избежать дублирования
     if (!window.fpToolsMagicStickInstance) {
         window.fpToolsMagicStickInstance = new MagicStickStyler();
         window.fpToolsMagicStickInstance.init();

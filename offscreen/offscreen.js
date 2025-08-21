@@ -1,7 +1,5 @@
 // offscreen/offscreen.js
 
-// ... (существующий код в файле, если он есть, оставьте)
-
 function parseOrderPageForReview(html) {
     try {
         const doc = new DOMParser().parseFromString(html, "text/html");
@@ -85,18 +83,78 @@ function parseUserLotsList(html) {
     }
 }
 
+function parseGameSearchResults(html) {
+    try {
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const items = doc.querySelectorAll('.promo-game-item');
+        return Array.from(items).map(item => {
+            const link = item.querySelector('.game-title a');
+            const img = item.querySelector('img');
+            return {
+                name: link ? link.textContent.trim() : 'Unknown',
+                url: link ? link.href : '#',
+                img: img ? img.src : ''
+            };
+        });
+    } catch (e) {
+        return [];
+    }
+}
+
+function parseCategoryPage(html) {
+    try {
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const items = doc.querySelectorAll('.counter-item');
+        return Array.from(items).map(item => {
+            const url = item.href;
+            const nodeIdMatch = url.match(/\/lots\/(\d+)/);
+            return {
+                name: item.querySelector('.counter-param')?.textContent.trim() || 'Unknown',
+                count: item.querySelector('.counter-value')?.textContent.trim() || '0',
+                url: url,
+                nodeId: nodeIdMatch ? nodeIdMatch[1] : null
+            };
+        });
+    } catch (e) {
+        return [];
+    }
+}
+
+function parseLotListPage(html) {
+    try {
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const items = doc.querySelectorAll('a.tc-item');
+        return Array.from(items).map(item => {
+            const offerIdMatch = item.getAttribute('href')?.match(/id=(\d+)/);
+            return {
+                offerId: offerIdMatch ? offerIdMatch[1] : null,
+                description: item.querySelector('.tc-desc-text')?.textContent.trim() || 'No description',
+                seller: item.querySelector('.media-user-name span')?.textContent.trim() || 'Unknown',
+                price: item.querySelector('.tc-price div')?.textContent.trim() || 'N/A'
+            };
+        });
+    } catch (e) {
+        return [];
+    }
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.target !== 'offscreen') return true;
 
     if (message.action === 'parseSalesPage') {
-        // Эта функция у вас могла быть, если нет - добавьте ее из MergedFiles.txt
-        // sendResponse(parseSalesPage(message.html)); 
+        // ...
     } else if (message.action === 'parseOrderPageForReview') {
         sendResponse(parseOrderPageForReview(message.html));
     } else if (message.action === 'parseChatList') {
         sendResponse(parseChatList(message.html));
     } else if (message.action === 'parseUserLotsList') {
         sendResponse(parseUserLotsList(message.html));
+    } else if (message.action === 'parseGameSearchResults') {
+        sendResponse(parseGameSearchResults(message.html));
+    } else if (message.action === 'parseCategoryPage') {
+        sendResponse(parseCategoryPage(message.html));
+    } else if (message.action === 'parseLotListPage') {
+        sendResponse(parseLotListPage(message.html));
     }
 
     return true; 

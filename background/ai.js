@@ -214,3 +214,58 @@ Output JSON:
         return { success: false, error: `AI returned invalid JSON for translation: ${e.message}` };
     }
 }
+
+export async function fetchAIImageGeneration(prompt) {
+    const finalPrompt = `
+You are a creative assistant that generates parameters for an image canvas based on a user's text description.
+Your response MUST be a single, valid JSON object and nothing else.
+
+--- JSON STRUCTURE ---
+{
+  "bgColor1": "#RRGGBB",
+  "bgColor2": "#RRGGBB",
+  "text1": "UPPERCASE TITLE",
+  "text1Color": "#RRGGBB",
+  "text1Size": 48,
+  "text2": "Subtitle text",
+  "text2Color": "#RRGGBB",
+  "text2Size": 24,
+  "text3": "Additional text",
+  "text3Color": "#RRGGBB",
+  "text3Size": 20,
+  "icon": "icon_name",
+  "iconColor": "#RRGGBB",
+  "iconSize": 100
+}
+
+--- INSTRUCTIONS ---
+1.  Analyze the user's prompt and creatively translate it into the JSON parameters.
+2.  Choose contrasting and harmonious colors.
+3.  Pick a suitable Google Material Icon if the prompt suggests one. If not, choose a relevant one or leave it as an empty string.
+4.  Extract key text for text1, text2, and text3 fields. Keep them concise.
+5.  Your entire response is ONLY the JSON object. No explanations, no markdown, no comments.
+
+--- USER PROMPT ---
+"${prompt}"
+
+--- YOUR JSON OUTPUT ---
+`;
+    const result = await makeAIRequest(finalPrompt);
+    if (!result.success) return result;
+
+    try {
+        const aiJson = JSON.parse(result.data);
+        return { success: true, data: aiJson };
+    } catch (e) {
+        const jsonMatch = result.data.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            try {
+                const cleanedJson = JSON.parse(jsonMatch[0]);
+                return { success: true, data: cleanedJson };
+            } catch (e2) {
+                return { success: false, error: `AI returned invalid JSON for image generation (cleaned): ${e2.message}` };
+            }
+        }
+        return { success: false, error: `AI returned invalid JSON for image generation: ${e.message}` };
+    }
+}

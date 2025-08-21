@@ -96,6 +96,17 @@ class ImageGenerator {
                             </div>
                             <div class="fp-tools-ig-symbols-panel"></div>
                         </div>
+                        <div class="fp-tools-ig-ai-generator">
+                            <div class="fp-tools-ig-ai-header">
+                                <span class="material-icons" style="font-size: 20px;">auto_awesome</span>
+                                <span>Создать с помощью ИИ</span>
+                            </div>
+                            <textarea id="igAiPrompt" rows="3" placeholder="Пример: огненный значок для клана, текст 'FIRE SQUAD'"></textarea>
+                            <button id="igAiGenerateBtn" class="fp-tools-ig-btn-primary">
+                                <span class="btn-text">Сгенерировать</span>
+                                <span class="btn-loader"></span>
+                            </button>
+                        </div>
                     </div>
                 </div>
                 <div class="fp-tools-ig-footer">
@@ -196,6 +207,35 @@ class ImageGenerator {
                 this.activeInput.selectionStart = this.activeInput.selectionEnd = start + symbol.length;
                 this.activeInput.focus();
                 this.activeInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        });
+        
+        modal.querySelector('#igAiGenerateBtn').addEventListener('click', async () => {
+            const btn = modal.querySelector('#igAiGenerateBtn');
+            const promptInput = modal.querySelector('#igAiPrompt');
+            const prompt = promptInput.value.trim();
+
+            if (!prompt) {
+                showNotification('Введите описание для ИИ', true);
+                return;
+            }
+
+            btn.classList.add('loading');
+            btn.disabled = true;
+
+            try {
+                const response = await chrome.runtime.sendMessage({ action: "getAIImageSettings", prompt: prompt });
+                if (response && response.success) {
+                    this.applyTheme(response.data);
+                    showNotification('Изображение сгенерировано ИИ!');
+                } else {
+                    throw new Error(response.error || 'Неизвестная ошибка ИИ.');
+                }
+            } catch (error) {
+                showNotification(`Ошибка ИИ: ${error.message}`, true);
+            } finally {
+                btn.classList.remove('loading');
+                btn.disabled = false;
             }
         });
     }

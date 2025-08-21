@@ -152,24 +152,45 @@ function setupLazyLoadObserver() {
 function setupSearchFilter() {
     const searchInput = document.getElementById('redesignGameSearchInput');
     if (!searchInput) return;
-    searchInput.addEventListener('input', () => {
-        const searchTerm = searchInput.value.toLowerCase().trim();
-        const gameCards = document.querySelectorAll('.game-grid .game-card');
-        gameCards.forEach(card => {
-            const title = card.querySelector('.game-card-title').textContent.toLowerCase();
-            const tags = card.querySelectorAll('.category-tag');
-            let isMatch = false;
-            tags.forEach(tag => tag.classList.remove('category-tag--highlighted'));
-            if (title.includes(searchTerm)) isMatch = true;
-            tags.forEach(tag => {
-                if (tag.textContent.toLowerCase().includes(searchTerm)) {
-                    isMatch = true;
-                    if (searchTerm) tag.classList.add('category-tag--highlighted');
-                }
-            });
-            card.style.display = isMatch ? 'flex' : 'none';
-        });
+
+    // 1. Кэшируем элементы и их текст
+    const gameCards = Array.from(document.querySelectorAll('.game-grid .game-card')).map(card => {
+        const title = card.querySelector('.game-card-title').textContent.toLowerCase();
+        const tags = Array.from(card.querySelectorAll('.category-tag')).map(tag => tag.textContent.toLowerCase());
+        return {
+            element: card,
+            title: title,
+            tags: tags,
+            fullText: [title, ...tags].join(' ') // Соединяем весь текст для простого поиска
+        };
     });
+
+    // 2. Создаем функцию Debounce
+    let debounceTimer;
+    const debounce = (func, delay) => {
+        return function(...args) {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => func.apply(this, args), delay);
+        };
+    };
+
+    const filterGames = () => {
+        const searchTerm = searchInput.value.toLowerCase().trim();
+        
+        gameCards.forEach(cardData => {
+            const isMatch = searchTerm === '' || cardData.fullText.includes(searchTerm);
+            cardData.element.style.display = isMatch ? 'flex' : 'none';
+
+            // Подсветка тегов (опционально, но делает поиск лучше)
+            cardData.element.querySelectorAll('.category-tag').forEach((tag, index) => {
+                const isTagMatch = searchTerm && cardData.tags[index].includes(searchTerm);
+                tag.classList.toggle('category-tag--highlighted', isTagMatch);
+            });
+        });
+    };
+
+    // 3. Вешаем обработчик с Debounce
+    searchInput.addEventListener('input', debounce(filterGames, 200));
 }
 
 function initializeRedesign() {

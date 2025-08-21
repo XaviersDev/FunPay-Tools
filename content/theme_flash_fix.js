@@ -71,6 +71,8 @@
                 background-size: cover;
                 filter: blur(${settings.bgBlur}px) brightness(${settings.bgBrightness}%);
                 z-index: -1;
+                will-change: transform; /* Оптимизация для скролла */
+                transform: translateZ(0); /* Форсируем GPU-слой */
             }
             html { background-color: #0b0b0b !important; } /* Fallback */
             .wrapper-content, .wrapper-footer, body, .wrapper, .content-orders, .bg-light-color #header, .bg-light-color #footer, .wrapper-footer { background: transparent !important; }

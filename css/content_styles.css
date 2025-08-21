@@ -4205,3 +4205,401 @@ i.promo-offer-icon {
     color: #fff;
     transform: translateY(-0.7px);
 }
+
+
+.fp-tooltip-host {
+    position: relative;
+}
+
+.fp-tooltip-host::after {
+    content: attr(data-fp-tooltip);
+    position: absolute;
+    bottom: 105%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #1a1a1a;
+    color: #e0e0e0;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    z-index: 10010;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    border: 1px solid #444;
+    
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(-50%) translateY(5px);
+    transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease;
+    pointer-events: none;
+}
+
+.fp-tooltip-host:hover::after {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+    transition-delay: 0s;
+}
+
+/* === Piggy Bank Styles === */
+#fp-tools-piggy-bank-icon-li {
+    position: relative;
+}
+
+#fp-tools-piggy-bank-icon-li > a {
+    padding-top: 20px !important;
+    padding-bottom: 10px !important;
+    padding-left: 5px !important;
+    padding-right: 10px !important;
+    font-size: 18px;
+    cursor: pointer;
+}
+
+.fp-tools-piggy-bank-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 320px;
+    background: #1e1e1e;
+    border: 1px solid #333;
+    border-radius: 12px;
+    padding: 15px;
+    z-index: 1050;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+    color: #fff;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+#fp-tools-piggy-bank-icon-li:hover .fp-tools-piggy-bank-dropdown {
+    display: block;
+}
+
+.fp-tools-piggy-bank-dropdown::-webkit-scrollbar { width: 5px; }
+.fp-tools-piggy-bank-dropdown::-webkit-scrollbar-track { background: transparent; }
+.fp-tools-piggy-bank-dropdown::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 3px; }
+
+.pb-dropdown-item {
+    margin-bottom: 15px;
+}
+.pb-dropdown-item:last-child {
+    margin-bottom: 0;
+}
+.pb-dropdown-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 5px;
+}
+.pb-dropdown-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #eee;
+}
+.pb-dropdown-percentage {
+    font-size: 14px;
+    font-weight: bold;
+    color: #00c9ff;
+}
+
+.pb-dropdown-progress-bar {
+    width: 100%;
+    height: 8px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 5px;
+}
+.pb-dropdown-progress-fill {
+    height: 100%;
+    border-radius: 4px;
+    background: linear-gradient(90deg, #6B66FF, #FF6B6B);
+    transition: width 0.5s ease;
+}
+
+.pb-dropdown-info {
+    font-size: 12px;
+    color: #888;
+}
+
+.pb-dropdown-footer {
+    text-align: center;
+    margin-top: 15px;
+    padding-top: 10px;
+    border-top: 1px solid #333;
+}
+.pb-dropdown-footer a {
+    color: #00c9ff;
+    font-size: 13px;
+    text-decoration: none;
+}
+.pb-dropdown-footer a:hover {
+    text-decoration: underline;
+}
+
+
+/* Piggy Bank Settings Page */
+.piggy-banks-list-container {
+    margin-top: 25px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 15px;
+}
+
+.piggy-bank-item {
+    background: rgba(255,255,255,0.05);
+    padding: 15px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+.piggy-bank-item.main-piggy-bank {
+    border-color: #00c9ff;
+    box-shadow: 0 0 10px rgba(0, 201, 255, 0.3);
+}
+
+.piggy-bank-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+.piggy-bank-item-name {
+    font-size: 16px;
+    font-weight: bold;
+    color: #eee;
+}
+.piggy-bank-item-main-badge {
+    font-size: 12px;
+    background: #00c9ff;
+    color: #111;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-weight: bold;
+}
+.piggy-bank-item-actions {
+    display: flex;
+    gap: 8px;
+}
+.piggy-bank-item-actions button {
+    padding: 6px 10px;
+    font-size: 13px;
+    background: rgba(255,255,255,0.1);
+    box-shadow: none;
+    text-transform: none;
+    letter-spacing: 0;
+}
+.piggy-bank-item-actions button:hover {
+    background: rgba(255,255,255,0.2);
+}
+
+.piggy-bank-item .piggy-bank-progress-info {
+    font-size: 13px;
+}
+
+/* Piggy Bank Modal */
+.piggy-bank-modal-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(5px);
+    z-index: 10001;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.piggy-bank-modal {
+    background: #1e1e1e;
+    border-radius: 12px;
+    padding: 25px;
+    width: 90%;
+    max-width: 400px;
+    border: 1px solid #333;
+}
+.piggy-bank-modal h4 {
+    margin-top: 0;
+    font-size: 18px;
+}
+.piggy-bank-modal .form-group {
+    margin-bottom: 15px;
+}
+.piggy-bank-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+#pb-name {
+    background: none
+}
+
+#pb-goal {
+    background: none
+}
+.review-btn {
+    margin-top: 20px;
+    background: linear-gradient(45deg, #ffc107, #ff8f00) !important;
+    display: inline-flex;
+    align-items: center;
+}
+
+.review-btn:hover {
+    transform: translateY(-3px) scale(1.05) !important;
+    box-shadow: 0 10px 20px rgba(255, 193, 7, 0.3) !important;
+}
+
+
+.fp-import-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 20px 15px 20px;
+    border-bottom: 1px solid #333;
+    flex-shrink: 0;
+}
+.fp-import-header h4 {
+    margin: 0;
+    padding: 0;
+    border: none;
+    font-size: 16px;
+}
+.fp-import-scope-switch {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #aaa;
+}
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 34px;
+    height: 20px;
+}
+.switch input { 
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #444;
+    transition: .4s;
+}
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 14px;
+    width: 14px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+}
+input:checked + .slider {
+    background-color: #0099ff;
+}
+input:checked + .slider:before {
+    transform: translateX(14px);
+}
+.slider.round {
+    border-radius: 20px;
+}
+.slider.round:before {
+    border-radius: 50%;
+}
+
+#fp-import-my-lots-view, #fp-import-global-search-view {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    overflow: hidden;
+}
+
+#fp-import-global-search-view {
+    padding-top: 15px;
+}
+#fp-import-back-btn {
+    margin: 0 15px 10px 15px;
+    padding: 8px;
+    background: #333;
+    border: 1px solid #444;
+    color: #ccc;
+    border-radius: 6px;
+    cursor: pointer;
+}
+#fp-global-search-input {
+    width: auto;
+    margin: 0 15px 10px 15px;
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid #444;
+    background: #2a2a2a;
+    color: #fff;
+    font-size: 14px;
+}
+#fp-global-search-results {
+    overflow-y: auto;
+    flex-grow: 1;
+    padding: 0 15px 15px 15px;
+}
+#fp-global-search-results::-webkit-scrollbar { width: 6px; }
+#fp-global-search-results::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+
+.fp-global-result-item {
+    padding: 10px 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-bottom: 5px;
+    border: 1px solid transparent;
+    transition: background-color 0.2s, border-color 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.fp-global-result-item:hover {
+    background-color: rgba(255,255,255,0.05);
+}
+.fp-global-result-item.active {
+    background-color: rgba(0, 153, 255, 0.15);
+    border-color: #0099ff;
+}
+.fp-global-item-img {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+.fp-global-item-count {
+    margin-left: auto;
+    font-size: 13px;
+    color: #888;
+    background: #2a2a2a;
+    padding: 3px 8px;
+    border-radius: 10px;
+}
+
+.fp-import-lot-details {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+.fp-import-lot-seller {
+    font-size: 12px;
+    color: #888;
+}
+.fp-import-lot-price {
+    font-size: 14px;
+    font-weight: bold;
+    color: #eee;
+    margin-left: auto;
+    flex-shrink: 0;
+}

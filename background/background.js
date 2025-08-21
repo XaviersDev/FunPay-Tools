@@ -1,6 +1,6 @@
 // background/background.js
 
-import { fetchAIResponse, fetchAILotGeneration, fetchAITranslation, fetchAIReviewResponse } from './ai.js';
+import { fetchAIResponse, fetchAILotGeneration, fetchAITranslation, fetchAIReviewResponse, fetchAIImageGeneration } from './ai.js';
 import { BUMP_ALARM_NAME, startAutoBump, stopAutoBump, runBumpCycle } from './autobump.js';
 
 const OFFSCREEN_DOCUMENT_PATH = 'offscreen/offscreen.html';
@@ -470,9 +470,10 @@ async function runDiscordCheckCycle() {
 // --- Главный обработчик сообщений ---
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.target === 'offscreen') {
-        return;
+        return true; // Важно возвращать true для асинхронных sendResponse
     }
 
+    // AI HANDLERS
     if (request.action === "getAIProcessedText") {
         fetchAIResponse(request.text, request.context, request.myUsername, request.type).then(sendResponse);
         return true;
@@ -489,6 +490,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         fetchAITranslation(request.data).then(sendResponse);
         return true;
     }
+    if (request.action === "getAIImageSettings") {
+        fetchAIImageGeneration(request.prompt).then(sendResponse);
+        return true;
+    }
+
+    // AUTOBUMP HANDLERS
     if (request.action === 'startAutoBump') {
         startAutoBump(request.cooldown).then(() => sendResponse({ success: true }));
         return true;
@@ -497,6 +504,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         stopAutoBump().then(() => sendResponse({ success: true }));
         return true;
     }
+
+    // ACCOUNT & COOKIE HANDLERS
     if (request.action === 'getGoldenKey') {
         (async () => {
             const cookie = await chrome.cookies.get({ url: "https://funpay.com", name: "golden_key" });
@@ -524,6 +533,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         })();
         return true;
     }
+    
+    // SALES STATS HANDLERS
     if (request.action === 'updateSales') {
         runSalesUpdateCycle().then(() => sendResponse({success: true})).catch(e => sendResponse({success: false, error: e.message}));
         return true;
@@ -534,6 +545,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         ]).then(() => sendResponse({success: true}));
         return true;
     }
+
+    // IMPORT & GLOBAL SEARCH HANDLERS
     if (request.action === 'getUserLotsList') {
         (async () => {
             try {
@@ -547,7 +560,39 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         })();
         return true;
     }
-
+    if (request.action === 'searchGames') {
+        (async () => {
+            try {
+                const response = await fetch('https://funpay.com/games/promoFilter', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'X-Requested-With': 'XMLHttpRequest' },
+                    body: new URLSearchParams({ query: request.query })
+                });
+                const data = await response.json();
+                const games = await parseHtmlViaOffscreen(data.html, 'parseGameSearchResults');
+                sendResponse(games);
+            } catch (e) {
+                console.error("Error in searchGames:", e);
+                sendResponse([]);
+            }
+        })();
+        return true;
+    }
+    if (request.action === 'getCategoryList' || request.action === 'getLotList') {
+        (async () => {
+            try {
+                const response = await fetch(request.url);
+                const html = await response.text();
+                const action = request.action === 'getCategoryList' ? 'parseCategoryPage' : 'parseLotListPage';
+                const items = await parseHtmlViaOffscreen(html, action);
+                sendResponse(items);
+            } catch (e) {
+                console.error(`Error in ${request.action}:`, e);
+                sendResponse([]);
+            }
+        })();
+        return true;
+    }
     return false;
 });
 

@@ -33,40 +33,63 @@
         return true;
     }
 
-    function initializeDynamicFeaturesObserver() {
+    function initializeDynamicFeatures() {
+        // Используем делегирование событий для элементов, которые могут появиться в будущем
+        document.body.addEventListener('focusin', (event) => {
+            // ИИ-помощник и шаблоны в чате
+            if (event.target.matches('.chat-form-input .form-control')) {
+                if (!document.querySelector('.chat-buttons-container') && !document.querySelector('.fp-tools-template-sidebar')) {
+                    addChatTemplateButtons();
+                }
+                if (!document.getElementById('aiModeToggleBtn')) {
+                    setupAIChatFeature();
+                }
+            }
+            // Шаблоны для ответа на отзыв
+            if (event.target.matches('.review-editor-reply .form-control')) {
+                if (!document.querySelector('.review-response-btn')) {
+                    addReviewResponseButton();
+                }
+            }
+            // Менеджер автовыдачи
+            if (event.target.matches('textarea.textarea-lot-secrets')) {
+                if (!document.getElementById('ad-manager-placeholder')) {
+                    initializeAutoDeliveryManager();
+                }
+            }
+        });
+    
+        // Для элементов, которые появляются без фокуса, используем более умный наблюдатель
         const observer = new MutationObserver((mutationsList) => {
             for (const mutation of mutationsList) {
-                if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-                    // Проверяем добавленные узлы, а не весь документ каждый раз
-                    for (const node of mutation.addedNodes) {
-                        if (node.nodeType !== 1) continue; // Пропускаем текстовые узлы и комментарии
-
-                        // Оптимизированные проверки
-                        if (node.querySelector('.chat-form-input .form-control') || node.matches('.chat-form-input .form-control')) {
-                            if (!document.querySelector('.chat-buttons-container') && !document.querySelector('.fp-tools-template-sidebar')) addChatTemplateButtons();
-                            if (!document.getElementById('aiModeToggleBtn')) setupAIChatFeature();
+                for (const node of mutation.addedNodes) {
+                    if (node.nodeType !== 1) continue;
+    
+                    // Генератор изображений
+                    if (node.querySelector('.attachments-box') || node.matches('.attachments-box')) {
+                        if (!document.getElementById('fpToolsGenerateImageBtn')) {
+                            initializeImageGenerator();
                         }
-                        if (node.querySelector('.review-editor-reply .form-control') || node.matches('.review-editor-reply .form-control')) {
-                            if (!document.querySelector('.review-response-btn')) addReviewResponseButton();
-                        }
-                        if (node.querySelector('.contact-item.unread') || node.matches('.contact-item.unread')) {
-                            
-                        }
-                        if (node.querySelector('textarea.textarea-lot-secrets') || node.matches('textarea.textarea-lot-secrets')) {
-                            if (!document.getElementById('ad-manager-placeholder')) initializeAutoDeliveryManager();
-                        }
-                        if (node.querySelector('.attachments-box') || node.matches('.attachments-box')) {
-                            if (!document.getElementById('fpToolsGenerateImageBtn')) initializeImageGenerator();
-                        }
-                        const header = node.querySelector('h1.page-header, h1.page-header.page-header-no-hr') || (node.matches('h1.page-header, h1.page-header.page-header-no-hr') ? node : null);
-                        if (header && (header.textContent.includes('Добавление предложения') || header.textContent.includes('Редактирование предложения'))) {
-                            if (!document.getElementById('fp-tools-ai-gen-btn-wrapper')) createAIGeneratorUI();
+                    }
+                    // ИИ-генератор лотов
+                    const header = node.querySelector('h1.page-header, h1.page-header.page-header-no-hr') || (node.matches('h1.page-header, h1.page-header.page-header-no-hr') ? node : null);
+                    if (header && (header.textContent.includes('Добавление предложения') || header.textContent.includes('Редактирование предложения'))) {
+                        if (!document.getElementById('fp-tools-ai-gen-btn-wrapper')) {
+                            createAIGeneratorUI();
                         }
                     }
                 }
             }
         });
-        observer.observe(document.body, { childList: true, subtree: true });
+    
+        // Наблюдаем только за основным контейнером контента, а не за всем body
+        const contentNode = document.getElementById('content');
+        if (contentNode) {
+            observer.observe(contentNode, { childList: true, subtree: true });
+        } else {
+            // Fallback, если #content не найден сразу
+            observer.observe(document.body, { childList: true, subtree: true });
+        }
     }
 
     async function initializeFpTools() {
@@ -85,7 +108,7 @@
             });
         }
         
-        initializeDynamicFeaturesObserver();
+        initializeDynamicFeatures();
         initializeQuickGamesMenu();
         
         const toolsPopup = createMainPopup();
@@ -130,6 +153,7 @@
         initializeReviewSorter();
         initializeOverviewTour();
         initializeMagicStickStyler();
+        initializePiggyBank();
         initializeMarketAnalytics();
 
         chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {

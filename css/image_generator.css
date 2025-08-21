@@ -155,3 +155,65 @@
     justify-content: flex-end;
     margin-bottom: 10px;
 }
+
+.fp-tools-ig-ai-generator {
+    margin-top: auto;
+    padding: 20px;
+    background: rgba(0,0,0,0.2);
+    border-top: 1px solid #444;
+}
+
+.fp-tools-ig-ai-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: bold;
+    color: #ccc;
+    margin-bottom: 10px;
+}
+
+#igAiPrompt {
+    width: 100%;
+    box-sizing: border-box;
+    background: #282c34;
+    border: 1px solid #555;
+    border-radius: 6px;
+    padding: 10px;
+    color: #fff;
+    resize: vertical;
+    margin-bottom: 10px;
+}
+
+#igAiGenerateBtn {
+    width: 100%;
+    position: relative;
+    min-height: 44px; /* Чтобы кнопка не скакала по высоте */
+}
+
+#igAiGenerateBtn .btn-loader {
+    display: none;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(0,0,0,0.3);
+    border-top-color: #111;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    margin-top: -10px;
+    margin-left: -10px;
+}
+
+#igAiGenerateBtn.loading .btn-text {
+    opacity: 0;
+}
+
+#igAiGenerateBtn.loading .btn-loader {
+    display: block;
+}
+
+@keyframes spin { 
+    to { transform: rotate(360deg); } 
+}

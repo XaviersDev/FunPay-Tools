@@ -57,6 +57,8 @@ body.fp-tools-magic-stick-active #ms-selector-modal * {
     bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
+    width: auto;
+    max-width: 95%;
     z-index: 99999;
     background: rgba(30, 30, 30, 0.9);
     backdrop-filter: blur(10px);
@@ -66,6 +68,8 @@ body.fp-tools-magic-stick-active #ms-selector-modal * {
     box-shadow: 0 5px 25px rgba(0,0,0,0.4);
     gap: 10px;
     align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
 }
 
 .ms-panel-section {
@@ -91,11 +95,12 @@ body.fp-tools-magic-stick-active #ms-selector-modal * {
     border-radius: 4px;
 }
 
-/* Контролы */
-.ms-controls-grid {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
+/* --- Контролы --- */
+.ms-panel-main-controls {
+    display: flex;
+    flex-wrap: wrap;
     gap: 15px;
+    align-items: center;
 }
 .ms-control {
     display: flex;
@@ -104,9 +109,21 @@ body.fp-tools-magic-stick-active #ms-selector-modal * {
     gap: 5px;
     position: relative;
 }
+.ms-control-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px;
+    border-radius: 6px;
+    background: rgba(0,0,0,0.15);
+}
+.ms-control-group .ms-control {
+    flex-direction: row;
+}
+
 .ms-control .material-icons { color: #aaa; font-size: 20px; }
 .ms-control input {
-    width: 50px;
+    width: 60px;
     text-align: center;
     background: #2a2a2a;
     border: 1px solid #555;
@@ -123,11 +140,51 @@ body.fp-tools-magic-stick-active #ms-selector-modal * {
 .ms-reset-btn {
     background: none; border: none; color: #777; cursor: pointer; padding: 0;
     position: relative;
+    height: 16px;
 }
 .ms-reset-btn:hover { color: #ff6b6b; }
 .ms-reset-btn .material-icons { font-size: 16px; }
 
-/* Кнопки действий */
+/* --- Эффекты наведения --- */
+.ms-hover-controls {
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+.ms-section-title {
+    font-size: 11px;
+    color: #888;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.ms-hover-grid {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+}
+.ms-toggle-btn {
+    width: 30px;
+    height: 30px;
+    border: 1px solid #555;
+    background: #2a2a2a;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.ms-toggle-btn.active {
+    background: #00c9ff;
+    border-color: #00c9ff;
+}
+
+/* --- Кнопки действий --- */
+.ms-actions {
+    flex-direction: row;
+    justify-content: center;
+}
 .ms-actions button {
     background: #444;
     color: #eee;
@@ -153,31 +210,7 @@ body.fp-tools-magic-stick-active #ms-selector-modal * {
     box-shadow: 0 0 10px #1abc9c;
 }
 
-/* Моментальные кастомные тултипы */
-[data-title] {
-    position: relative;
-}
-[data-title]:hover::after {
-    content: attr(data-title);
-    position: absolute;
-    bottom: 115%;
-    left: 50%;
-    transform: translateX(-50%);
-    background-color: #111;
-    color: #fff;
-    padding: 6px 10px;
-    border-radius: 4px;
-    font-size: 12px;
-    white-space: nowrap;
-    z-index: 100001;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-    pointer-events: none;
-    opacity: 1;
-    transition: opacity 0.2s ease;
-    transition-delay: 0s !important;
-}
-
-/* Модальные окна */
+/* --- Модальные окна --- */
 #ms-my-styles-modal, #ms-selector-modal {
     display: none;
     position: fixed;
@@ -201,7 +234,6 @@ body.fp-tools-magic-stick-active #ms-selector-modal * {
 .ms-modal-header h3 { margin: 0; font-size: 18px; }
 .ms-modal-close { background: none; border: none; color: #aaa; font-size: 24px; cursor: pointer; }
 
-/* Мои стили */
 .ms-styles-list { padding: 20px; overflow-y: auto; }
 .ms-styles-empty { text-align: center; color: #888; }
 .ms-style-item {
@@ -231,7 +263,6 @@ body.fp-tools-magic-stick-active #ms-selector-modal * {
     background: none; border: none; color: #ff6b6b; font-size: 20px; cursor: pointer; margin-left: auto;
 }
 
-/* Выбор селектора */
 .ms-selector-list {
     padding: 15px;
     overflow-y: auto;
@@ -256,4 +287,28 @@ body.fp-tools-magic-stick-active #ms-selector-modal * {
     background: #3c3c3c;
     border-color: #00c9ff;
     color: #fff;
+}
+
+/* Моментальные кастомные тултипы */
+[data-title] {
+    position: relative;
+}
+[data-title]:hover::after {
+    content: attr(data-title);
+    position: absolute;
+    bottom: 115%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #111;
+    color: #fff;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    z-index: 100001;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 0.2s ease;
+    transition-delay: 0.3s !important;
 }

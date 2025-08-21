@@ -12,6 +12,7 @@ function createMainPopup() {
                     <li data-page="general" class="active"><a><span class="nav-icon">⚙️</span><span>Общие</span></a></li>
                     <li data-page="accounts"><a><span class="nav-icon">👥</span><span>Аккаунты</span></a></li>
                     <li data-page="templates"><a><span class="nav-icon">📄</span><span>Шаблоны</span></a></li>
+                    <li data-page="piggy_banks"><a><span class="nav-icon">🐷</span><span>Копилки</span></a></li>
                     <li data-page="auto_review"><a><span class="nav-icon">🌟</span><span>Авто-отзывы</span></a></li>
                     <li data-page="theme"><a><span class="nav-icon">🎨</span><span>Кастомизация</span></a></li>
                     <li data-page="autobump"><a><span class="nav-icon">🚀</span><span>Авто-поднятие</span></a></li>
@@ -128,6 +129,14 @@ function createMainPopup() {
                     <div id="template-settings-container" class="template-settings-list">
                     </div>
                     <button id="addCustomTemplateBtn" class="btn" style="margin-top: 10px;">+ Добавить свой шаблон</button>
+                </div>
+                <div class="fp-tools-page-content" data-page="piggy_banks">
+                    <h3>Управление копилками</h3>
+                    <p class="template-info">Создавайте копилки для отслеживания прогресса к вашим финансовым целям. Основная копилка будет отображаться при наведении на баланс в шапке сайта.</p>
+                    <button id="create-piggy-bank-btn" class="btn">+ Создать новую копилку</button>
+                    <div id="piggy-banks-list-container" class="piggy-banks-list-container">
+                        <!-- Сюда будут добавляться копилки -->
+                    </div>
                 </div>
                 <div class="fp-tools-page-content" data-page="auto_review">
                     <h3>Автоматические ответы на отзывы</h3>
@@ -444,6 +453,16 @@ function createMainPopup() {
                             Поддержать на Donorbox
                         </a>
                     </div>
+                    <div style="border-top: 1px solid rgba(255,255,255,0.1); margin: 30px 0;"></div>
+                    <h3>Оставьте отзыв! ⭐</h3>
+                    <div class="support-container">
+                        <p>Это <strong>самый важный</strong> вклад, который вы можете сделать. Ваш положительный отзыв — это топливо для новых обновлений и лучшая мотивация для разработчика.</p>
+                        <p>Хорошие оценки помогают другим пользователям найти FP Tools. Пожалуйста, уделите всего минуту, чтобы поделиться своим мнением. Это действительно имеет огромное значение!</p>
+                        <a href="https://chromewebstore.google.com/detail/funpay-tools/pibmnjjfpojnakckilflcboodkndkibb/reviews" target="_blank" class="btn review-btn">
+                            <span class="material-icons" style="font-size: 20px; margin-right: 8px;">rate_review</span>
+                            Оставить отзыв в Chrome Store
+                        </a>
+                    </div>
                 </div>
             </main>
         </div>
@@ -480,6 +499,9 @@ function setupPopupNavigation() {
             }
             if (pageId === 'templates') {
                 if (typeof setupTemplateSettingsHandlers === 'function') setupTemplateSettingsHandlers();
+            }
+            if (pageId === 'piggy_banks') {
+                if (typeof renderPiggyBankSettings === 'function') renderPiggyBankSettings();
             }
 
             chrome.storage.local.set({ fpToolsLastPage: pageId });

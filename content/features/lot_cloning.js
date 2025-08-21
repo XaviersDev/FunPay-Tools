@@ -1,3 +1,5 @@
+// content/features/lot_cloning.js
+
 async function submitForm(formData) {
     const nodeId = new URLSearchParams(window.location.search).get('node');
     formData.set('node_id', nodeId); formData.set('offer_id', '0');
@@ -8,6 +10,7 @@ async function submitForm(formData) {
     } catch (error) { console.error('Ошибка при выполнении запроса', error); showNotification('Ошибка при выполнении запроса', true); }
 }
 
+// Эта функция остается для импорта ВАШИХ лотов
 async function fetchLotDataForImport(nodeId, offerId) {
     if (!nodeId || !offerId) {
         throw new Error('Не найден ID лота или категории.');
@@ -37,6 +40,41 @@ async function fetchLotDataForImport(nodeId, offerId) {
         },
         secrets: getValue('textarea[name="secrets"]')
     };
+}
+
+// НОВАЯ ФУНКЦИЯ: Загружает и парсит публичную страницу лота
+async function fetchPublicLotDataForImport(offerId) {
+    if (!offerId) {
+        throw new Error('Не найден ID лота.');
+    }
+    const publicUrl = `https://funpay.com/lots/offer?id=${offerId}`;
+    const response = await fetch(publicUrl);
+    if (!response.ok) {
+        throw new Error(`Ошибка сети при загрузке лота: ${response.status}`);
+    }
+    const html = await response.text();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+
+    let summary = '';
+    let description = '';
+
+    const headers = doc.querySelectorAll('.param-list .param-item h5');
+    
+    headers.forEach(header => {
+        const headerText = header.textContent.trim();
+        const contentDiv = header.nextElementSibling;
+        
+        if (contentDiv) {
+            if (headerText === 'Краткое описание') {
+                summary = contentDiv.textContent.trim();
+            } else if (headerText === 'Подробное описание') {
+                // Преобразуем <br> в переносы строк для textarea
+                description = contentDiv.innerHTML.trim().replace(/<br\s*\/?>/gi, "\n");
+            }
+        }
+    });
+    
+    return { summary, description };
 }
 
 
@@ -177,6 +215,12 @@ function initializeLotCloning() {
         importButton.addEventListener('click', async () => {
             const modal = document.getElementById('fp-tools-import-modal-overlay');
             modal.style.display = 'flex';
+            
+            document.getElementById('fp-import-scope-toggle').checked = false;
+            document.getElementById('fp-import-my-lots-view').style.display = 'block';
+            document.getElementById('fp-import-global-search-view').style.display = 'none';
+            document.getElementById('fp-import-preview-content').innerHTML = '<div class="fp-import-empty">Выберите лот из списка слева</div>';
+
             const listContainer = document.getElementById('fp-import-lot-list');
             listContainer.innerHTML = '<div class="fp-import-loader"></div>';
             
@@ -211,9 +255,25 @@ function createImportModal() {
     modalOverlay.innerHTML = `
         <div id="fp-tools-import-modal">
             <div class="fp-import-col-list">
-                <h4>Выберите лот для импорта</h4>
-                <input type="text" id="fp-import-search" placeholder="Поиск по названию...">
-                <div id="fp-import-lot-list"></div>
+                <div class="fp-import-header">
+                    <h4>Выберите лот</h4>
+                    <div class="fp-import-scope-switch">
+                        <span>Мои лоты</span>
+                        <label class="switch"><input type="checkbox" id="fp-import-scope-toggle"><span class="slider round"></span></label>
+                        <span>Глобальный поиск</span>
+                    </div>
+                </div>
+                
+                <div id="fp-import-my-lots-view">
+                    <input type="text" id="fp-import-search" placeholder="Поиск по моим лотам...">
+                    <div id="fp-import-lot-list"></div>
+                </div>
+
+                <div id="fp-import-global-search-view" style="display: none;">
+                    <button id="fp-import-back-btn" style="display: none;">&larr; Назад</button>
+                    <input type="text" id="fp-global-search-input" placeholder="Название игры...">
+                    <div id="fp-global-search-results"></div>
+                </div>
             </div>
             <div class="fp-import-col-preview">
                 <h4>Предпросмотр и опции</h4>
@@ -224,6 +284,7 @@ function createImportModal() {
         </div>
     `;
     document.body.appendChild(modalOverlay);
+    initializeGlobalSearchLogic();
 
     modalOverlay.addEventListener('click', (e) => {
         if (e.target === modalOverlay) {
@@ -233,7 +294,7 @@ function createImportModal() {
 
     document.getElementById('fp-import-search').addEventListener('input', (e) => {
         const query = e.target.value.toLowerCase();
-        document.querySelectorAll('.fp-import-lot-item').forEach(item => {
+        document.querySelectorAll('#fp-import-lot-list .fp-import-lot-item').forEach(item => {
             const title = item.querySelector('.fp-import-lot-title').textContent.toLowerCase();
             item.style.display = title.includes(query) ? '' : 'none';
         });
@@ -261,6 +322,197 @@ function createImportModal() {
     });
 }
 
+function initializeGlobalSearchLogic() {
+    const myLotsView = document.getElementById('fp-import-my-lots-view');
+    const globalSearchView = document.getElementById('fp-import-global-search-view');
+    const toggle = document.getElementById('fp-import-scope-toggle');
+    
+    toggle.addEventListener('change', () => {
+        const previewContainer = document.getElementById('fp-import-preview-content');
+        previewContainer.innerHTML = '<div class="fp-import-empty">Выберите лот из списка слева</div>';
+        if (toggle.checked) {
+            myLotsView.style.display = 'none';
+            globalSearchView.style.display = 'flex';
+        } else {
+            myLotsView.style.display = 'block';
+            globalSearchView.style.display = 'none';
+        }
+    });
+
+    const searchInput = document.getElementById('fp-global-search-input');
+    const resultsContainer = document.getElementById('fp-global-search-results');
+    const backBtn = document.getElementById('fp-import-back-btn');
+    const previewContainer = document.getElementById('fp-import-preview-content');
+
+    let searchState = {
+        step: 'game', // 'game', 'category', 'lot'
+        gameUrl: null,
+        categoryUrl: null,
+        nodeId: null
+    };
+
+    let debounceTimer;
+    searchInput.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(async () => {
+            const query = searchInput.value.trim();
+            if (query.length < 2) {
+                resultsContainer.innerHTML = '';
+                return;
+            }
+            resultsContainer.innerHTML = '<div class="fp-import-loader"></div>';
+            try {
+                const games = await chrome.runtime.sendMessage({ action: 'searchGames', query: query });
+                renderGlobalResults(games, 'game');
+            } catch (error) {
+                resultsContainer.innerHTML = `<div class="fp-import-empty">Ошибка: ${error.message}</div>`;
+            }
+        }, 300);
+    });
+
+    resultsContainer.addEventListener('click', async (e) => {
+        const target = e.target.closest('.fp-global-result-item');
+        if (!target) return;
+
+        resultsContainer.innerHTML = '<div class="fp-import-loader"></div>';
+        
+        try {
+            if (searchState.step === 'game') {
+                searchInput.style.display = 'none';
+                backBtn.style.display = 'block';
+                searchState.gameUrl = target.dataset.url;
+                searchState.step = 'category';
+                const categories = await chrome.runtime.sendMessage({ action: 'getCategoryList', url: searchState.gameUrl });
+                renderGlobalResults(categories, 'category');
+            } else if (searchState.step === 'category') {
+                searchState.categoryUrl = target.dataset.url;
+                searchState.nodeId = target.dataset.nodeId;
+                searchState.step = 'lot';
+                const lots = await chrome.runtime.sendMessage({ action: 'getLotList', url: searchState.categoryUrl });
+                renderGlobalResults(lots, 'lot');
+            } else if (searchState.step === 'lot') {
+                document.querySelectorAll('.fp-global-result-item').forEach(el => el.classList.remove('active'));
+                target.classList.add('active');
+                
+                const offerId = target.dataset.offerId;
+                if (!offerId) throw new Error("Не удалось получить ID лота");
+
+                previewContainer.innerHTML = '<div class="fp-import-loader"></div>';
+                
+                const lotData = await fetchPublicLotDataForImport(offerId);
+                // ИСПРАВЛЕНИЕ: Вызываем новую функцию рендера для публичных лотов
+                renderPublicPreview(lotData);
+            }
+        } catch (error) {
+            resultsContainer.innerHTML = `<div class="fp-import-empty">Ошибка: ${error.message}</div>`;
+            // Возвращаем на шаг назад в случае ошибки
+            searchInput.style.display = 'block';
+            backBtn.style.display = 'none';
+            searchState.step = 'game';
+        }
+    });
+    
+    backBtn.addEventListener('click', async () => {
+        resultsContainer.innerHTML = '<div class="fp-import-loader"></div>';
+        previewContainer.innerHTML = '<div class="fp-import-empty">Выберите лот из списка слева</div>';
+        try {
+            if (searchState.step === 'lot') {
+                searchState.step = 'category';
+                const categories = await chrome.runtime.sendMessage({ action: 'getCategoryList', url: searchState.gameUrl });
+                renderGlobalResults(categories, 'category');
+            } else if (searchState.step === 'category') {
+                searchState.step = 'game';
+                searchInput.style.display = 'block';
+                backBtn.style.display = 'none';
+                searchInput.dispatchEvent(new Event('input')); 
+            }
+        } catch (error) {
+            resultsContainer.innerHTML = `<div class="fp-import-empty">Ошибка: ${error.message}</div>`;
+        }
+    });
+
+    function renderGlobalResults(items, type) {
+        if (!items || items.length === 0) {
+            resultsContainer.innerHTML = `<div class="fp-import-empty">Ничего не найдено.</div>`;
+            return;
+        }
+
+        let itemsHtml = '';
+        if (type === 'game') {
+            itemsHtml = items.map(item => `
+                <div class="fp-global-result-item" data-url="${item.url}">
+                    <img src="${item.img}" class="fp-global-item-img" onerror="this.style.display='none'">
+                    <span>${item.name}</span>
+                </div>`).join('');
+        } else if (type === 'category') {
+            itemsHtml = items.map(item => `
+                <div class="fp-global-result-item" data-url="${item.url}" data-node-id="${item.nodeId}">
+                    <span>${item.name}</span>
+                    <span class="fp-global-item-count">${item.count}</span>
+                </div>`).join('');
+        } else if (type === 'lot') {
+            itemsHtml = items.map(item => `
+                <div class="fp-import-lot-item fp-global-result-item" data-offer-id="${item.offerId}">
+                    <div class="fp-import-lot-details">
+                        <span class="fp-import-lot-title">${item.description}</span>
+                        <span class="fp-import-lot-seller">Продавец: ${item.seller}</span>
+                    </div>
+                    <span class="fp-import-lot-price">${item.price}</span>
+                </div>`).join('');
+        }
+        resultsContainer.innerHTML = itemsHtml;
+    }
+}
+
+// НОВАЯ ФУНКЦИЯ: Рендер предпросмотра для публичных лотов
+function renderPublicPreview(data) {
+    const previewContainer = document.getElementById('fp-import-preview-content');
+    previewContainer.innerHTML = `
+        <div class="fp-import-options">
+            <label><input type="checkbox" data-field="summary" checked> Краткое описание</label>
+            <label><input type="checkbox" data-field="description" checked> Подробное описание</label>
+        </div>
+        <div class="fp-import-preview-fields">
+            <div class="fp-import-preview-field">
+                <label>Краткое описание:</label>
+                <textarea readonly>${data.summary}</textarea>
+            </div>
+             <div class="fp-import-preview-field">
+                <label>Подробное описание:</label>
+                <textarea readonly>${data.description}</textarea>
+            </div>
+        </div>
+        <div class="fp-import-actions">
+            <button id="fp-import-apply-public-btn" class="btn btn-primary">Импортировать</button>
+        </div>
+    `;
+    
+    document.getElementById('fp-import-apply-public-btn').addEventListener('click', () => {
+        const importSummary = document.querySelector('.fp-import-options input[data-field="summary"]').checked;
+        const importDescription = document.querySelector('.fp-import-options input[data-field="description"]').checked;
+
+        if (importSummary) {
+            const summaryInput = document.querySelector('input[name="fields[summary][ru]"]');
+            if (summaryInput) {
+                summaryInput.value = data.summary;
+                summaryInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        }
+
+        if (importDescription) {
+            const descTextarea = document.querySelector('textarea[name="fields[desc][ru]"]');
+            if (descTextarea) {
+                descTextarea.value = data.description;
+                descTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        }
+
+        document.getElementById('fp-tools-import-modal-overlay').style.display = 'none';
+        showNotification('Данные успешно импортированы!', false);
+    });
+}
+
+// Рендер предпросмотра для СВОИХ лотов
 function renderPreview(data) {
     const previewContainer = document.getElementById('fp-import-preview-content');
     previewContainer.innerHTML = `

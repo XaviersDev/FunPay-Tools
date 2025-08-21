@@ -9,7 +9,8 @@
         "cookies",
         "alarms",
         "offscreen",
-        "notifications"
+        "notifications",
+        "background" 
     ],
     "host_permissions": [
         "https://fptools-ai-server.vercel.app/*",
@@ -72,6 +73,7 @@
                 "content/features/auto_review.js",
                 "content/features/overview_tour.js",
                 "content/features/magicstick.js",
+                "content/features/piggy_bank.js",
                 "content/ui/main_popup.js",
                 "content/content_script.js"
             ],

@@ -11,6 +11,7 @@ class CursorFX {
         this.customCursor = null;
         this.customCursorConfig = {};
         this.cursorHideStyleTag = null;
+        this.maxParticles = 500; // Ограничение на 500 частиц
 
         this.init();
     }
@@ -89,7 +90,7 @@ class CursorFX {
     start() {
         if (this.isEnabled) return;
         this.isEnabled = true;
-        this.animate();
+        // Не запускаем animate() сразу, он запустится при первом движении мыши
     }
 
     stop() {
@@ -99,10 +100,15 @@ class CursorFX {
             cancelAnimationFrame(this.animationFrame);
             this.animationFrame = null;
         }
+        // Очищаем холст через некоторое время, чтобы частицы успели исчезнуть
         setTimeout(() => this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height), 200);
     }
     
     spawnSingleParticle() {
+        if (this.particles.length >= this.maxParticles) {
+            return;
+        }
+        
         const p = {
             x: this.mouse.x, y: this.mouse.y,
             life: Math.random() * 40 + 40,
@@ -134,6 +140,11 @@ class CursorFX {
     }
 
     createParticle() {
+        // Если анимация неактивна, запускаем ее
+        if (!this.animationFrame && this.isEnabled) {
+            this.animate();
+        }
+
         const count = (this.config.count / 100) * 5;
         const numToSpawn = Math.floor(count) + (Math.random() < (count % 1) ? 1 : 0);
 
@@ -143,11 +154,19 @@ class CursorFX {
     }
 
     animate() {
-        if (!this.isEnabled) return;
+        if (!this.isEnabled) {
+            this.animationFrame = null;
+            return;
+        }
 
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        // Очищаем только если есть частицы, чтобы не нагружать впустую
+        if (this.particles.length > 0) {
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        }
+        
         this.hue = (this.hue + 1) % 360;
 
+        // Создаем частицы при движении мыши (уже делается в mousemove)
         this.createParticle();
 
         for (let i = this.particles.length - 1; i >= 0; i--) {
@@ -170,6 +189,14 @@ class CursorFX {
         }
 
         this.ctx.globalAlpha = 1;
+
+        // Если частиц больше нет, останавливаем цикл анимации
+        if (this.particles.length === 0) {
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height); // Финальная очистка
+            this.animationFrame = null;
+            return;
+        }
+
         this.animationFrame = requestAnimationFrame(this.animate.bind(this));
     }
 }
@@ -275,4 +302,4 @@ function setupCursorFxHandlers() {
             cursorFx.updateCustomCursor(newSettings);
         });
     });
-} 
+}

@@ -1,5 +1,36 @@
 'use strict';
 
+async function displayPinnedLotsOnLoad() {
+    const { fpToolsPinnedLots = [] } = await chrome.storage.local.get('fpToolsPinnedLots');
+    if (fpToolsPinnedLots.length === 0) return;
+
+    const profileDataContainer = $('.profile-data-container');
+    if (!profileDataContainer.length) return;
+
+    let pinnedLotsHtml = '';
+    fpToolsPinnedLots.forEach(lotData => {
+        const $lot = $(lotData.html);
+        $lot.attr('data-fp-tooltip', lotData.gameName);
+        $lot.addClass('fp-tooltip-host');
+        pinnedLotsHtml += $lot[0].outerHTML;
+    });
+
+    const pinnedContainer = $(`
+        <div class="offer" id="fp-tools-pinned-lots-container">
+            <div class="offer-list-title" style="display: flex; align-items: center; gap: 10px;">
+                <h3>Закрепленные лоты</h3>
+                <button id="fp-tools-edit-pinned-lots-btn" class="btn btn-default btn-xs" title="Выбрать закрепленные" style="padding: 2px 8px; font-size: 14px; line-height: 1;">✏️</button>
+            </div>
+            <div class="tc showcase-table tc-b-main">
+                ${pinnedLotsHtml}
+            </div>
+        </div>
+    `);
+
+    profileDataContainer.prepend(pinnedContainer);
+}
+
+
 function initializeLotManagement() {
     $(function() {
         const isProfileSalesPage = window.location.pathname.includes('/users/') && !document.querySelector('.chat-profile-container');
@@ -7,6 +38,10 @@ function initializeLotManagement() {
 
         if (!isProfileSalesPage && !isCategoryTradePage) return;
         if (document.getElementById('fp-tools-select-lots-btn')) return;
+
+        if (isProfileSalesPage) {
+            displayPinnedLotsOnLoad();
+        }
 
         const selectBtn = $('<button type="button" class="btn btn-default btn-block" id="fp-tools-select-lots-btn">Выбрать</button>');
         const reactivateBtn = $('<button type="button" class="btn btn-default btn-block" id="fp-tools-reactivate-lots-btn">Включить лоты</button>');
@@ -21,7 +56,7 @@ function initializeLotManagement() {
         `);
 
         if (isProfileSalesPage) {
-            const offersHeader = $(Array.from(document.querySelectorAll('h5.mb10.text-bold')).find(h => h.textContent.trim() === 'Предложения'));
+            const offersHeader = $(Array.from(document.querySelectorAll('h5.mb10.text-bold')).find(h => h.textContent.trim() === 'Предложения' || h.textContent.trim() === 'Отзывы'));
             if (offersHeader.length) {
                 selectBtn.removeClass('btn-block').addClass('btn-xs');
                 reactivateBtn.removeClass('btn-block').addClass('btn-xs');
@@ -80,6 +115,14 @@ function initializeLotManagement() {
             $('.lot-box input').prop('checked', isChecked).trigger('change');
         });
 
+        $(document).on('click', '#fp-tools-edit-pinned-lots-btn', function() {
+            if (!$('#fp-tools-selection-controls').is(':visible')) {
+                $('#fp-tools-select-lots-btn').click();
+            }
+            $('.lot-box input').prop('checked', false);
+            $('#fp-tools-pinned-lots-container .lot-box input').prop('checked', true).trigger('change');
+        });
+
         setupActionProcessing();
     });
 }
@@ -102,6 +145,47 @@ function toggleSelectionMode(enable) {
     }
 }
 
+async function updatePinButtonsState() {
+    const $checked = $('.lot-box input:checked');
+    const $pinBtn = $('.action-lot.pin-lot');
+    const $unpinBtn = $('.action-lot.unpin-lot');
+
+    if ($checked.length === 0) {
+        $pinBtn.hide();
+        $unpinBtn.hide();
+        return;
+    }
+
+    const { fpToolsPinnedLots = [] } = await chrome.storage.local.get('fpToolsPinnedLots');
+    const pinnedIds = new Set(fpToolsPinnedLots.map(l => l.offerId));
+
+    let arePinnedCount = 0;
+    let areNotPinnedCount = 0;
+
+    $checked.each(function() {
+        const $lotLink = $(this).closest('a.tc-item');
+        const offerIdMatch = $lotLink.attr('href').match(/(?:offer=|id=)(\d+)/);
+        const offerId = offerIdMatch ? offerIdMatch[1] : null;
+
+        if (offerId) {
+            if (pinnedIds.has(offerId)) {
+                arePinnedCount++;
+            } else {
+                areNotPinnedCount++;
+            }
+        }
+    });
+
+    $pinBtn.show();
+    $unpinBtn.show();
+
+    if (arePinnedCount > 0 && areNotPinnedCount === 0) {
+        $pinBtn.hide();
+    }
+    if (areNotPinnedCount > 0 && arePinnedCount === 0) {
+        $unpinBtn.hide();
+    }
+}
 
 function setupActionProcessing() {
     if ($('.actions').length === 0) {
@@ -110,6 +194,8 @@ function setupActionProcessing() {
                 <span class="log">Выберите действие</span>
                 <div>
                     <button class="action-lot price-editor">Редактор цен</button>
+                    <button class="action-lot pin-lot" style="background: #27ae60;">Закрепить</button>
+                    <button class="action-lot unpin-lot" style="background: #c0392b;">Открепить</button>
                     <button class="action-lot dublicate">Дублировать</button>
                     <button class="action-lot deactivate-lot">Отключить</button>
                     <button class="action-lot delete-lot">Удалить</button>
@@ -129,6 +215,8 @@ function setupActionProcessing() {
             selectAllCheckbox.prop('checked', checked === total);
             selectAllCheckbox.prop('indeterminate', checked > 0 && checked < total);
         }
+        
+        updatePinButtonsState();
     });
     
     $(document).on('click', 'a.tc-item', function(e) {
@@ -195,6 +283,71 @@ function setupActionProcessing() {
         }
     }
 
+    async function processPinAction(isPinning) {
+        const selectedCheckboxes = $('.lot-box input:checked').get();
+        if (selectedCheckboxes.length === 0) return;
+    
+        toggleActions(true);
+        let { fpToolsPinnedLots = [] } = await chrome.storage.local.get('fpToolsPinnedLots');
+        const pinnedOfferIds = new Set(fpToolsPinnedLots.map(l => l.offerId));
+        let changesMade = 0;
+    
+        for (const checkbox of selectedCheckboxes) {
+            const $lotLink = $(checkbox).closest('a.tc-item');
+            const offerLink = $lotLink.attr('href');
+            const offerIdMatch = offerLink.match(/(?:offer=|id=)(\d+)/);
+            const offerId = offerIdMatch ? offerIdMatch[1] : null;
+    
+            if (!offerId) continue;
+    
+            if (isPinning) {
+                if (!pinnedOfferIds.has(offerId)) {
+                    const $offerBlock = $lotLink.closest('.offer');
+                    const gameName = $offerBlock.find('.offer-list-title h3 a').text().trim();
+                    const nodeIdMatch = $offerBlock.find('.offer-list-title a').attr('href').match(/\/(?:lots|chips)\/(\d+)/);
+                    const nodeId = nodeIdMatch ? nodeIdMatch[1] : null;
+    
+                    const descElement = $lotLink.find('.tc-desc');
+                    const priceElement = $lotLink.find('.tc-price');
+
+                    if (gameName && nodeId && descElement.length && priceElement.length) {
+                        const cleanLotHtml = $('<a>', { href: offerLink, class: 'tc-item' })
+                            .append(descElement.clone())
+                            .append(priceElement.clone())
+                            .prop('outerHTML');
+
+                        fpToolsPinnedLots.push({
+                            offerId: offerId,
+                            nodeId: nodeId,
+                            gameName: gameName,
+                            html: cleanLotHtml
+                        });
+                        pinnedOfferIds.add(offerId);
+                        changesMade++;
+                    }
+                }
+            } else { 
+                const initialLength = fpToolsPinnedLots.length;
+                fpToolsPinnedLots = fpToolsPinnedLots.filter(l => l.offerId !== offerId);
+                if (fpToolsPinnedLots.length < initialLength) {
+                    changesMade++;
+                }
+            }
+        }
+    
+        if (changesMade > 0) {
+            await chrome.storage.local.set({ fpToolsPinnedLots });
+            
+            $('#fp-tools-pinned-lots-container').remove();
+            await displayPinnedLotsOnLoad();
+            
+            showNotification(isPinning ? `Закреплено ${changesMade} лот(ов).` : `Откреплено ${changesMade} лот(ов).`);
+        }
+    
+        $('.lot-box input:checked').prop('checked', false).trigger('change');
+        toggleActions(false);
+    }
+    
     async function processSelectedLots(actionType) {
         const selectedCheckboxes = $('.lot-box input:checked').get();
         if (selectedCheckboxes.length === 0) return;
@@ -223,7 +376,16 @@ function setupActionProcessing() {
             
             let nodeId;
             if (isProfileSalesPage) {
-                nodeId = $lotLink.closest('.offer').find('.offer-list-title a').attr('href').split('lots/')[1].split('/')[0];
+                const $offerBlock = $lotLink.closest('.offer');
+                const categoryLink = $offerBlock.find('.offer-list-title a');
+                if (categoryLink.length > 0) {
+                    const nodeIdMatch = categoryLink.attr('href').match(/\/(?:lots|chips)\/(\d+)/);
+                    nodeId = nodeIdMatch ? nodeIdMatch[1] : null;
+                } else if ($offerBlock.attr('id') === 'fp-tools-pinned-lots-container') {
+                    const { fpToolsPinnedLots = [] } = await chrome.storage.local.get('fpToolsPinnedLots');
+                    const pinnedLot = fpToolsPinnedLots.find(l => l.offerId === offerId);
+                    nodeId = pinnedLot ? pinnedLot.nodeId : null;
+                }
             } else {
                 const nodeIdMatch = window.location.pathname.match(/\/lots\/(\d+)/);
                 nodeId = nodeIdMatch ? nodeIdMatch[1] : null;
@@ -344,7 +506,16 @@ function setupActionProcessing() {
             
             let nodeId;
             if (isProfileSalesPage) {
-                nodeId = $lotLink.closest('.offer').find('.offer-list-title a').attr('href').split('lots/')[1].split('/')[0];
+                const $offerBlock = $lotLink.closest('.offer');
+                const categoryLink = $offerBlock.find('.offer-list-title a');
+                 if (categoryLink.length > 0) {
+                    const nodeIdMatch = categoryLink.attr('href').match(/\/(?:lots|chips)\/(\d+)/);
+                    nodeId = nodeIdMatch ? nodeIdMatch[1] : null;
+                } else if ($offerBlock.attr('id') === 'fp-tools-pinned-lots-container') {
+                    const { fpToolsPinnedLots = [] } = await chrome.storage.local.get('fpToolsPinnedLots');
+                    const pinnedLot = fpToolsPinnedLots.find(l => l.offerId === offerId);
+                    nodeId = pinnedLot ? pinnedLot.nodeId : null;
+                }
             } else {
                 const nodeIdMatch = window.location.pathname.match(/\/lots\/(\d+)/);
                 nodeId = nodeIdMatch ? nodeIdMatch[1] : null;
@@ -390,6 +561,8 @@ function setupActionProcessing() {
         toggleActions(false);
     }
     
+    $actionsBar.on('click', '.pin-lot', () => processPinAction(true));
+    $actionsBar.on('click', '.unpin-lot', () => processPinAction(false));
     $actionsBar.on('click', '.delete-lot', () => processSelectedLots('delete'));
     $actionsBar.on('click', '.dublicate', () => processSelectedLots('duplicate'));
     $actionsBar.on('click', '.deactivate-lot', () => processSelectedLots('deactivate'));

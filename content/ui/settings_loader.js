@@ -191,6 +191,10 @@ async function loadSavedSettings() {
             chrome.runtime.sendMessage({ action: 'deleteCookiesAndReload' });
         });
     }
+
+    if (typeof initializePiggyBank === 'function') {
+        initializePiggyBank();
+    }
     
     const toolsPopup = document.querySelector('.fp-tools-popup');
     if (settings.fpToolsPopupDragged && settings.fpToolsPopupPosition) {

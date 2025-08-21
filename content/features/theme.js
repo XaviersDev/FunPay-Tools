@@ -148,6 +148,8 @@ function getCustomThemeCss(settings) {
             background-size: cover;
             filter: blur(${settings.bgBlur}px) brightness(${settings.bgBrightness}%);
             z-index: -1;
+            will-change: transform; /* Оптимизация для скролла */
+            transform: translateZ(0); /* Форсируем GPU-слой */
         }
         .wrapper-content, .wrapper-footer, body, .wrapper, .content-orders, .bg-light-color #header, .bg-light-color #footer, .wrapper-footer { background: transparent !important; }
         .wrapper-content, .wrapper-footer { background-color: rgba(0,0,0,0.4) !important; }
