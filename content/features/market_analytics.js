@@ -1,5 +1,3 @@
-// content/features/market_analytics.js
-
 function getAnalyticsBlockHTML() {
     return `
     <div class="fp-tools-analytics-container">
@@ -10,7 +8,6 @@ function getAnalyticsBlockHTML() {
                 <button type="button" class="btn btn-default" id="fpTools-analytics-close">Закрыть</button>
             </div>
         </div>
-
         <div class="fp-stats-grid">
             <div class="fp-stat-card">
                 <div class="stat-card-icon">📊</div>
@@ -79,23 +76,19 @@ function runMarketAnalysis() {
         showNotification('На странице не найдены лоты для анализа.', true);
         return;
     }
-
     const prices = [];
     const sellers = new Set();
     let sellersWithReviews = 0;
     let onlineSellers = 0;
-
     lots.forEach(lot => {
         const price = parseFloat(lot.querySelector('.tc-price')?.dataset.s);
         if (!isNaN(price)) {
             prices.push(price);
         }
-
         const sellerName = lot.querySelector('.media-user-name span')?.textContent.trim();
         if (sellerName) {
             sellers.add(sellerName);
         }
-
         if (lot.querySelector('.rating-mini-count')) {
             sellersWithReviews++;
         }
@@ -103,17 +96,14 @@ function runMarketAnalysis() {
             onlineSellers++;
         }
     });
-
     if (prices.length === 0) {
         showNotification('Не удалось извлечь цены из лотов.', true);
         return;
     }
-
     const sum = prices.reduce((a, b) => a + b, 0);
     const avg = sum / prices.length;
     const min = Math.min(...prices);
     const max = Math.max(...prices);
-
     document.getElementById('fpTools-analytics-total-lots').textContent = lots.length;
     document.getElementById('fpTools-analytics-unique-sellers').textContent = sellers.size;
     document.getElementById('fpTools-analytics-sellers-with-reviews').textContent = sellersWithReviews;
@@ -126,10 +116,23 @@ function runMarketAnalysis() {
 
 function initializeMarketAnalytics() {
     if (!window.location.pathname.includes('/lots/')) return;
-    
-    const controlsContainer = document.querySelector('.col-md-3.col-sm-4.hidden-xs .pull-right');
 
-    if (!controlsContainer || document.getElementById('fpTools-market-analytics-btn')) return;
+    const parentColumn = document.querySelector('.col-md-3.col-sm-4.hidden-xs');
+    if (!parentColumn || document.getElementById('fpTools-market-analytics-btn-wrapper')) return;
+
+    const originalButtonContainer = parentColumn.querySelector('.pull-right');
+    if (!originalButtonContainer) return;
+
+    parentColumn.style.display = 'flex';
+    parentColumn.style.flexDirection = 'column';
+    parentColumn.style.alignItems = 'flex-end';
+    
+    const analyticsButtonWrapper = createElement('div', {
+        id: 'fpTools-market-analytics-btn-wrapper'
+    }, {
+        marginBottom: '10px',
+        width: 'auto'
+    });
 
     const analyticsButton = createElement('button', {
         type: 'button',
@@ -137,20 +140,19 @@ function initializeMarketAnalytics() {
         id: 'fpTools-market-analytics-btn',
     }, {}, 'Аналитика рынка');
 
-    controlsContainer.prepend(analyticsButton);
-
+    analyticsButtonWrapper.appendChild(analyticsButton);
+    parentColumn.insertBefore(analyticsButtonWrapper, originalButtonContainer);
+    
     analyticsButton.addEventListener('click', () => {
         let analyticsBlock = document.querySelector('.fp-tools-analytics-container');
         if (analyticsBlock) {
             analyticsBlock.remove();
             return;
         }
-
         const lotsTable = document.querySelector('.tc.showcase-table');
         if (lotsTable) {
             lotsTable.insertAdjacentHTML('beforebegin', getAnalyticsBlockHTML());
             runMarketAnalysis();
-
             document.getElementById('fpTools-analytics-refresh').addEventListener('click', runMarketAnalysis);
             document.getElementById('fpTools-analytics-close').addEventListener('click', () => {
                 document.querySelector('.fp-tools-analytics-container')?.remove();

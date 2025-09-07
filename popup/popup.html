@@ -3,12 +3,53 @@
 <head>
    <meta charset="utf-8">
    <link rel="stylesheet" href="popup.css">
+   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
-   <div class="container">
-       <div class="logo">FP Tools</div>
-       <button class="telegram-btn" id="telegramBtn">📱 Telegram</button>
+   <div class="popup-wrapper">
+       <header>
+           <div class="header-logo">
+               <img src="../icons/icon128.png" alt="FP Tools Logo" width="32" height="32">
+               <div class="header-text">
+                   <h1>FunPay Tools</h1>
+                   <!-- ИЗМЕНЕНИЕ: Добавлен id для динамической вставки версии -->
+                   <span id="version-display"></span>
+               </div>
+           </div>
+       </header>
+
+       <main>
+           <p class="instruction-text">
+               Все настройки и функции расширения находятся прямо на сайте FunPay!
+           </p>
+           
+           <div class="visual-guide">
+               <p>Ищите эту кнопку в шапке сайта:</p>
+               <img src="fp-tools-button-location.png" alt="Расположение кнопки FP Tools на сайте FunPay">
+           </div>
+           
+           <a id="goToFunPayBtn" class="cta-button" href="https://funpay.com" target="_blank">
+               Перейти на FunPay
+           </a>
+       </main>
+
+       <footer>
+           <div class="quick-links">
+               <a href="#" id="telegramBtn" title="Наш Telegram-канал">
+                   <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-1.37.2-1.64l16.44-5.99c.73-.27 1.36.17 1.15.99l-2.28 10.82c-.15.71-.56 1.01-1.2 1.01l-4.82-.01-1.15 4.35c-.32.74-1.23.46-1.42-.47z"></path></svg>
+                   <span>Сообщество</span>
+               </a>
+               <a href="#" id="reviewBtn" title="Оставить отзыв">
+                   <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27z"></path></svg>
+                   <span>Оценить</span>
+               </a>
+           </div>
+           <div class="credits">
+               Made with ❤️ by AlliSighs
+           </div>
+       </footer>
    </div>
+
    <script src="popup.js"></script>
 </body>
 </html>

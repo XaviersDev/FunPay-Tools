@@ -80,34 +80,6 @@ ${context}
     return makeAIRequest(finalPrompt);
 }
 
-export async function fetchAIReviewResponse(data) {
-    const { prompt, stars, lotName, myUsername } = data;
-
-    const finalPrompt = `
-Ты — вежливый и профессиональный ассистент продавца "${myUsername}" на игровой бирже FunPay. Твоя задача — написать краткий и дружелюбный ответ на отзыв покупателя.
-
---- ПРАВИЛА ---
-1.  Будь краток и по делу. Ответ должен быть не длиннее 1-2 предложений.
-2.  Отвечай от лица продавца (${myUsername}).
-3.  Учитывай оценку. Если оценка низкая (1-4 звезды), можно выразить сожаление. Если высокая (5 звезд) — благодарность.
-4.  Используй переменные, если они есть в запросе: {lotname} (название товара), {date} (дата).
-5.  Добавь уместные эмодзи, чтобы сделать тон дружелюбным.
-6.  Твой ответ — это ТОЛЬКО итоговый текст сообщения. Без кавычек, без "Результат:", без каких-либо объяснений.
-
---- ДАННЫЕ ОТЗЫВА ---
-- Оценка: ${stars} из 5 ⭐
-- Название товара: "${lotName}"
-
---- МОЙ ЗАПРОС (от ${myUsername}) ---
-"${prompt}"
-
----
-Сгенерируй ответ на отзыв, учитывая все правила и данные.
-Готовый текст ответа:`;
-
-    return makeAIRequest(finalPrompt);
-}
-
 export async function fetchAILotGeneration(data) {
     const { promptTitle, promptDesc, genBuyerMsg, styleExamples, gameCategory } = data;
 
@@ -268,4 +240,4 @@ Your response MUST be a single, valid JSON object and nothing else.
         }
         return { success: false, error: `AI returned invalid JSON for image generation: ${e.message}` };
     }
-}
+} 

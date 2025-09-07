@@ -1,6 +1,97 @@
 (function() {
     'use strict';
     
+    // --- НОВЫЙ БЛОК: ФУНКЦИОНАЛ ОБЪЯВЛЕНИЙ ---
+    function initializeAnnouncementsFeature() {
+        const announcementsTab = document.getElementById('announcementsNavTab');
+        if (!announcementsTab) return;
+
+        // Функция для отображения объявлений
+        const displayAnnouncements = (announcements) => {
+            const contentArea = document.getElementById('announcements-content-area');
+            if (!contentArea) return;
+
+            if (!announcements || announcements.length === 0) {
+                contentArea.innerHTML = '<p class="announcement-empty">Пока нет никаких объявлений.</p>';
+                return;
+            }
+
+            contentArea.innerHTML = announcements.map(a => {
+                const date = new Date(a.id).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+                return `
+                    <div class="announcement-item">
+                        <div class="announcement-item-header">
+                            <h4>${a.title}</h4>
+                            <span class="announcement-date">${date}</span>
+                        </div>
+                        <p>${a.content.replace(/\n/g, '<br>')}</p>
+                    </div>
+                `;
+            }).join('');
+        };
+
+        // Клик по вкладке
+        announcementsTab.addEventListener('click', async () => {
+            const popup = document.querySelector('.fp-tools-popup');
+            const navItems = popup.querySelectorAll('.fp-tools-nav li, .fp-tools-header-tab');
+            const contentPages = popup.querySelectorAll('.fp-tools-page-content');
+
+            navItems.forEach(item => item.classList.remove('active'));
+            announcementsTab.classList.add('active');
+            
+            contentPages.forEach(page => page.classList.remove('active'));
+            popup.querySelector('.fp-tools-page-content[data-page="announcements"]').classList.add('active');
+
+            // Отправляем сообщение, что пользователь прочитал объявления
+            chrome.runtime.sendMessage({ action: 'markAnnouncementsAsRead' });
+            
+            // Загружаем и отображаем контент
+            const { fpToolsAnnouncements } = await chrome.storage.local.get('fpToolsAnnouncements');
+            displayAnnouncements(fpToolsAnnouncements);
+        });
+
+        // Кнопка принудительного обновления
+        const refreshBtn = document.getElementById('refresh-announcements-btn');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => {
+                refreshBtn.disabled = true;
+                refreshBtn.querySelector('.material-icons').classList.add('spinning');
+                
+                chrome.runtime.sendMessage({ action: 'forceCheckAnnouncements' }, (response) => {
+                    if (response && response.success) {
+                        showNotification('Объявления обновлены!', false);
+                    }
+                });
+
+                setTimeout(() => {
+                    refreshBtn.disabled = false;
+                    refreshBtn.querySelector('.material-icons').classList.remove('spinning');
+                }, 5000); // КД 5 секунд
+            });
+        }
+
+        // Проверяем наличие непрочитанных при инициализации
+        chrome.storage.local.get('fpToolsUnreadCount', ({ fpToolsUnreadCount }) => {
+            updateAnnouncementsBadgeUI(fpToolsUnreadCount || 0);
+        });
+    }
+
+    function updateAnnouncementsBadgeUI(unreadCount) {
+        const announcementsTab = document.getElementById('announcementsNavTab');
+        if (!announcementsTab) return;
+        const badge = announcementsTab.querySelector('.notification-badge');
+
+        if (unreadCount > 0) {
+            announcementsTab.classList.add('has-unread');
+            badge.textContent = `+${unreadCount}`;
+            badge.style.display = 'flex';
+        } else {
+            announcementsTab.classList.remove('has-unread');
+            badge.style.display = 'none';
+        }
+    }
+    // --- КОНЕЦ НОВОГО БЛОКА ---
+
     function loadGoogleFonts() {
         if (document.getElementById('google-material-icons')) return;
         const link = createElement('link', {
@@ -21,11 +112,36 @@
         toolsMenu.innerHTML = `<a style="font-weight: bold; cursor: pointer; user-select: none;" id="fpToolsButton">FP Tools<span></span></a>`;
         anchor.insertAdjacentElement('afterend', toolsMenu);
 
-        toolsMenu.querySelector('#fpToolsButton')?.addEventListener('click', async () => {
+        const button = toolsMenu.querySelector('#fpToolsButton');
+
+        button?.addEventListener('click', async () => {
             const popup = document.querySelector('.fp-tools-popup');
             if (popup) {
                 await loadLastActivePage();
                 popup.classList.add('active');
+            }
+        });
+        
+        let hoverTimeout;
+        button?.addEventListener('mouseenter', () => {
+            hoverTimeout = setTimeout(() => {
+                if (typeof showHeaderButtonTooltip === 'function') {
+                    showHeaderButtonTooltip(button);
+                }
+            }, 2000);
+        });
+
+        button?.addEventListener('mouseleave', () => {
+            clearTimeout(hoverTimeout);
+            if (typeof hideHeaderButtonTooltip === 'function') {
+                hideHeaderButtonTooltip();
+            }
+        });
+
+        button?.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            if (typeof showButtonStyler === 'function') {
+                showButtonStyler(e.clientX, e.clientY);
             }
         });
 
@@ -43,12 +159,6 @@
                 }
                 if (!document.getElementById('aiModeToggleBtn')) {
                     setupAIChatFeature();
-                }
-            }
-            // Шаблоны для ответа на отзыв
-            if (event.target.matches('.review-editor-reply .form-control')) {
-                if (!document.querySelector('.review-response-btn')) {
-                    addReviewResponseButton();
                 }
             }
             // Менеджер автовыдачи
@@ -77,6 +187,9 @@
                         if (!document.getElementById('fp-tools-ai-gen-btn-wrapper')) {
                             createAIGeneratorUI();
                         }
+                    }
+                    if (node.querySelector('.chat-full-header') || node.matches('.chat-full-header')) {
+                        initializeMarkAllAsRead();
                     }
                 }
             }
@@ -136,7 +249,6 @@
         await loadSavedSettings();
         addChatTemplateButtons();
         initializeExactPrice();
-        addReviewResponseButton();
         setupAIChatFeature();
         initializeFontTools();
         if(settings.enableCustomTheme !== false) applyCustomTheme();
@@ -155,6 +267,9 @@
         initializeMagicStickStyler();
         initializePiggyBank();
         initializeMarketAnalytics();
+        initializeMarkAllAsRead();
+        initializeHeaderButtonStyler();
+        initializeAnnouncementsFeature(); // <-- ВЫЗОВ НОВОЙ ФУНКЦИИ
 
         chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             if (request.action === 'logToAutoBumpConsole') {
@@ -175,6 +290,40 @@
                 }
                 return true;
             }
+            // --- НОВЫЙ ИСПРАВЛЕННЫЙ СЛУШАТЕЛЬ ---
+            if (request.action === 'updateAnnouncementsBadge') {
+                updateAnnouncementsBadgeUI(request.unreadCount);
+                return true;
+            }
+            if (request.action === 'announcementsUpdated') {
+                const announcementsArea = document.getElementById('announcements-content-area');
+                // Проверяем, активна ли вкладка объявлений
+                if (announcementsArea && document.querySelector('.fp-tools-page-content[data-page="announcements"]').classList.contains('active')) {
+                    // Напрямую вызываем функцию для отрисовки полученных данных, БЕЗ клика
+                    const displayAnnouncements = (announcements) => {
+                        if (!announcementsArea) return;
+                        if (!announcements || announcements.length === 0) {
+                            announcementsArea.innerHTML = '<p class="announcement-empty">Пока нет никаких объявлений.</p>';
+                            return;
+                        }
+                        announcementsArea.innerHTML = announcements.map(a => {
+                            const date = new Date(a.id).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+                            return `
+                                <div class="announcement-item">
+                                    <div class="announcement-item-header">
+                                        <h4>${a.title}</h4>
+                                        <span class="announcement-date">${date}</span>
+                                    </div>
+                                    <p>${a.content.replace(/\n/g, '<br>')}</p>
+                                </div>
+                            `;
+                        }).join('');
+                    };
+                    displayAnnouncements(request.announcements);
+                }
+                return true;
+            }
+            // --- КОНЕЦ НОВОГО ИСПРАВЛЕННОГО СЛУШАТЕЛЯ ---
         });
     }
 

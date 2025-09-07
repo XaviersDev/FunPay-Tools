@@ -24,7 +24,7 @@ const SCENES = [
     {
         title: "ИИ-Ассистент в чате",
         icon: "smart_toy",
-        description: "Превратите любой черновик в вежливое и профессиональное сообщение одним нажатием Enter.",
+        description: "Превратите любой черновик в вежливое и профессиональное сообщение одним нажатием Enter. ИИ учтет контекст переписки.",
         visualization: `
             <div class="tour-chat-mockup-3d">
                 <div class="tour-chat-bubble before">привет, данные скинь</div>
@@ -33,25 +33,23 @@ const SCENES = [
         duration: 6000
     },
     {
-        title: "Шаблоны и AI-переменные",
-        icon: "integration_instructions",
-        description: "Создавайте и используйте шаблоны с {переменными}, включая генерацию текста через {ai:...} прямо в шаблоне.",
+        title: "AI-Генератор лотов",
+        icon: "auto_fix_high",
+        description: "Создавайте привлекательные названия и описания, которые идеально копируют ваш уникальный стиль оформления.",
         visualization: `
-            <div class="tour-chat-mockup-3d">
-                 <div class="tour-template-final-bubble">Спасибо за покупку, Player123! ✨</div>
-                 <div class="tour-template-buttons-3d">
-                    <button class="tour-mock-btn-3d">Приветствие</button>
-                    <button class="tour-mock-btn-3d tour-mock-btn-active-3d">Спасибо</button>
-                    <button class="tour-mock-btn-3d">Просьба</button>
-                 </div>
-                 <div class="tour-code-snippet-3d"><span>Спасибо за покупку, {buyername}! {ai:Пожелай хорошего дня}</span></div>
+             <div class="tour-lot-gen-mockup">
+                <div class="tour-lot-gen-input">Идея: <span>Крутой аккаунт Genshin</span></div>
+                <div class="tour-lot-gen-output">
+                    <div>🔥 ТОПОВЫЙ АККАУНТ GENSHIN 🔥</div>
+                    <div>✅ Много лег • ✅ Быстрая выдача</div>
+                </div>
             </div>`,
         duration: 7000
     },
     {
         title: "Полная кастомизация",
         icon: "palette",
-        description: "Настройте внешний вид FunPay с помощью анимированных фонов, цветов и уникальных шрифтов.",
+        description: "Настройте внешний вид FunPay с помощью анимированных фонов, цветов и даже расположения верхней панели.",
         visualization: `
             <div class="tour-theme-mockup-3d">
                 <div class="tour-theme-card before-theme">
@@ -65,42 +63,39 @@ const SCENES = [
         duration: 6000
     },
     {
-        title: "Продвинутые шрифты и символы",
-        icon: "text_fields",
-        description: "Выделяйте свои лоты с помощью уникальных шрифтов и специальной клавиатуры символов.",
+        title: "Волшебная палочка (Live Styler)",
+        icon: "auto_fix_normal",
+        description: "Редактируйте любой элемент сайта в реальном времени. Меняйте цвета, размеры или скрывайте ненужное, сохраняя стили навсегда.",
         visualization: `
-            <div class="tour-fonts-mockup">
-                <div class="tour-font-input">
-                    <span class="tour-font-char">П</span><span class="tour-font-char">р</span><span class="tour-font-char">и</span><span class="tour-font-char">м</span><span class="tour-font-char">е</span><span class="tour-font-char">р</span>
+            <div class="tour-magicstick-mockup">
+                <div class="tour-ms-element" id="tour-ms-target">Кнопка</div>
+                <div class="tour-ms-panel">
+                    <span>Цвет:</span> <input type="color" value="#00c9ff" disabled>
                 </div>
-                <div class="tour-symbol-keyboard">
-                    <span>★</span><span>✓</span><span>🔥</span><span>➤</span>
-                </div>
+                <div class="tour-ms-cursor"></div>
             </div>`,
         duration: 7000
     },
     {
         title: "Встроенный генератор изображений",
         icon: "add_photo_alternate",
-        description: "Создавайте привлекательные превью для своих лотов прямо в редакторе, без Photoshop.",
+        description: "Создавайте привлекательные превью для своих лотов прямо в редакторе, в том числе с помощью ИИ.",
         visualization: `
             <div class="tour-image-gen-mockup">
                 <div class="tour-image-gen-ui">
-                    <div class="tour-image-gen-control">Текст: <input type="text" value="СУПЕР АККАУНТ" readonly /></div>
-                    <div class="tour-image-gen-control">Цвет 1: <input type="color" value="#8A2BE2" disabled /></div>
-                    <div class="tour-image-gen-control">Цвет 2: <input type="color" value="#4169E1" disabled /></div>
+                    <div class="tour-image-gen-control">AI: <span>огненный значок клана</span></div>
                 </div>
                 <div class="tour-image-gen-preview">
                     <div class="tour-preview-content">
-                        <span class="material-icons">workspace_premium</span>
-                        <span>СУПЕР АККАУНТ</span>
+                        <span class="material-icons">local_fire_department</span>
+                        <span>FIRE SQUAD</span>
                     </div>
                 </div>
             </div>`,
         duration: 7000
     },
     {
-        title: "Массовое дублирование лотов",
+        title: "Продвинутое клонирование лотов",
         icon: "control_point_duplicate",
         description: "Копируйте лоты не только целиком, но и с изменением категорий, создавая десятки вариаций за раз.",
         visualization: `
@@ -117,47 +112,43 @@ const SCENES = [
             </div>`,
         duration: 7000
     },
-    {
-        title: "Управление лотами",
-        icon: "checklist",
-        description: "Выбирайте несколько лотов на странице профиля для массового удаления или дублирования.",
+     {
+        title: "Статистика и аналитика",
+        icon: "monitoring",
+        description: "Анализируйте рынок в любой категории и отслеживайте свои продажи с помощью детальной статистики.",
         visualization: `
-            <div class="tour-lot-management-mockup">
-                <div class="tour-manage-lot"><div class="tour-checkbox"></div><span>Аккаунт с высоким рангом</span></div>
-                <div class="tour-manage-lot"><div class="tour-checkbox"></div><span>Игровая валюта (1000 шт.)</span></div>
-                <div class="tour-manage-lot"><div class="tour-checkbox"></div><span>Редкий скин</span></div>
-                <div class="tour-manage-actions">
-                    <button><span class="material-icons">content_copy</span> Дублировать (3)</button>
-                    <button class="delete"><span class="material-icons">delete</span> Удалить (3)</button>
-                </div>
+            <div class="tour-analytics-mockup">
+                <div class="tour-stat-card"><span>Продавцов онлайн</span><p>15</p></div>
+                <div class="tour-stat-card"><span>Средний чек</span><p>450 ₽</p></div>
+                <div class="tour-stat-card"><span>Всего заработано</span><p>15 230 ₽</p></div>
             </div>`,
         duration: 7000
     },
     {
-        title: "Сортировка по отзывам",
-        icon: "sort",
-        description: "Анализируйте конкурентов, сортируя предложения по количеству отзывов, а не только по цене.",
+        title: "Финансовые Копилки",
+        icon: "savings",
+        description: "Ставьте цели и отслеживайте прогресс их достижения. Копилка синхронизируется с вашим балансом на FunPay.",
         visualization: `
-            <div class="tour-sort-mockup-3d">
-                <div class="tour-sort-header-3d">Цена</div>
-                <div class="tour-sort-header-3d active">Продавец <span class="material-icons">arrow_upward</span></div>
-                <div class="tour-sort-row-3d r-original-1">Лот A <span>(150 отзывов)</span></div>
-                <div class="tour-sort-row-3d r-original-2">Лот B <span>(1200 отзывов)</span></div>
-                <div class="tour-sort-row-3d r-original-3">Лот C <span>(5 отзывов)</span></div>
+            <div class="tour-piggy-mockup">
+                <h4>На новый ПК</h4>
+                <div class="tour-piggy-progress">
+                    <div class="tour-piggy-fill"></div>
+                </div>
+                <span>Собрано 45 000 из 100 000 ₽</span>
             </div>`,
         duration: 6000
     },
     {
         title: "Автоматизация рутины",
         icon: "model_training",
-        description: "Авто-поднятие лотов по таймеру и умные авто-ответы на отзывы с помощью ИИ.",
+        description: "Авто-поднятие лотов по таймеру, авто-приветствия для новых покупателей и уведомления в Discord.",
         visualization: `
             <div class="tour-auto-mockup-3d">
                 <div class="tour-auto-item-3d">
                     <span class="material-icons">upgrade</span><h4>Авто-поднятие</h4><p>Следующее через: 3:59:58</p>
                 </div>
                 <div class="tour-auto-item-3d">
-                    <span class="material-icons">rate_review</span><h4>Авто-ответ</h4><p>Отвечено на 5⭐ отзыв</p>
+                    <span class="material-icons">discord</span><h4>Discord</h4><p>Новое сообщение!</p>
                 </div>
             </div>`,
         duration: 6000
@@ -165,9 +156,9 @@ const SCENES = [
     {
         title: "И многое другое...",
         icon: "add_circle",
-        description: "Пометки пользователей, калькуляторы, эффекты курсора, менеджер автовыдачи и постоянные обновления!",
+        description: "Пометки пользователей, калькуляторы, глобальный импорт, менеджер автовыдачи и постоянные обновления!",
         visualization: `<div class="tour-grid-icons-3d">
-            <span class="material-icons">label</span><span class="material-icons">image</span><span class="material-icons">calculate</span>
+            <span class="material-icons">label</span><span class="material-icons">public</span><span class="material-icons">calculate</span>
             <span class="material-icons">magic_button</span><span class="material-icons">inventory</span><span class="material-icons">auto_awesome_motion</span>
         </div>`,
         duration: 6000

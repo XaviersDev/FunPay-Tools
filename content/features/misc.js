@@ -166,7 +166,8 @@ function initializeToolsPopup() {
                 viewSellersPromo: document.getElementById('viewSellersPromoCheckbox').checked,
                 notificationSound: selectedSound ? selectedSound.value : 'default',
                 autoBumpEnabled: document.getElementById('autoBumpEnabled').checked,
-                autoBumpCooldown: parseInt(document.getElementById('autoBumpCooldown').value, 10) || 245
+                autoBumpCooldown: parseInt(document.getElementById('autoBumpCooldown').value, 10) || 245,
+                fpToolsSelectiveBumpEnabled: document.getElementById('selectiveBumpEnabled').checked
             };
 
             settingsToSave.fpToolsDiscord = {
@@ -180,20 +181,6 @@ function initializeToolsPopup() {
                 enabled: document.getElementById('enableGreetings').checked,
                 text: document.getElementById('greetingsTemplate').value,
             };
-
-            const autoReviewSettings = {
-                enabled: document.getElementById('enableAutoReview').checked,
-                mode: document.querySelector('input[name="autoReviewMode"]:checked')?.value || 'ai',
-                aiPrompt: document.getElementById('autoReviewAiPrompt').value,
-                manualReplies: {},
-                randomReplies: {}
-            };
-            for (let i = 1; i <= 5; i++) {
-                autoReviewSettings.manualReplies[i] = document.getElementById(`manualReplyStar${i}`).value;
-                const randomInputs = document.querySelectorAll(`.random-reply-list[data-stars="${i}"] textarea`);
-                autoReviewSettings.randomReplies[i] = Array.from(randomInputs).map(input => input.value).filter(Boolean);
-            }
-            settingsToSave.fpToolsAutoReview = autoReviewSettings;
             
             await chrome.storage.local.set(settingsToSave);
 
@@ -257,6 +244,64 @@ function initializeToolsPopup() {
             }
         });
     }
+
+    const configureBtn = document.getElementById('configureSelectiveBumpBtn');
+    const modalOverlay = document.getElementById('autobump-category-modal-overlay');
+
+    configureBtn.addEventListener('click', async () => {
+        modalOverlay.style.display = 'flex';
+        const listContainer = document.getElementById('autobump-category-list');
+        listContainer.innerHTML = '<div class="fp-import-loader"></div>';
+
+        try {
+            const categories = await chrome.runtime.sendMessage({ action: 'getUserCategories' });
+            const { fpToolsSelectedBumpCategories = [] } = await chrome.storage.local.get('fpToolsSelectedBumpCategories');
+            
+            if (categories && categories.length > 0) {
+                listContainer.innerHTML = categories.map(cat => `
+                    <label class="autobump-category-item">
+                        <input type="checkbox" data-id="${cat.id}" ${fpToolsSelectedBumpCategories.includes(cat.id) ? 'checked' : ''}>
+                        <span>${cat.name}</span>
+                    </label>
+                `).join('');
+            } else {
+                listContainer.innerHTML = '<div class="fp-import-empty">Не найдено категорий на вашем профиле.</div>';
+            }
+        } catch (error) {
+            listContainer.innerHTML = `<div class="fp-import-empty">Ошибка загрузки: ${error.message}</div>`;
+        }
+    });
+
+    modalOverlay.querySelector('.fp-tools-modal-close').addEventListener('click', () => {
+        modalOverlay.style.display = 'none';
+    });
+
+    document.getElementById('autobump-select-all').addEventListener('click', () => {
+        const firstVisibleCheckbox = document.querySelector('#autobump-category-list .autobump-category-item:not([style*="display: none"]) input');
+        if (!firstVisibleCheckbox) return;
+        const isChecked = !firstVisibleCheckbox.checked;
+        document.querySelectorAll('#autobump-category-list input[type="checkbox"]').forEach(cb => {
+            if (cb.closest('.autobump-category-item').style.display !== 'none') {
+                cb.checked = isChecked;
+            }
+        });
+    });
+
+    document.getElementById('autobump-category-search').addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase();
+        document.querySelectorAll('.autobump-category-item').forEach(item => {
+            const name = item.querySelector('span').textContent.toLowerCase();
+            item.style.display = name.includes(query) ? 'flex' : 'none';
+        });
+    });
+
+    document.getElementById('autobump-category-save').addEventListener('click', async () => {
+        const selectedIds = Array.from(document.querySelectorAll('#autobump-category-list input:checked'))
+                                .map(cb => cb.dataset.id);
+        await chrome.storage.local.set({ fpToolsSelectedBumpCategories: selectedIds });
+        modalOverlay.style.display = 'none';
+        showNotification('Список категорий для поднятия сохранен!', false);
+    });
     
     if (typeof renderCustomTemplatesList === 'function') renderCustomTemplatesList();
     if (typeof setupThemeCustomizationHandlers === 'function') setupThemeCustomizationHandlers();
@@ -269,7 +314,6 @@ function initializeToolsPopup() {
     if (typeof setupTemplateSettingsHandlers === 'function') setupTemplateSettingsHandlers();
     if (typeof setupPopupNavigation === 'function') setupPopupNavigation();
     if (typeof initializeCalculatorLogic === 'function') initializeCalculatorLogic();
-    if (typeof initializeAutoReviewUI === 'function') initializeAutoReviewUI();
     if (typeof initializeNotes === 'function') initializeNotes();
 
     popup.dataset.initialized = 'true';
@@ -427,4 +471,128 @@ async function initializeQuickGamesMenu() {
 
     const initialGames = await getSavedGames();
     renderList(initialGames);
+} 
+
+function initializeMarkAllAsRead() {
+    const observer = new MutationObserver(async (mutationsList, obs) => {
+        const header = document.querySelector('.chat-full-header');
+        if (!header || document.getElementById('fp-tools-read-all-btn')) {
+            return;
+        }
+
+        const readAllBtn = createElement('button', {
+            id: 'fp-tools-read-all-btn',
+            class: 'fp-tooltip-host',
+            'data-fp-tooltip': 'Прочитать все'
+        });
+        readAllBtn.innerHTML = '<span class="material-icons">mark_chat_read</span>';
+        
+        const filterMarkedBtn = createElement('label', {
+            id: 'fp-tools-filter-marked-btn',
+            class: 'fp-tooltip-host fp-tools-chat-toggle',
+            'data-fp-tooltip': 'Только помеченные'
+        });
+        filterMarkedBtn.innerHTML = `
+            <input type="checkbox" id="filter-marked-checkbox">
+            <span class="fp-tools-chat-toggle-slider">
+                 <span class="material-icons">label</span>
+            </span>
+        `;
+        
+        header.appendChild(readAllBtn);
+        header.appendChild(filterMarkedBtn);
+
+        readAllBtn.addEventListener('click', async () => {
+            const unreadItems = Array.from(document.querySelectorAll('.contact-item.unread'));
+            if (unreadItems.length === 0) {
+                showNotification('Нет непрочитанных сообщений.', false);
+                return;
+            }
+
+            // --- Start: Immediate visual update ---
+            readAllBtn.classList.add('loading');
+            readAllBtn.disabled = true;
+
+            const nodeIdsToRead = [];
+            unreadItems.forEach(item => {
+                const nodeId = item.dataset.id;
+                if (nodeId) {
+                    nodeIdsToRead.push(nodeId);
+                }
+                item.classList.remove('unread'); // Visually mark as read immediately
+            });
+
+            const counter = document.querySelector('.chat-full-header .badge');
+            if (counter) {
+                counter.textContent = '0';
+                counter.style.display = 'none';
+            }
+            
+            showNotification(`Начинаю отмечать ${unreadItems.length} диалогов как прочитанные...`, false);
+            // --- End: Immediate visual update ---
+
+            let processedCount = 0;
+            const intervalId = setInterval(async () => {
+                // If the list of IDs is empty, we're done.
+                if (nodeIdsToRead.length === 0) {
+                    clearInterval(intervalId);
+                    readAllBtn.classList.remove('loading');
+                    readAllBtn.disabled = false;
+                    showNotification(`Завершено: ${processedCount} диалогов отмечены прочитанными.`, false);
+                    return;
+                }
+
+                const nodeId = nodeIdsToRead.shift();
+                const chatUrl = `https://funpay.com/chat/?node=${nodeId}`;
+
+                try {
+                    // Just making the GET request is enough to mark it as read on the server
+                    await fetch(chatUrl);
+                    processedCount++;
+                } catch (error) {
+                    console.error(`FP Tools: Ошибка при "посещении" чата ${nodeId} для прочтения`, error);
+                    // We don't re-add the nodeId to the list to avoid getting stuck on a failing one.
+                }
+
+            }, 800); // 0.8 second interval
+        });
+        
+        const filterCheckbox = document.getElementById('filter-marked-checkbox');
+
+        const applyMarkedFilter = () => {
+            const isFilterActive = filterCheckbox.checked;
+            const contactItems = document.querySelectorAll('.contact-list .contact-item');
+            
+            contactItems.forEach(item => {
+                const hasMark = item.querySelector('.fp-tools-user-status[data-fp-tooltip]');
+                if (isFilterActive) {
+                    item.style.display = hasMark ? '' : 'none';
+                } else {
+                    item.style.display = '';
+                }
+            });
+        };
+
+        filterCheckbox.addEventListener('change', async () => {
+            await chrome.storage.local.set({ fpToolsIsMarkedFilterActive: filterCheckbox.checked });
+            applyMarkedFilter();
+        });
+
+        chrome.storage.local.get('fpToolsIsMarkedFilterActive').then(data => {
+            if (data.fpToolsIsMarkedFilterActive) {
+                filterCheckbox.checked = true;
+                applyMarkedFilter();
+            }
+        });
+        
+        const contactList = document.querySelector('.contact-list');
+        if (contactList) {
+            const filterObserver = new MutationObserver(() => {
+                setTimeout(applyMarkedFilter, 100); 
+            });
+            filterObserver.observe(contactList, { childList: true, subtree: true });
+        }
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
 }

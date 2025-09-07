@@ -48,6 +48,7 @@ class CursorFX {
             this.mouse.x = e.clientX;
             this.mouse.y = e.clientY;
             this.customCursor.style.transform = `translate(calc(${e.clientX}px - 50%), calc(${e.clientY}px - 50%))`;
+            this.createParticle(); 
         });
     }
 
@@ -166,8 +167,7 @@ class CursorFX {
         
         this.hue = (this.hue + 1) % 360;
 
-        // Создаем частицы при движении мыши (уже делается в mousemove)
-        this.createParticle();
+        // Создаем частицы при движении мыши (уже делается в mousemove
 
         for (let i = this.particles.length - 1; i >= 0; i--) {
             const p = this.particles[i];

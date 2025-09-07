@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "FunPay Tools",
-    "version": "2.3",
+    "version": "2.4",
     "description": "🔥 Лучшее расширение для FunPay! ⚡ 50+ инструментов • 🤖 ИИ-помощник • 📈 Аналитика • 🚀 Автоматизация • 💰 Больше продаж!",
     "permissions": [
         "storage",
@@ -17,7 +17,8 @@
         "https://funpay.com/*",
         "https://cdn.jsdelivr.net/*",
         "https://fonts.googleapis.com/*",
-        "https://fonts.gstatic.com/*"
+        "https://fonts.gstatic.com/*",
+        "https://gist.githubusercontent.com/*"
     ],
     "action": {
         "default_popup": "popup/popup.html",
@@ -70,11 +71,11 @@
                 "content/features/ai_lot_creator.js",
                 "content/features/currency_calculator.js",
                 "content/features/notes.js",
-                "content/features/auto_review.js",
                 "content/features/overview_tour.js",
                 "content/features/magicstick.js",
                 "content/features/piggy_bank.js",
                 "content/ui/main_popup.js",
+                "content/ui/header_button_styler.js",
                 "content/content_script.js"
             ],
             "css": [

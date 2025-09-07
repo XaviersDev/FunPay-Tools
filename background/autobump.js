@@ -109,21 +109,34 @@ async function raiseCategory(categoryData, auth) {
 
 export async function runBumpCycle() {
     try {
+        const { fpToolsSelectiveBumpEnabled, fpToolsSelectedBumpCategories } = await chrome.storage.local.get(['fpToolsSelectiveBumpEnabled', 'fpToolsSelectedBumpCategories']);
+
         const auth = await getAuthDetails();
         const userUrl = `https://funpay.com/users/${auth.userId}/`;
         const userPageResponse = await fetch(userUrl, { headers: { 'Cookie': auth.cookies } });
         const userPageHtml = await userPageResponse.text();
 
         const categoryLinkRegex = /<a[^>]+href="([^"]+)"[^>]*class="[^"]*btn-plus[^"]*"/g;
-        const categoryUrls = Array.from(userPageHtml.matchAll(categoryLinkRegex), match => match[1])
+        let categoryUrls = Array.from(userPageHtml.matchAll(categoryLinkRegex), match => match[1])
                                   .filter(url => !url.includes('chips'))
-                                  .map(path => new URL(path, 'https://funpay.com/').href);
+                                  .map(path => new URL(path, 'https://funpay.com/'));
 
-        if (categoryUrls.length === 0) {
+        if (fpToolsSelectiveBumpEnabled && fpToolsSelectedBumpCategories && fpToolsSelectedBumpCategories.length > 0) {
+            await logToConsole(`Режим выборочного поднятия активен. Выбрано категорий: ${fpToolsSelectedBumpCategories.length}.`);
+            categoryUrls = categoryUrls.filter(url => fpToolsSelectedBumpCategories.includes(url.pathname));
+        } else if (fpToolsSelectiveBumpEnabled) {
+            await logToConsole("Выборочное поднятие включено, но категории не выбраны. Ничего не будет поднято.");
             return;
         }
 
-        for (const categoryUrl of categoryUrls) {
+        if (categoryUrls.length === 0) {
+            await logToConsole("Нет категорий для поднятия (согласно настройкам).");
+            return;
+        }
+        
+        const categoryUrlHrefs = categoryUrls.map(url => url.href);
+
+        for (const categoryUrl of categoryUrlHrefs) {
             const categoryPageResponse = await fetch(categoryUrl, { headers: { 'Cookie': auth.cookies } });
             
             const urlParts = categoryUrl.split('/');

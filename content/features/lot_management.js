@@ -475,14 +475,15 @@ function setupActionProcessing() {
     }
     
     async function processPriceChange(changeValueStr) {
-        const match = changeValueStr.match(/^([+-])(\d+(\.\d+)?)$/);
-        if (!match) {
-            if (typeof showNotification === 'function') showNotification('Неверный формат. Используйте +10 или -5.5', true);
+        changeValueStr = changeValueStr.trim().replace(',', '.');
+        const adjustmentMatch = changeValueStr.match(/^([+-])(\d*\.?\d+)$/);
+        const isExactPrice = !isNaN(parseFloat(changeValueStr)) && isFinite(changeValueStr) && !adjustmentMatch;
+
+        if (!adjustmentMatch && !isExactPrice) {
+            if (typeof showNotification === 'function') showNotification('Неверный формат. Используйте +10, -5.5 или 99', true);
             return;
         }
 
-        const operation = match[1];
-        const value = parseFloat(match[2]);
         const selectedCheckboxes = $('.lot-box input:checked').get();
         if (selectedCheckboxes.length === 0) return;
 
@@ -531,7 +532,15 @@ function setupActionProcessing() {
                 const currentPrice = parseFloat(formData.get('price'));
                 if (isNaN(currentPrice)) throw new Error("Не удалось получить текущую цену.");
 
-                const newPrice = operation === '+' ? currentPrice + value : currentPrice - value;
+                let newPrice;
+                if (isExactPrice) {
+                    newPrice = parseFloat(changeValueStr);
+                } else if (adjustmentMatch) {
+                    const operation = adjustmentMatch[1];
+                    const value = parseFloat(adjustmentMatch[2]);
+                    newPrice = operation === '+' ? currentPrice + value : currentPrice - value;
+                }
+
                 formData.set('price', Math.max(0, newPrice).toFixed(2));
                 formData.set('csrf_token', csrfToken);
                 
@@ -666,8 +675,20 @@ function createPriceEditorPopup() {
         <div id="fp-price-editor-overlay">
             <div id="fp-price-editor-popup">
                 <h3>Редактор цен</h3>
-                <p>Введите значение, на которое нужно изменить цену. Например: <strong>+10</strong> (повысить на 10) или <strong>-5.5</strong> (понизить на 5.5).</p>
-                <input type="text" id="fp-price-change-input" placeholder="+10 или -5.5">
+                <p>Установите новую цену для всех выбранных лотов двумя способами:</p>
+                <div class="price-editor-instructions">
+                    <div>
+                        <strong>1. Изменить цену:</strong>
+                        <span>Используйте <strong>+</strong> или <strong>-</strong> для увеличения или уменьшения текущей цены.</span>
+                        <em>Пример: <code>+10</code> или <code>-5.5</code></em>
+                    </div>
+                    <div>
+                        <strong>2. Установить точную цену:</strong>
+                        <span>Просто введите число, и оно станет новой ценой для всех лотов.</span>
+                        <em>Пример: <code>99</code> или <code>14.50</code></em>
+                    </div>
+                </div>
+                <input type="text" id="fp-price-change-input" placeholder="+10 / -5.5 / 99">
                 <div class="price-editor-actions">
                     <button id="fp-price-editor-cancel">Отмена</button>
                     <button id="fp-price-editor-apply">Применить</button>

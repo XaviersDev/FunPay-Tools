@@ -4,6 +4,15 @@ function createMainPopup() {
     toolsPopup.innerHTML = `
         <div class="fp-tools-header">
             <h2>FP Tools</h2>
+            
+            <!-- НОВЫЙ БЛОК: КНОПКА ОБЪЯВЛЕНИЙ -->
+            <div id="announcementsNavTab" class="fp-tools-header-tab" data-page="announcements">
+                <span class="nav-icon">📢</span>
+                <span>Объявления</span>
+                <span class="notification-badge"></span>
+            </div>
+            <!-- КОНЕЦ НОВОГО БЛОКА -->
+
             <button class="close-btn" aria-label="Закрыть"></button>
         </div>
         <div class="fp-tools-body">
@@ -13,7 +22,6 @@ function createMainPopup() {
                     <li data-page="accounts"><a><span class="nav-icon">👥</span><span>Аккаунты</span></a></li>
                     <li data-page="templates"><a><span class="nav-icon">📄</span><span>Шаблоны</span></a></li>
                     <li data-page="piggy_banks"><a><span class="nav-icon">🐷</span><span>Копилки</span></a></li>
-                    <li data-page="auto_review"><a><span class="nav-icon">🌟</span><span>Авто-отзывы</span></a></li>
                     <li data-page="theme"><a><span class="nav-icon">🎨</span><span>Кастомизация</span></a></li>
                     <li data-page="autobump"><a><span class="nav-icon">🚀</span><span>Авто-поднятие</span></a></li>
                     <li data-page="notes"><a><span class="nav-icon">📝</span><span>Заметки</span></a></li>
@@ -25,6 +33,20 @@ function createMainPopup() {
                 </ul>
             </nav>
             <main class="fp-tools-content">
+                <!-- НОВЫЙ БЛОК: СОДЕРЖИМОЕ ВКЛАДКИ ОБЪЯВЛЕНИЙ -->
+                <div class="fp-tools-page-content" data-page="announcements">
+                    <div class="announcements-header">
+                        <h3>Объявления от разработчика</h3>
+                        <button id="refresh-announcements-btn" class="btn btn-default" title="Принудительно обновить">
+                            <span class="material-icons">refresh</span>
+                        </button>
+                    </div>
+                    <div id="announcements-content-area">
+                        <div class="fp-import-loader"></div>
+                    </div>
+                </div>
+                <!-- КОНЕЦ НОВОГО БЛОКА -->
+
                 <div class="fp-tools-page-content active" data-page="general">
                     <h3>Общие настройки</h3>
                     <div class="checkbox-label-inline">
@@ -138,53 +160,6 @@ function createMainPopup() {
                         <!-- Сюда будут добавляться копилки -->
                     </div>
                 </div>
-                <div class="fp-tools-page-content" data-page="auto_review">
-                    <h3>Автоматические ответы на отзывы</h3>
-                    <div class="checkbox-label-inline" style="margin-bottom: 25px;">
-                        <input type="checkbox" id="enableAutoReview">
-                        <label for="enableAutoReview" style="margin-bottom:0;"><span>Включить авто-ответы на отзывы</span></label>
-                    </div>
-                    <div id="autoReviewSettingsContainer">
-                        <p class="template-info">Функция автоматически ответит на новый отзыв на вашей странице профиля.</p>
-                        <label>Режим работы:</label>
-                        <div class="fp-tools-radio-group auto-review-mode-selector">
-                            <label class="fp-tools-radio-option"><input type="radio" name="autoReviewMode" value="ai" checked><span>🤖 ИИ-генерация</span></label>
-                            <label class="fp-tools-radio-option"><input type="radio" name="autoReviewMode" value="manual"><span>✍️ Ручные ответы</span></label>
-                            <label class="fp-tools-radio-option"><input type="radio" name="autoReviewMode" value="random"><span>🎲 Случайные ответы</span></label>
-                        </div>
-                        
-                        <div class="review-settings-block" data-mode="ai">
-                            <h4>Настройки ИИ</h4>
-                            <p class="template-info">ИИ сгенерирует уникальный ответ для каждого отзыва. Используйте переменные, чтобы дать ему больше контекста.</p>
-                            <label for="autoReviewAiPrompt">Запрос для ИИ:</label>
-                            <textarea id="autoReviewAiPrompt" class="template-input" rows="3">Напиши вежливую благодарность за {stars} звездочку. Товар: {lotname}.</textarea>
-                            <p class="template-info">Доступные переменные: <code>{stars}</code>, <code>{lotname}</code>, <code>{date}</code>.</p>
-                        </div>
-
-                        <div class="review-settings-block" data-mode="manual">
-                            <h4>Ручные ответы по оценкам</h4>
-                            <p class="template-info">Укажите точный текст ответа для каждой оценки. Доступны переменные: <code>{lotname}</code>, <code>{date}</code>.</p>
-                            ${[1,2,3,4,5].map(i => `
-                                <div class="star-rating-config">
-                                    <label for="manualReplyStar${i}">Ответ на ${'⭐'.repeat(i)}</label>
-                                    <textarea id="manualReplyStar${i}" class="template-input" rows="2"></textarea>
-                                </div>
-                            `).join('')}
-                        </div>
-
-                        <div class="review-settings-block" data-mode="random">
-                            <h4>Случайные ответы из списка</h4>
-                             <p class="template-info">Для каждой оценки добавьте несколько вариантов ответа. Система выберет один случайным образом. Доступны переменные: <code>{lotname}</code>, <code>{date}</code>.</p>
-                            ${[1,2,3,4,5].map(i => `
-                                <div class="star-rating-config">
-                                    <label>Варианты ответа на ${'⭐'.repeat(i)}</label>
-                                    <div class="random-reply-list" data-stars="${i}"></div>
-                                    <button class="btn btn-default add-random-reply-btn" data-stars="${i}">+ Добавить вариант</button>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                </div>
                 <div class="fp-tools-page-content" data-page="theme">
                     <h3>Кастомизация темы</h3>
                      <div class="checkbox-label-inline" style="margin-bottom: 15px;">
@@ -294,7 +269,12 @@ function createMainPopup() {
                     <h3>Авто-поднятие лотов</h3>
                     <div class="checkbox-label-inline"><input type="checkbox" id="autoBumpEnabled"><label for="autoBumpEnabled" style="margin-bottom:0;"><span>Включить авто-поднятие</span></label></div>
                     <div class="template-container"><label for="autoBumpCooldown">Интервал поднятия (минуты):</label><input type="number" id="autoBumpCooldown" class="template-input" min="5" placeholder="Например: 245"><small style="font-size: 12px; opacity: 0.7;">Минимум 5 минут. FunPay позволяет поднимать раз в 4 часа (240 минут).</small></div>
-                    <label>Консоль логов:</label>
+                    <div class="checkbox-label-inline">
+                        <input type="checkbox" id="selectiveBumpEnabled">
+                        <label for="selectiveBumpEnabled" style="margin-bottom:0;"><span>Поднимать только выбранные категории</span></label>
+                    </div>
+                    <button id="configureSelectiveBumpBtn" class="btn btn-default" style="width: auto; padding: 8px 16px; font-size: 14px;">выбрать...</button>
+                    <label style="margin-top: 20px;">Консоль логов:</label>
                     <div id="autoBumpConsole" class="fp-tools-console"></div>
                 </div>
                 <div class="fp-tools-page-content" data-page="notes">
@@ -396,50 +376,70 @@ function createMainPopup() {
                             <div class="feature-location"><strong>Где найти:</strong> В любом чате, кнопка "AI" рядом с полем ввода.</div>
                             <div class="feature-desc">Улучшает ваш текст, делая его вежливым и профессиональным. Активируйте режим и нажмите Enter для обработки. Также предупреждает о грубости.</div>
                         </div>
+                         <div class="feature-item">
+                            <div class="feature-title"><span class="material-icons">auto_fix_high</span>AI-Генератор лотов</div>
+                            <div class="feature-location"><strong>Где найти:</strong> На странице создания/редактирования лота.</div>
+                            <div class="feature-desc">Создает название и описание для лота на основе ваших идей, анализируя и копируя стиль ваших существующих предложений.</div>
+                        </div>
                         <div class="feature-item">
-                            <div class="feature-title"><span class="material-icons">description</span>Шаблоны и AI-переменные</div>
-                            <div class="feature-location"><strong>Где найти:</strong> Под полем ввода в чате. Настраиваются во вкладке "Шаблоны".</div>
-                            <div class="feature-desc">Быстрая вставка готовых сообщений. Поддерживают переменные {buyername}, {date} и даже генерацию текста через {ai:ваш запрос}.</div>
+                            <div class="feature-title"><span class="material-icons">add_photo_alternate</span>AI-Генератор изображений</div>
+                            <div class="feature-location"><strong>Где найти:</strong> На странице создания/редактирования лота, в разделе "Изображения".</div>
+                            <div class="feature-desc">Создавайте уникальные и стильные превью для ваших предложений с помощью встроенного генератора, в том числе по текстовому запросу.</div>
                         </div>
                         <div class="feature-item">
                             <div class="feature-title"><span class="material-icons">palette</span>Полная кастомизация</div>
                             <div class="feature-location"><strong>Где найти:</strong> Вкладка "Кастомизация".</div>
                             <div class="feature-desc">Измените внешний вид FunPay: установите анимированный фон, настройте цвета, шрифты, прозрачность блоков и даже расположение верхней панели.</div>
                         </div>
+                         <div class="feature-item">
+                            <div class="feature-title"><span class="material-icons">auto_fix_normal</span>"Кастомизатор (режим редактора)</div>
+                            <div class="feature-location"><strong>Где найти:</strong> Вкладка "Кастомизация".</div>
+                            <div class="feature-desc">Редактируйте любой элемент сайта в реальном времени. Меняйте цвета, размеры или скрывайте ненужное, сохраняя стили навсегда.</div>
+                        </div>
                         <div class="feature-item">
-                            <div class="feature-title"><span class="material-icons">checklist</span>Управление лотами</div>
+                            <div class="feature-title"><span class="material-icons">description</span>Шаблоны и AI-переменные</div>
+                            <div class="feature-location"><strong>Где найти:</strong> Под полем ввода в чате. Настраиваются во вкладке "Шаблоны".</div>
+                            <div class="feature-desc">Быстрая вставка готовых сообщений. Поддерживают переменные {buyername}, {date} и даже генерацию текста через {ai:ваш запрос}.</div>
+                        </div>
+                        <div class="feature-item">
+                            <div class="feature-title"><span class="material-icons">checklist</span>Управление лотами и ценами</div>
                             <div class="feature-location"><strong>Где найти:</strong> На странице вашего профиля (funpay.com/users/...).</div>
-                            <div class="feature-desc">Кнопка "Выбрать" над списком ваших предложений позволяет выделить несколько лотов для массового удаления или дублирования.</div>
+                            <div class="feature-desc">Кнопка "Выбрать" позволяет выделить несколько лотов для массового удаления, дублирования, отключения или редактирования цен.</div>
                         </div>
                          <div class="feature-item">
                             <div class="feature-title"><span class="material-icons">control_point_duplicate</span>Клонирование лотов</div>
                             <div class="feature-location"><strong>Где найти:</strong> На странице редактирования любого вашего лота.</div>
                             <div class="feature-desc">Кнопка "Копировать" позволяет создать точную копию лота или массово размножить его по разным категориям (например, по разным серверам).</div>
                         </div>
+                         <div class="feature-item">
+                            <div class="feature-title"><span class="material-icons">public</span>Глобальный импорт лотов</div>
+                            <div class="feature-location"><strong>Где найти:</strong> На странице редактирования лота, кнопка "Импорт".</div>
+                            <div class="feature-desc">Импортируйте название и описание любого лота с FunPay, чтобы анализировать конкурентов или использовать как основу.</div>
+                        </div>
                         <div class="feature-item">
-                            <div class="feature-title"><span class="material-icons">sort</span>Сортировка по отзывам</div>
-                            <div class="feature-location"><strong>Где найти:</strong> На любой странице со списком лотов (например, в категории игры).</div>
+                            <div class="feature-title"><span class="material-icons">sort_by_alpha</span>Сортировка по отзывам</div>
+                            <div class="feature-location"><strong>Где найти:</strong> На любой странице со списком лотов.</div>
                             <div class="feature-desc">Кликните на заголовок "Продавец" в таблице, чтобы отсортировать все предложения по количеству отзывов у продавцов.</div>
                         </div>
                         <div class="feature-item">
-                            <div class="feature-title"><span class="material-icons">label_important</span>Пометки для пользователей</div>
-                            <div class="feature-location"><strong>Где найти:</strong> В выпадающем меню в заголовке чата.</div>
-                            <div class="feature-desc">Устанавливайте цветные метки для пользователей (мошенник, неадекват, постоянный клиент), которые будут видны в вашем списке контактов.</div>
+                            <div class="feature-title"><span class="material-icons">label</span>Пометки для пользователей</div>
+                            <div class="feature-location"><strong>Где найти:</strong> В выпадающем меню в заголовке чата с человеком.</div>
+                            <div class="feature-desc">Устанавливайте настраиваемые цветные метки для пользователей, которые будут видны в вашем списке контактов.</div>
                         </div>
                         <div class="feature-item">
-                            <div class="feature-title"><span class="material-icons">text_fields</span>Шрифты и символы</div>
-                            <div class="feature-location"><strong>Где найти:</strong> На странице добавления/редактирования лота.</div>
-                            <div class="feature-desc">Используйте красивые Unicode-шрифты и специальную клавиатуру с символами для оформления названий и описаний ваших лотов.</div>
+                            <div class="feature-title"><span class="material-icons">rocket_launch</span>Авто-поднятие лотов</div>
+                            <div class="feature-location"><strong>Где найти:</strong> Вкладка "Авто-поднятие".</div>
+                            <div class="feature-desc">Настройте автоматическое поднятие лотов по таймеру. Можно выбрать для поднятия только определенные категории.</div>
                         </div>
                          <div class="feature-item">
-                            <div class="feature-title"><span class="material-icons">add_photo_alternate</span>Генератор изображений</div>
-                            <div class="feature-location"><strong>Где найти:</strong> На странице добавления/редактирования лота, в разделе "Изображения".</div>
-                            <div class="feature-desc">Создавайте уникальные и стильные превью для ваших предложений с помощью встроенного генератора.</div>
+                            <div class="feature-title"><span class="material-icons">monitoring</span>Статистика</div>
+                            <div class="feature-location"><strong>Где найти:</strong> Страница "Продажи" - статистика продаж, кнопка "Аналитика рынка" на странице игры.</div>
+                            <div class="feature-desc">Получайте детальную статистику по своим продажам и анализируйте рыночную ситуацию в любой категории.</div>
                         </div>
                         <div class="feature-item">
-                            <div class="feature-title"><span class="material-icons">model_training</span>Автоматизация</div>
-                            <div class="feature-location"><strong>Где найти:</strong> Вкладки "Авто-поднятие", "Авто-отзывы", "Заметки".</div>
-                            <div class="feature-desc">Настройте автоматическое поднятие лотов по таймеру, умные ответы на отзывы и используйте личный блокнот для быстрой информации.</div>
+                            <div class="feature-title"><span class="material-icons">savings</span>Финансовые копилки</div>
+                            <div class="feature-location"><strong>Где найти:</strong> Вкладка "Копилки" и иконка в шапке сайта.</div>
+                            <div class="feature-desc">Устанавливайте финансовые цели и отслеживайте их достижение. Копилка синхронизируется с балансом FunPay.</div>
                         </div>
                     </div>
                 </div>
@@ -469,6 +469,28 @@ function createMainPopup() {
         <div class="fp-tools-footer">
             <button id="saveSettings" class="btn">Сохранить</button>
         </div>
+        
+        <!-- Modal for Autobump Categories -->
+        <div class="fp-tools-modal-overlay" id="autobump-category-modal-overlay" style="display: none;">
+            <div class="fp-tools-modal-content">
+                <div class="fp-tools-modal-header">
+                    <h3>Выберите категории для поднятия</h3>
+                    <button class="fp-tools-modal-close">&times;</button>
+                </div>
+                <div class="fp-tools-modal-body">
+                    <div class="autobump-modal-controls">
+                        <input type="text" id="autobump-category-search" placeholder="Поиск по категориям...">
+                        <button id="autobump-select-all" class="btn btn-default" style="padding: 6px 12px; font-size: 13px;">Выбрать всё</button>
+                    </div>
+                    <div id="autobump-category-list" class="autobump-category-list">
+                        <!-- Categories will be loaded here -->
+                    </div>
+                </div>
+                <div class="fp-tools-modal-footer">
+                    <button id="autobump-category-save" class="btn">Сохранить</button>
+                </div>
+            </div>
+        </div>
     `;
     return toolsPopup;
 }
@@ -476,7 +498,7 @@ function createMainPopup() {
 function setupPopupNavigation() {
     const toolsPopup = document.querySelector('.fp-tools-popup');
     if (!toolsPopup) return;
-    const navItems = toolsPopup.querySelectorAll('.fp-tools-nav li');
+    const navItems = toolsPopup.querySelectorAll('.fp-tools-nav li, .fp-tools-header-tab');
     const contentPages = toolsPopup.querySelectorAll('.fp-tools-page-content');
 
     navItems.forEach(li => {

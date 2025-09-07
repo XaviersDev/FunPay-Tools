@@ -9,8 +9,7 @@ const DEFAULT_STANDARD_TEMPLATES = {
     greeting: { enabled: true, label: 'Приветствие', color: '#6B66FF', text: '{welcome}, {buyername}! Чем могу помочь?' },
     completed: { enabled: true, label: 'Заказ выполнен', color: '#6B66FF', text: 'Заказ выполнен. Пожалуйста, зайдите в раздел «Покупки», выберите его в списке и нажмите кнопку «Подтвердить выполнение заказа».' },
     review: { enabled: true, label: 'Попросить отзыв', color: '#FF6B6B', text: 'Спасибо за покупку! Буду очень благодарен, если вы оставите отзыв о сделке.' },
-    thanks: { enabled: true, label: 'Спасибо за заказ', color: '#FF6B6B', text: 'Спасибо за заказ, {buyername}! Обращайтесь еще. {date}' },
-    reviewResponse: { enabled: true, label: 'Ответ на отзыв', color: '#6B66FF', text: 'Спасибо за ваш отзыв! Рады, что вам все понравилось.' }
+    thanks: { enabled: true, label: 'Спасибо за заказ', color: '#FF6B6B', text: 'Спасибо за заказ, {buyername}! Обращайтесь еще. {date}' }
 };
 
 async function loadTemplateSettings() {
@@ -42,7 +41,7 @@ function getWelcomeMessage() {
     return "Добрый вечер!";
 }
 
-async function replaceTemplateVariables(template, isReviewResponse = false) {
+async function replaceTemplateVariables(template) {
     const now = new Date();
     const dateStr = `${now.getDate().toString().padStart(2, '0')}.${(now.getMonth() + 1).toString().padStart(2, '0')}.${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
     const buyerNameElement = document.querySelector('.media-user-name a');
@@ -56,15 +55,8 @@ async function replaceTemplateVariables(template, isReviewResponse = false) {
     result = result.replace(/{activesells}/g, activeSellsElement ? activeSellsElement.textContent.trim() : 'N/A');
 
     let lotName = 'лот';
-    if (isReviewResponse) {
-        const reviewLotNameElements = Array.from(document.querySelectorAll('.param-item h5'));
-        const reviewLotNameHeader = reviewLotNameElements.find(el => el.textContent.includes('Краткое описание'));
-        const reviewLotNameElement = reviewLotNameHeader ? reviewLotNameHeader.nextElementSibling : null;
-        if(reviewLotNameElement) lotName = reviewLotNameElement.textContent.trim();
-    } else {
-        const lotNameInChat = document.querySelector('.deal-desc-lot a');
-        if(lotNameInChat) lotName = lotNameInChat.textContent.trim();
-    }
+    const lotNameInChat = document.querySelector('.deal-desc-lot a');
+    if(lotNameInChat) lotName = lotNameInChat.textContent.trim();
     result = result.replace(/{lotname}/g, lotName);
 
     const aiRegex = /\{ai:([^}]+)\}/g;
@@ -111,9 +103,9 @@ async function replaceTemplateVariables(template, isReviewResponse = false) {
     return result;
 }
 
-async function applyTemplateToInput(chatInput, templateContent, isReview = false) {
+async function applyTemplateToInput(chatInput, templateContent) {
     if (!chatInput || templateContent === undefined) return;
-    const processedText = await replaceTemplateVariables(templateContent, isReview);
+    const processedText = await replaceTemplateVariables(templateContent);
     chatInput.value = processedText;
     chatInput.focus();
     chatInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -178,7 +170,7 @@ async function useTemplate(templateConfig) {
     const chatInput = document.querySelector('.chat-form-input .form-control');
     if (!chatInput) return;
 
-    await applyTemplateToInput(chatInput, templateConfig.text, false);
+    await applyTemplateToInput(chatInput, templateConfig.text);
 
     if (!sendTemplatesImmediately) return;
 
@@ -191,30 +183,6 @@ async function useTemplate(templateConfig) {
 
     if (!submitButton.disabled) {
         submitButton.click();
-    }
-}
-
-async function addReviewResponseButton() {
-    const publishButton = Array.from(document.getElementsByTagName('button')).find(button => button.textContent.trim() === 'Опубликовать');
-    if (publishButton && !document.querySelector('.review-response-btn')) {
-        const reviewResponseTemplate = templateSettings.standard.reviewResponse;
-        if (!reviewResponseTemplate || !reviewResponseTemplate.enabled) return;
-
-        const responseButton = document.createElement('button');
-        responseButton.type = 'button';
-        responseButton.className = 'btn btn-default review-response-btn';
-        responseButton.textContent = reviewResponseTemplate.label;
-        responseButton.style.marginLeft = '10px';
-        
-        responseButton.addEventListener('click', async () => {
-            const reviewEditor = document.querySelector('.review-editor-reply .form-control');
-            if (!reviewResponseTemplate.text.trim()) {
-                showEmptyTemplateModal('reviewResponse', false);
-            } else {
-                await applyTemplateToInput(reviewEditor, reviewResponseTemplate.text, true);
-            }
-        });
-        publishButton.parentNode.insertBefore(responseButton, publishButton.nextSibling);
     }
 }
 
@@ -272,7 +240,7 @@ async function addChatTemplateButtons() {
 
     for (const key in templateSettings.standard) {
         const config = templateSettings.standard[key];
-        if (key !== 'reviewResponse' && config.enabled) {
+        if (config.enabled) {
             const btn = createTemplateButton({ ...config, key: key, isCustom: false });
             buttonsContainer.appendChild(btn);
         }
@@ -284,4 +252,4 @@ async function addChatTemplateButtons() {
             buttonsContainer.appendChild(btn);
         }
     });
-}
+} 

@@ -3,7 +3,7 @@
 function initializeExactPrice() {
     // Убедимся, что мы на странице редактирования или создания лота
     const header = document.querySelector('h1.page-header');
-    if (!header || !(header.textContent.includes('Редактирование предложения') || header.textContent.includes('Новое предложение'))) {
+    if (!header || !(header.textContent.includes('Редактирование предложения') || header.textContent.includes('Добавление предложения'))) {
         return;
     }
 
@@ -43,14 +43,14 @@ function initializeExactPrice() {
             return;
         }
 
-        // Берем самую первую (обычно самую дорогую) цену для покупателя
-        const firstBuyerPriceRow = calcTableBody.querySelector('tr td:last-child');
-        if (!firstBuyerPriceRow) {
+        // Берем самую последнюю (обычно СБП с меньшей комиссией) цену для покупателя
+        const lastBuyerPriceRow = calcTableBody.querySelector('tr:last-child td:last-child');
+        if (!lastBuyerPriceRow) {
             showNotification('Не удалось найти цену для покупателя.', true);
             return;
         }
         
-        const buyerPaysPrice = parseFloat(firstBuyerPriceRow.textContent.replace(/ /g, ''));
+        const buyerPaysPrice = parseFloat(lastBuyerPriceRow.textContent.replace(/ /g, ''));
         if (isNaN(buyerPaysPrice)) {
             showNotification('Не удалось прочитать цену для покупателя.', true);
             return;

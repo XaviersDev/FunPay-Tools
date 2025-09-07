@@ -1,55 +1,6 @@
 let fpToolsAccounts = [];
 let aiModeActive = false;
 
-async function loadAutoReviewSettings() {
-    const { fpToolsAutoReview } = await chrome.storage.local.get('fpToolsAutoReview');
-
-    const defaults = { 
-        enabled: false, 
-        mode: 'ai', 
-        aiPrompt: "Напиши вежливую благодарность за отзыв на {stars} звезд. Товар: {lotname}.",
-        manualReplies: {}, 
-        randomReplies: {} 
-    };
-    const saved = fpToolsAutoReview || {};
-    const settings = {
-        ...defaults,
-        ...saved,
-        manualReplies: { ...defaults.manualReplies, ...(saved.manualReplies || {}) },
-        randomReplies: { ...defaults.randomReplies, ...(saved.randomReplies || {}) }
-    };
-
-    document.getElementById('enableAutoReview').checked = settings.enabled;
-    
-    const modeRadio = document.querySelector(`input[name="autoReviewMode"][value="${settings.mode}"]`);
-    if (modeRadio) {
-        modeRadio.checked = true;
-    }
-
-    const selectedMode = document.querySelector('input[name="autoReviewMode"]:checked').value;
-    document.querySelectorAll('.review-settings-block').forEach(block => {
-        block.style.display = block.dataset.mode === selectedMode ? 'block' : 'none';
-    });
-    
-    document.getElementById('autoReviewAiPrompt').value = settings.aiPrompt;
-
-    for (let i = 1; i <= 5; i++) {
-        document.getElementById(`manualReplyStar${i}`).value = settings.manualReplies[i] || "";
-        const listContainer = document.querySelector(`.random-reply-list[data-stars="${i}"]`);
-        listContainer.innerHTML = '';
-        const replies = settings.randomReplies[i] || [];
-        replies.forEach(text => {
-             const item = createElement('div', { class: 'random-reply-item' });
-             const textarea = createElement('textarea', { class: 'template-input', placeholder: 'Вариант ответа...' });
-             textarea.value = text;
-             const deleteBtn = createElement('button', { class: 'btn btn-default delete-random-reply' }, {}, '×');
-             deleteBtn.addEventListener('click', () => item.remove());
-             item.append(textarea, deleteBtn);
-             listContainer.appendChild(item);
-        });
-    }
-}
-
 async function renderTemplateSettings() {
     const container = document.getElementById('template-settings-container');
     if (!container) return;
@@ -122,7 +73,6 @@ async function setupTemplateSettingsHandlers() {
 
         await saveTemplateSettings();
         await addChatTemplateButtons();
-        await addReviewResponseButton();
     };
 
     container.addEventListener('input', handleInput);
@@ -175,7 +125,9 @@ async function loadSavedSettings() {
         'autoBumpEnabled', 'autoBumpCooldown', 'fpToolsCursorFx', 'fpToolsCustomCursor',
         'fpToolsPopupPosition', 'fpToolsPopupSize', 'enableRedesignedHomepage', 'fpToolsPopupDragged',
         'fpToolsAccounts', 'showSalesStats', 'hideBalance', 'viewSellersPromo', 'notificationSound',
-        'fpToolsAutoReview', 'fpToolsGreetings', 'fpToolsDiscord'
+        'fpToolsGreetings', 'fpToolsDiscord',
+        // New settings for selective bump
+        'fpToolsSelectiveBumpEnabled', 'fpToolsSelectedBumpCategories' 
     ]);
     
     fpToolsAccounts = settings.fpToolsAccounts || [];
@@ -253,8 +205,11 @@ async function loadSavedSettings() {
     }
     updateThemePreview();
 
+    // Autobump settings
     document.getElementById('autoBumpEnabled').checked = settings.autoBumpEnabled === true;
     document.getElementById('autoBumpCooldown').value = settings.autoBumpCooldown || 245;
+    document.getElementById('selectiveBumpEnabled').checked = settings.fpToolsSelectiveBumpEnabled === true;
+
     document.getElementById('enableRedesignedHomepage').checked = settings.enableRedesignedHomepage !== false;
 
     const cursorFxSettings = settings.fpToolsCursorFx || {};
@@ -305,5 +260,4 @@ async function loadSavedSettings() {
         soundRadio.checked = true;
     }
     
-    await loadAutoReviewSettings();
 }

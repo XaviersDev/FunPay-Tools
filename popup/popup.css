@@ -1,39 +1,146 @@
 body {
-    width: 200px;
-    height: 100px;
     margin: 0;
-    padding: 20px;
-    font-family: Arial, sans-serif;
-    text-align: center;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
+    font-family: 'Roboto', sans-serif;
+    width: 340px;
+    height: auto;
+    background-color: #1a1c23;
+    color: #e0e0e0;
+    overflow: hidden;
 }
 
-.container {
+.popup-wrapper {
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    height: 100%;
+    animation: fadeIn 0.3s ease-in-out;
 }
 
-.logo {
+@keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.98); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+/* Header */
+header {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.header-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.header-text h1 {
     font-size: 18px;
-    font-weight: bold;
+    font-weight: 700;
+    margin: 0;
+    line-height: 1;
+}
+
+.header-text span {
+    font-size: 12px;
+    font-weight: 500;
+    color: #8c93a9;
+}
+
+/* Main Content */
+main {
+    padding: 20px;
+    text-align: center;
+}
+
+.instruction-text {
+    font-size: 15px;
+    line-height: 1.5;
+    color: #b0b8d1;
+    margin: 0 0 20px 0;
+}
+
+.visual-guide {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 25px;
+}
+
+.visual-guide p {
+    margin: 0 0 10px 0;
+    font-size: 13px;
+    color: #8c93a9;
+}
+
+.visual-guide img {
+    max-width: 100%;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
+
+/* Call-to-Action Button */
+.cta-button {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: 8px;
+    background: linear-gradient(45deg, #6B66FF, #FF6B6B);
+    color: white;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2), 0 0 20px rgba(107, 102, 255, 0.3);
+    /* ИЗМЕНЕНИЕ: Исправляет проблему с шириной кнопки */
+    box-sizing: border-box; 
+}
+
+.cta-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3), 0 0 30px rgba(255, 107, 107, 0.4);
+}
+
+/* Footer */
+footer {
+    background: rgba(0, 0, 0, 0.15);
+    padding: 15px 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.quick-links {
+    display: flex;
+    justify-content: center;
+    gap: 25px;
     margin-bottom: 15px;
 }
 
-.telegram-btn {
-    background: #0088cc;
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 20px;
-    cursor: pointer;
+.quick-links a {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #8c93a9;
+    text-decoration: none;
     font-size: 14px;
-    transition: background 0.3s;
+    font-weight: 500;
+    transition: color 0.2s ease;
 }
 
-.telegram-btn:hover {
-    background: #006699;
+.quick-links a:hover {
+    color: #e0e0e0;
+}
+
+.quick-links svg {
+    transition: transform 0.2s ease;
+}
+
+.quick-links a:hover svg {
+    transform: scale(1.1);
+}
+
+.credits {
+    text-align: center;
+    font-size: 12px;
+    color: #5c6275;
 }

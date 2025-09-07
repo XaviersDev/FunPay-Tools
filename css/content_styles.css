@@ -4603,3 +4603,825 @@ input:checked + .slider:before {
     margin-left: auto;
     flex-shrink: 0;
 }
+
+.chat-full-header {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+#fp-tools-read-all-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    margin-left: auto;
+    color: #a0a0a0;
+    transition: color 0.2s ease, transform 0.2s ease;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#fp-tools-read-all-btn .material-icons {
+    font-size: 22px;
+}
+
+#fp-tools-read-all-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+    transform: scale(1.1);
+}
+
+#fp-tools-read-all-btn.loading .material-icons {
+    display: none;
+}
+
+#fp-tools-read-all-btn.loading::after {
+    content: '';
+    display: block;
+    width: 18px;
+    height: 18px;
+    border: 2px solid #a0a0a0;
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+/* Исправление основного контейнера фильтров */
+.filter-container {
+    width: 100%;
+    overflow: visible;
+}
+
+/* Исправление формы фильтров */
+.showcase-filters .form-inline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+}
+
+/* Исправление элементов формы */
+.showcase-filters .form-group {
+    flex: 0 0 auto;
+    margin-bottom: 10px;
+    margin-right: 0 !important;
+}
+
+/* Специальное правило для селекта типа предложения */
+.showcase-filters .lot-field {
+    min-width: 200px;
+    flex: 0 0 200px;
+}
+
+/* Поле поиска должно растягиваться, но не ломать иконку */
+.showcase-filters .form-group.has-feedback {
+    flex: 1 1 200px;
+    min-width: 200px;
+    max-width: 300px;
+    position: relative;
+}
+
+/* ВАЖНО: Исправление иконки поиска */
+.showcase-filters .form-group.has-feedback .form-control-feedback {
+    position: absolute;
+    right: 120px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    z-index: 2;
+}
+
+.showcase-filters .form-group.has-feedback input {
+    padding-right: 35px !important;
+}
+
+/* Исправление переключателей */
+.form-control-box.switch {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    width: auto;
+    min-width: 180px;
+    white-space: nowrap;
+    flex: 0 0 auto;
+}
+
+/* ВАЖНО: Исправление кнопки "Продать" - НЕ растягивать */
+.col-md-3.col-sm-4.hidden-xs .pull-right {
+    width: auto !important;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.col-md-3.col-sm-4.hidden-xs .pull-right .btn {
+    margin-bottom: 0 !important;
+    width: auto !important;
+    white-space: nowrap;
+    flex: 0 0 auto;
+}
+
+/* Кнопка "Аналитика рынка" */
+#fpTools-market-analytics-btn {
+    width: 100% !important;
+}
+
+/* Ссылка "Продать прочее" */
+.col-md-3.col-sm-4.hidden-xs .pull-right a.btn {
+    width: auto !important;
+    display: inline-block;
+}
+
+/* Исправление для мобильных устройств */
+@media (max-width: 767px) {
+    .showcase-filters .form-inline {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .showcase-filters .form-group {
+        width: 100%;
+        margin-bottom: 15px;
+        flex: 1 1 auto;
+    }
+    
+    .form-control-box.switch {
+        width: 100%;
+        min-width: auto;
+    }
+    
+    .showcase-filters .form-group.has-feedback {
+        max-width: none;
+    }
+}
+
+/* Убираем лишние отступы */
+.form-inline-margins .form-group {
+    margin-right: 0 !important;
+}
+
+/* Исправление живых полей */
+.lot-fields.live {
+    display: contents;
+}
+
+/* Дополнительное исправление для кнопок в мобильной версии */
+.filter-btn-container {
+    margin-bottom: 15px;
+}
+
+.filter-btn-container .col-xs-6 {
+    padding-left: 5px;
+    padding-right: 5px;
+}
+
+/* Исправление переполнения текста в переключателях */
+.form-control-box.switch span:first-child {
+    flex: 1 1 auto;
+    margin-right: 10px;
+}
+
+.form-control-box.switch .checkbox.checkbox-switch {
+    flex: 0 0 auto;
+}
+
+/* Кастомная подсказка для метки пользователя */
+.fp-tools-user-status.fp-tooltip-host {
+    cursor: help;
+    position: relative; /* Необходимо для позиционирования подсказки */
+}
+
+/* Стили самой подсказки (прямоугольник) */
+.fp-tools-user-status.fp-tooltip-host::after {
+    content: attr(data-fp-tooltip);
+    position: absolute;
+    bottom: 140%; /* Располагаем над меткой + место для стрелочки */
+    left: 50%;
+    transform: translateX(-50%);
+    
+    background-color: var(--tooltip-bg-color, #333); /* Цвет фона из JS */
+    color: var(--tooltip-text-color, #fff); /* Контрастный цвет текста из JS */
+    
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+    white-space: nowrap;
+    z-index: 10010;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    
+    /* Анимация появления */
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(-50%) translateY(5px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    pointer-events: none;
+}
+
+/* Стили для стрелочки под подсказкой */
+.fp-tools-user-status.fp-tooltip-host::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    
+    border: 5px solid transparent;
+    border-top-color: var(--tooltip-bg-color, #333); /* Тот же цвет, что и у фона */
+    
+    /* Анимация появления */
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(-50%) translateY(5px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    pointer-events: none;
+}
+
+/* Показываем подсказку и стрелочку при наведении */
+.fp-tools-user-status.fp-tooltip-host:hover::after,
+.fp-tools-user-status.fp-tooltip-host:hover::before {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}
+
+
+/* Элементы меню меток */
+.fp-tools-status-item a {
+    display: flex !important;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 15px !important;
+}
+
+/* Поле выбора цвета */
+.fp-tools-status-color-picker {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    background-color: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    border-radius: 5px;
+    overflow: hidden;
+}
+.fp-tools-status-color-picker::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+.fp-tools-status-color-picker::-webkit-color-swatch {
+    border: none;
+    border-radius: 5px;
+}
+
+/* Текстовое поле метки */
+.fp-tools-status-label {
+    flex-grow: 1;
+    color: #eee;
+    background-color: transparent;
+    border: none;
+    padding: 3px 5px;
+    border-radius: 3px;
+    outline: none;
+    transition: background-color 0.2s;
+}
+.fp-tools-status-label:hover, .fp-tools-status-label:focus {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Кнопка удаления */
+.fp-tools-status-delete {
+    color: #ff6b6b;
+    font-size: 20px;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0 5px;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+}
+.fp-tools-status-delete:hover {
+    background-color: rgba(255, 107, 107, 0.2);
+}
+
+/* Кнопки "Добавить" и "Убрать" */
+#fp-tools-add-status-btn, #fp-tools-remove-status-btn {
+    color: #aaa !important;
+    font-style: italic;
+    justify-content: center;
+}
+#fp-tools-add-status-btn:hover {
+    color: #4caf50 !important;
+    background-color: rgba(76, 175, 80, 0.1) !important;
+}
+#fp-tools-remove-status-btn:hover {
+    color: #ff9800 !important;
+    background-color: rgba(255, 152, 0, 0.1) !important;
+}
+
+
+.contact-item, .media-user-name {
+    overflow: visible !important;
+}
+a.contact-item:hover {
+    text-decoration: none !important;
+}
+
+
+
+
+/* === Chat Header Toggles === */
+.chat-full-header {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+#fp-tools-read-all-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    margin-left: auto;
+    color: #a0a0a0;
+    transition: color 0.2s ease, transform 0.2s ease;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#fp-tools-read-all-btn .material-icons {
+    font-size: 22px;
+}
+
+#fp-tools-read-all-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+    transform: scale(1.1);
+}
+
+#fp-tools-read-all-btn.loading .material-icons {
+    display: none;
+}
+
+#fp-tools-read-all-btn.loading::after {
+    content: '';
+    display: block;
+    width: 18px;
+    height: 18px;
+    border: 2px solid #a0a0a0;
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.fp-tools-chat-toggle {
+    display: inline-block;
+    position: relative;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+.fp-tools-chat-toggle input {
+    display: none;
+}
+
+.fp-tools-chat-toggle-slider {
+    width: 48px;
+    height: 28px;
+    background-color: #333;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.fp-tools-chat-toggle-slider .material-icons {
+    font-size: 20px;
+    color: #888;
+    position: absolute;
+    left: 4px;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.fp-tools-chat-toggle input:checked + .fp-tools-chat-toggle-slider {
+    background-color: #1a4d2e;
+    box-shadow: 0 0 10px rgba(76, 175, 80, 0.7);
+}
+
+.fp-tools-chat-toggle input:checked + .fp-tools-chat-toggle-slider .material-icons {
+    transform: translateX(20px);
+    color: #4CAF50;
+    text-shadow: 0 0 8px #4CAF50;
+}
+
+.fp-tools-modal-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(5px);
+    z-index: 10001;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.fp-tools-modal-content {
+    background: #1e1e1e;
+    border-radius: 12px;
+    border: 1px solid #333;
+    width: 90%;
+    max-width: 500px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+}
+.fp-tools-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    border-bottom: 1px solid #333;
+}
+.fp-tools-modal-header h3 {
+    margin: 0;
+    font-size: 16px;
+    color: #eee;
+    padding: 0;
+    border: none;
+}
+.fp-tools-modal-close {
+    background: none;
+    border: none;
+    color: #aaa;
+    font-size: 24px;
+    cursor: pointer;
+    line-height: 1;
+}
+.fp-tools-modal-body {
+    padding: 15px;
+    overflow-y: hidden;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+}
+.fp-tools-modal-footer {
+    padding: 15px;
+    border-top: 1px solid #333;
+    text-align: right;
+}
+
+.autobump-modal-controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+    flex-shrink: 0;
+}
+#autobump-category-search {
+    flex-grow: 1;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 6px;
+    color: #fff;
+    padding: 8px 12px;
+    font-size: 14px;
+}
+#autobump-select-all {
+    padding: 8px 15px;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+.autobump-category-list {
+    overflow-y: auto;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding-right: 5px;
+}
+.autobump-category-list::-webkit-scrollbar { width: 5px; }
+.autobump-category-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+
+.autobump-category-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.autobump-category-item:hover {
+    background-color: rgba(255,255,255,0.05);
+}
+.autobump-category-item input[type="checkbox"] {
+    flex-shrink: 0;
+    margin: 0;
+}
+.autobump-category-item span {
+    font-size: 14px;
+    color: #ccc;
+    user-select: none;
+}
+
+.template-settings-list .delete-custom-template-btn {
+    background: rgba(255, 107, 107, 0.2) !important;
+    color: #ff6b6b;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+.template-settings-list .delete-custom-template-btn:hover {
+    background: rgba(255, 107, 107, 0.4) !important;
+}
+
+/* --- Стили для редактора кнопки FP Tools в хедере --- */
+#fp-tools-button-styler {
+    display: none;
+    position: fixed;
+    z-index: 10005;
+    background: rgba(30, 30, 30, 0.9);
+    backdrop-filter: blur(10px);
+    border: 1px solid #444;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 5px 25px rgba(0,0,0,0.4);
+    width: 280px;
+    color: #eee;
+    font-family: 'Segoe UI', sans-serif;
+    animation: popIn 0.3s cubic-bezier(0.26, 0.53, 0.74, 1.48);
+}
+
+.fp-tools-styler-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.fp-tools-styler-header h4 {
+    margin: 0;
+    font-size: 16px;
+}
+
+.fp-tools-styler-header .close-btn {
+    background: none;
+    border: none;
+    color: #aaa;
+    font-size: 24px;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.styler-control {
+    margin-bottom: 15px;
+}
+
+.styler-control label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    color: #ccc;
+    margin-bottom: 8px;
+}
+
+.styler-control input[type="range"] {
+    width: 100%;
+}
+
+.styler-control input[type="color"] {
+    width: 100%;
+    height: 35px;
+    border: 1px solid #555;
+    border-radius: 6px;
+    padding: 2px;
+    background: #2a2a2a;
+}
+
+#fp-tools-header-button-tooltip {
+    /* ИЗМЕНЕНО: display: none; -> visibility: hidden; */
+    visibility: hidden;
+    position: fixed;
+    background: #1a1a1a;
+    color: #e0e0e0;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 10010;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    border: 1px solid #444;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+/* --- Стили для обновленного редактора цен --- */
+#fp-price-editor-popup p {
+    margin-bottom: 10px;
+}
+.price-editor-instructions {
+    text-align: left;
+    margin: 15px 0;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 15px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.6;
+}
+.price-editor-instructions div {
+    margin-bottom: 12px;
+}
+.price-editor-instructions div:last-child {
+    margin-bottom: 0;
+}
+.price-editor-instructions strong {
+    color: #00c9ff;
+    display: block;
+    font-size: 14px;
+}
+.price-editor-instructions span {
+    color: #b0b0b0;
+}
+.price-editor-instructions em {
+    display: block;
+    color: #888;
+    font-style: normal;
+    margin-top: 4px;
+}
+.price-editor-instructions code {
+    background: rgba(0,0,0,0.3);
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-family: monospace;
+}
+#fp-price-change-input {
+    margin-top: 10px;
+}
+.chat {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+.fp-tools-header {
+    position: relative;
+    /* Убедимся, что flex-grow работает как надо */
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap; /* Для мобильных */
+}
+
+.fp-tools-header h2 {
+    margin-right: auto; /* Отодвинет кнопку объявлений вправо */
+}
+
+.fp-tools-header-tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 15px;
+    margin: 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    font-size: 14px;
+    font-weight: 500;
+    color: #ccc;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.fp-tools-header-tab:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+.fp-tools-header-tab.active {
+    background: linear-gradient(90deg, rgba(107, 102, 255, 0.8), rgba(255, 107, 107, 0.8));
+    color: white;
+    font-weight: bold;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.fp-tools-header-tab .nav-icon {
+    font-size: 18px;
+}
+
+/* Свечение и анимация для непрочитанных */
+.fp-tools-header-tab.has-unread {
+    animation: glowing-border 2s infinite ease-in-out;
+}
+
+@keyframes glowing-border {
+    0% { box-shadow: 0 0 5px rgba(255,107,107,0), 0 0 5px rgba(255,107,107,0) inset; }
+    50% { box-shadow: 0 0 15px rgba(255,107,107,0.7), 0 0 10px rgba(255,107,107,0.5) inset; }
+    100% { box-shadow: 0 0 5px rgba(255,107,107,0), 0 0 5px rgba(255,107,107,0) inset; }
+}
+
+/* Значок уведомлений */
+.notification-badge {
+    position: absolute;
+    top: -5px;
+    right: -8px;
+    background-color: #f44336;
+    color: white;
+    border-radius: 10px;
+    padding: 2px 7px;
+    font-size: 11px;
+    font-weight: bold;
+    display: none; /* Скрыт по умолчанию */
+    justify-content: center;
+    align-items: center;
+    min-width: 20px;
+    height: 20px;
+    box-sizing: border-box;
+    border: 2px solid #141414;
+    box-shadow: 0 0 10px rgba(244, 67, 54, 0.7);
+}
+
+/* Стили для содержимого вкладки объявлений */
+.announcements-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+}
+.announcements-header h3 {
+    margin: 0;
+    border: none;
+    padding: 0;
+}
+#refresh-announcements-btn {
+    padding: 8px;
+    min-width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.1);
+}
+#refresh-announcements-btn .material-icons {
+    font-size: 22px;
+    transition: transform 0.5s ease;
+}
+#refresh-announcements-btn .material-icons.spinning {
+    animation: spin 1s linear infinite;
+}
+
+#announcements-content-area {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.announcement-item {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 20px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.announcement-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.announcement-item h4 {
+    margin: 0;
+    font-size: 18px;
+    color: #eee;
+}
+
+.announcement-date {
+    font-size: 13px;
+    color: #888;
+}
+
+.announcement-item p {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #ccc;
+}
+.announcement-empty {
+    text-align: center;
+    color: #888;
+    padding: 40px 0;
+}
