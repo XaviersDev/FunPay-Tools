@@ -9,7 +9,7 @@ const DISCORD_LOG_ALARM_NAME = 'fpToolsDiscordCheck';
 const ANNOUNCEMENT_CHECK_ALARM = 'fpToolsAnnouncementCheck';
 let lastChatTag = null;
 let lastDiscordChatTag = null;
-const ANNOUNCEMENTS_URL = 'https://gist.githubusercontent.com/XaviersDev/d2cf9207d39b55bd50207123e924456c/raw/353f8df2e028b9834b6e313c7b1f24b4acf7a547/fptoolsannouncements'; 
+const ANNOUNCEMENTS_URL = 'https://gist.githubusercontent.com/XaviersDev/d2cf9207d39b55bd50207123e924456c/raw/fptoolsannouncements';
 
 async function fetchAnnouncements() {
     try {
