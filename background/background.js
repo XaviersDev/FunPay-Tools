@@ -4,12 +4,13 @@ import { fetchAIResponse, fetchAILotGeneration, fetchAITranslation, fetchAIImage
 import { BUMP_ALARM_NAME, startAutoBump, stopAutoBump, runBumpCycle } from './autobump.js';
 
 const OFFSCREEN_DOCUMENT_PATH = 'offscreen/offscreen.html';
-const EVENT_CHECK_ALARM_NAME = 'fpToolsEventCheck';
 const DISCORD_LOG_ALARM_NAME = 'fpToolsDiscordCheck';
 const ANNOUNCEMENT_CHECK_ALARM = 'fpToolsAnnouncementCheck';
-let lastChatTag = null;
 let lastDiscordChatTag = null;
-const ANNOUNCEMENTS_URL = 'https://gist.githubusercontent.com/XaviersDev/d2cf9207d39b55bd50207123e924456c/raw/353f8df2e028b9834b6e313c7b1f24b4acf7a547/fptoolsannouncements'; 
+const ANNOUNCEMENTS_URL = 'https://gist.githubusercontent.com/XaviersDev/d2cf9207d39b55bd50207123e924456c/raw/fptoolsannouncements';
+const IMPORT_PROCESS_KEY = 'fpToolsLotImportProcess';
+const RETRY_LIMIT = 5;
+const RETRY_DELAY = 5000; // 5 секунд
 
 async function fetchAnnouncements() {
     try {
@@ -45,7 +46,6 @@ async function checkAnnouncements(isForced = false) {
     updateContentScriptUI(newUnreadCount);
 
     if (isForced) {
-        // Если обновление принудительное, отправляем новые данные на вкладку
         const tabs = await chrome.tabs.query({ url: "*://funpay.com/*" });
         tabs.forEach(tab => {
             chrome.tabs.sendMessage(tab.id, {
@@ -104,7 +104,6 @@ async function runSalesUpdateCycle() {
             });
         };
 
-        // ЭТАП 1: Загрузка самых новых заказов (если уже есть данные)
         if (firstOrderId) {
             let continueToken = null;
             let newOrdersFoundInCycle = true;
@@ -131,9 +130,8 @@ async function runSalesUpdateCycle() {
             }
         }
 
-        // ЭТАП 2: Инициализация или дозагрузка старых заказов
         let continueToken = lastOrderId;
-        if (!firstOrderId) { // Если данных вообще не было
+        if (!firstOrderId) { 
             const { nextOrderId, orders } = await fetchAndParseSales(null);
             if (orders && orders.length > 0) {
                 orders.forEach(o => savedOrders[o.orderId] = o);
@@ -143,11 +141,10 @@ async function runSalesUpdateCycle() {
                 console.log(`FP Tools: Инициализация статистики с ${orders.length} заказами.`);
                 continueToken = nextOrderId;
             } else {
-                continueToken = null; // Нет заказов вообще
+                continueToken = null; 
             }
         }
         
-        // ЭТАП 3: Продолжаем загружать старые заказы до самого конца
         while (continueToken) {
             const { nextOrderId, orders } = await fetchAndParseSales(continueToken);
             if (!orders || orders.length === 0) {
@@ -168,13 +165,12 @@ async function runSalesUpdateCycle() {
                 await saveSalesData(savedOrders, firstOrderId, lastOrderId);
                 console.log(`FP Tools: Добавлено ${newOrdersOnPageCount} старых заказов. Всего: ${Object.keys(savedOrders).length}.`);
             } else {
-                // Если на целой странице нет ни одного нового заказа, значит мы всё собрали
                 console.log("FP Tools: Все старые заказы уже были загружены. Остановка.");
                 break;
             }
 
             continueToken = nextOrderId;
-            await new Promise(resolve => setTimeout(resolve, 500)); // Задержка между запросами
+            await new Promise(resolve => setTimeout(resolve, 500)); 
         }
 
     } catch (e) {
@@ -271,153 +267,6 @@ async function parseHtmlViaOffscreen(html, action) {
     });
 }
 
-// Главный цикл проверки событий (Авто-отзывы и Приветствия)
-async function runEventCheckCycle() {
-    console.log("FP Tools: Запуск цикла проверки событий...");
-    const settings = await chrome.storage.local.get(['fpToolsGreetings', 'knownChatIds', 'initialGreetingRunDoneFor']);
-
-    const isGreetingsEnabled = settings.fpToolsGreetings && settings.fpToolsGreetings.enabled;
-
-    if (!isGreetingsEnabled) {
-        chrome.alarms.clear(EVENT_CHECK_ALARM_NAME);
-        return;
-    }
-
-    try {
-        const auth = await getAuthDetailsForBackground();
-        if (!auth.golden_key || !auth.csrf_token || !auth.userId) {
-            throw new Error("Не удалось получить данные авторизации.");
-        }
-
-        const allKnownChats = settings.knownChatIds || {};
-        const currentUserKnownChats = new Set(allKnownChats[auth.userId] || []);
-        
-        const allInitialRuns = settings.initialGreetingRunDoneFor || [];
-        const isInitialRunForThisUser = !allInitialRuns.includes(auth.userId);
-
-        const runnerPayload = {
-            objects: JSON.stringify([{
-                type: "chat_bookmarks",
-                id: auth.userId,
-                tag: lastChatTag || "0000000000",
-                data: false
-            }]),
-            request: false,
-            csrf_token: auth.csrf_token
-        };
-
-        const response = await fetch("https://funpay.com/runner/", {
-            method: "POST",
-            headers: {
-                "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
-                "x-requested-with": "XMLHttpRequest",
-                "cookie": `golden_key=${auth.golden_key}`
-            },
-            body: new URLSearchParams(runnerPayload).toString()
-        });
-
-        if (!response.ok) throw new Error(`Runner request failed: ${response.status}`);
-
-        const data = await response.json();
-        const chatObject = data.objects.find(o => o.type === "chat_bookmarks");
-
-        if (!chatObject || !chatObject.data || !chatObject.data.html) return;
-
-        lastChatTag = chatObject.tag;
-
-        const parsedChats = await parseHtmlViaOffscreen(chatObject.data.html, 'parseChatList');
-        
-        if (isGreetingsEnabled && isInitialRunForThisUser && settings.fpToolsGreetings.cacheInitialChats !== false) {
-            console.log(`FP Tools: Первый запуск для пользователя ${auth.userId}, кэширую существующие чаты...`);
-            parsedChats.forEach(c => currentUserKnownChats.add(c.chatId));
-            
-            allKnownChats[auth.userId] = Array.from(currentUserKnownChats);
-            allInitialRuns.push(auth.userId);
-
-            await chrome.storage.local.set({ 
-                knownChatIds: allKnownChats,
-                initialGreetingRunDoneFor: allInitialRuns
-            });
-            console.log(`FP Tools: Для пользователя ${auth.userId} закэшировано ${currentUserKnownChats.size} чатов.`);
-            return;
-        }
-        
-        let newChatsFound = false;
-        for (const chat of parsedChats) {
-            if (isGreetingsEnabled && !currentUserKnownChats.has(chat.chatId)) {
-                console.log(`FP Tools: Обнаружен новый чат с ${chat.chatName} (ID: ${chat.chatId}) для пользователя ${auth.userId}. Отправка приветствия.`);
-                currentUserKnownChats.add(chat.chatId);
-                newChatsFound = true;
-                processGreeting(chat, settings.fpToolsGreetings, auth);
-            }
-
-        }
-        
-        if (newChatsFound) {
-            allKnownChats[auth.userId] = Array.from(currentUserKnownChats);
-            await chrome.storage.local.set({ knownChatIds: allKnownChats });
-        }
-
-    } catch (e) {
-        console.error(`FP Tools: Ошибка в цикле проверки событий: ${e.message}`);
-    }
-}
-
-
-// Функция отправки приветствия
-async function processGreeting(chat, settings, auth) {
-    try {
-        const template = settings.text || "{welcome}, {buyername}!";
-        if (!template.trim()) return;
-
-        const getWelcomeMessage = () => {
-            const hour = new Date().getHours();
-            if (hour >= 5 && hour < 12) return "Доброе утро";
-            if (hour >= 12 && hour < 18) return "Добрый день";
-            return "Добрый вечер";
-        };
-        
-        let processedText = template
-            .replace(/{welcome}/g, getWelcomeMessage())
-            .replace(/{buyername}/g, chat.chatName);
-        
-        const aiRegex = /\{ai:([^}]+)\}/g;
-        let match;
-        while ((match = aiRegex.exec(processedText)) !== null) {
-            const aiPrompt = match[1];
-            const aiResult = await fetchAIResponse(aiPrompt, `[Новый чат с пользователем ${chat.chatName}]`, auth.username, "generate");
-            processedText = processedText.replace(match[0], aiResult.success ? aiResult.data : `[Ошибка AI]`);
-        }
-
-        const runnerPayload = {
-            action: "chat_message",
-            data: { node: chat.chatId, content: processedText }
-        };
-
-        const postResponse = await fetch('https://funpay.com/runner/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                'X-Requested-With': 'XMLHttpRequest',
-                'cookie': `golden_key=${auth.golden_key}`
-            },
-            body: new URLSearchParams({
-                request: JSON.stringify(runnerPayload),
-                csrf_token: auth.csrf_token
-            }).toString()
-        });
-
-        if (!postResponse.ok) throw new Error(`Ошибка сети при отправке приветствия: ${postResponse.status}`);
-        const result = await postResponse.json();
-        if (result.response && result.response.error) throw new Error(result.response.error);
-        
-        console.log(`FP Tools: Приветствие отправлено ${chat.chatName}.`);
-
-    } catch (error) {
-        console.error(`FP Tools: Не удалось отправить приветствие ${chat.chatName}:`, error);
-    }
-}
-
 // --- СЕКЦИЯ РАБОТЫ С DISCORD ---
 async function sendDiscordNotification(chat, settings) {
     let content = "";
@@ -456,7 +305,6 @@ async function sendDiscordNotification(chat, settings) {
     }
 }
 
-// Новый цикл проверки специально для Discord
 async function runDiscordCheckCycle() {
     const { fpToolsDiscord, fpToolsProcessedDiscordIds } = await chrome.storage.local.get(['fpToolsDiscord', 'fpToolsProcessedDiscordIds']);
 
@@ -526,6 +374,95 @@ async function runDiscordCheckCycle() {
 }
 
 
+// --- НОВЫЙ БЛОК: ЭКСПОРТ И ИМПОРТ ЛОТОВ ---
+
+async function sendImportProgressUpdate(progressData) {
+    const tabs = await chrome.tabs.query({ url: "*://funpay.com/*" });
+    tabs.forEach(tab => {
+        chrome.tabs.sendMessage(tab.id, {
+            action: 'lotImportProgressUpdate',
+            data: progressData
+        }).catch(e => {});
+    });
+}
+
+async function processNextLotImport() {
+    const { [IMPORT_PROCESS_KEY]: process } = await chrome.storage.local.get(IMPORT_PROCESS_KEY);
+    if (!process || process.currentIndex >= process.lots.length) {
+        await chrome.storage.local.remove(IMPORT_PROCESS_KEY);
+        sendImportProgressUpdate({ finished: true, lots: process?.lots || [] });
+        return;
+    }
+
+    const currentLot = process.lots[process.currentIndex];
+    
+    // Если лот уже успешно создан, пропускаем его
+    if (currentLot.status === 'success') {
+        process.currentIndex++;
+        await chrome.storage.local.set({ [IMPORT_PROCESS_KEY]: process });
+        processNextLotImport(); // Сразу переходим к следующему
+        return;
+    }
+    
+    // Если попытки исчерпаны, останавливаемся
+    if (currentLot.retries >= RETRY_LIMIT) {
+        currentLot.status = 'error';
+        currentLot.error = `Превышен лимит попыток (${RETRY_LIMIT}). Процесс остановлен.`;
+        await chrome.storage.local.set({ [IMPORT_PROCESS_KEY]: process });
+        sendImportProgressUpdate(process);
+        return;
+    }
+
+    try {
+        const auth = await getAuthDetailsForBackground();
+        if (!auth.csrf_token) throw new Error("Не удалось получить CSRF-токен.");
+
+        const formData = new URLSearchParams(currentLot.data);
+        formData.set('csrf_token', auth.csrf_token);
+        formData.set('offer_id', '0'); // Всегда создаем новый лот
+        formData.set('active', 'on'); // Активируем по умолчанию
+
+        const response = await fetch("https://funpay.com/lots/offerSave", {
+            method: "POST",
+            headers: { 
+                "X-Requested-With": "XMLHttpRequest", 
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                'Cookie': `golden_key=${auth.golden_key}`
+            },
+            body: formData
+        });
+
+        if (!response.ok) throw new Error(`Ошибка сети: ${response.statusText}`);
+        
+        const result = await response.json();
+        
+        if (result && (result.error === 0 || result.error === false)) {
+            currentLot.status = 'success';
+            process.currentIndex++;
+            await chrome.storage.local.set({ [IMPORT_PROCESS_KEY]: process });
+            sendImportProgressUpdate(process);
+            setTimeout(processNextLotImport, 500); // Небольшая задержка перед следующим
+        } else {
+            throw new Error(result.msg || `Неизвестная ошибка API: ${JSON.stringify(result)}`);
+        }
+
+    } catch (error) {
+        currentLot.retries++;
+        currentLot.status = 'pending';
+        currentLot.error = error.message;
+        await chrome.storage.local.set({ [IMPORT_PROCESS_KEY]: process });
+        sendImportProgressUpdate(process);
+        
+        // Если это была 5-я попытка, не делаем таймаут, ждем команды от пользователя
+        if (currentLot.retries < RETRY_LIMIT) {
+            setTimeout(processNextLotImport, RETRY_DELAY);
+        }
+    }
+}
+
+// --- КОНЕЦ НОВОГО БЛОКА ---
+
+
 // --- Главный обработчик сообщений ---
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.target === 'offscreen') {
@@ -569,16 +506,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 if (!userPageResponse.ok) throw new Error(`Ошибка сети: ${userPageResponse.status}`);
                 const userPageHtml = await userPageResponse.text();
                 const categories = await parseHtmlViaOffscreen(userPageHtml, 'parseUserCategories');
-                sendResponse(categories);
+                sendResponse({success: true, data: categories});
             } catch (e) {
                 console.error("Error in getUserCategories:", e);
-                sendResponse([]); 
+                sendResponse({success: false, error: e.message}); 
             }
         })();
         return true;
     }
     
-    // --- НОВЫЙ БЛОК: ANNOUNCEMENTS HANDLERS ---
+    // ANNOUNCEMENTS HANDLERS
     if (request.action === 'forceCheckAnnouncements') {
         checkAnnouncements(true).then(() => sendResponse({success: true}));
         return true;
@@ -597,8 +534,64 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         })();
         return true;
     }
-    // --- КОНЕЦ НОВОГО БЛОКА ---
 
+    // --- НОВЫЙ БЛОК: LOT IO HANDLERS ---
+    if (request.action === 'getLotForExport') {
+        (async () => {
+            try {
+                const auth = await getAuthDetailsForBackground();
+                const editUrl = `https://funpay.com/lots/offerEdit?node=${request.nodeId}&offer=${request.offerId}`;
+                const response = await fetch(editUrl, { headers: { 'Cookie': `golden_key=${auth.golden_key}` } });
+                if (!response.ok) throw new Error(`Network Error: ${response.status}`);
+                const html = await response.text();
+                const data = await parseHtmlViaOffscreen(html, 'parseLotEditPage');
+                sendResponse({ success: true, data: data });
+            } catch (e) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    if (request.action === 'startLotImport') {
+        (async () => {
+            const importProcess = {
+                lots: request.lots.map(lot => ({ ...lot, status: 'pending', retries: 0, error: null })),
+                currentIndex: 0
+            };
+            await chrome.storage.local.set({ [IMPORT_PROCESS_KEY]: importProcess });
+            sendResponse({ success: true });
+            processNextLotImport();
+        })();
+        return true;
+    }
+
+    if (request.action === 'resumeLotImport') {
+        (async () => {
+             const { [IMPORT_PROCESS_KEY]: process } = await chrome.storage.local.get(IMPORT_PROCESS_KEY);
+             if (process) {
+                // Сбрасываем счетчик попыток для всех лотов с ошибками
+                process.lots.forEach(lot => {
+                    if (lot.status === 'error') {
+                        lot.retries = 0;
+                        lot.status = 'pending';
+                    }
+                });
+                await chrome.storage.local.set({ [IMPORT_PROCESS_KEY]: process });
+                sendResponse({ success: true });
+                processNextLotImport();
+             } else {
+                sendResponse({ success: false, error: 'Процесс импорта не найден.' });
+             }
+        })();
+        return true;
+    }
+
+    if (request.action === 'cancelLotImport') {
+        chrome.storage.local.remove(IMPORT_PROCESS_KEY).then(() => sendResponse({success: true}));
+        return true;
+    }
+    // --- КОНЕЦ НОВОГО БЛОКА ---
 
     // ACCOUNT & COOKIE HANDLERS
     if (request.action === 'getGoldenKey') {
@@ -696,33 +689,22 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     if (alarm.name === BUMP_ALARM_NAME) {
         await runBumpCycle();
     }
-    if (alarm.name === EVENT_CHECK_ALARM_NAME) {
-        await runEventCheckCycle();
-    }
     if (alarm.name === DISCORD_LOG_ALARM_NAME) {
         await runDiscordCheckCycle();
     }
-    if (alarm.name === ANNOUNCEMENT_CHECK_ALARM) { // Новый обработчик
+    if (alarm.name === ANNOUNCEMENT_CHECK_ALARM) { 
         await checkAnnouncements();
     }
 });
 
 function setupInitialAlarms() {
-    chrome.storage.local.get(['autoBumpEnabled', 'autoBumpCooldown', 'fpToolsGreetings', 'fpToolsDiscord'], (settings) => {
+    chrome.storage.local.get(['autoBumpEnabled', 'autoBumpCooldown', 'fpToolsDiscord'], (settings) => {
         if (settings.autoBumpEnabled && settings.autoBumpCooldown) {
             chrome.alarms.create(BUMP_ALARM_NAME, {
                 delayInMinutes: 1,
                 periodInMinutes: parseInt(settings.autoBumpCooldown, 10)
             });
             runBumpCycle();
-        }
-        const isGreetingsEnabled = settings.fpToolsGreetings && settings.fpToolsGreetings.enabled;
-        if (isGreetingsEnabled) {
-             chrome.alarms.create(EVENT_CHECK_ALARM_NAME, {
-                delayInMinutes: 1,
-                periodInMinutes: 1
-            });
-            runEventCheckCycle();
         }
         if (settings.fpToolsDiscord && settings.fpToolsDiscord.enabled && settings.fpToolsDiscord.webhookUrl) {
             chrome.alarms.create(DISCORD_LOG_ALARM_NAME, {
@@ -732,12 +714,11 @@ function setupInitialAlarms() {
             runDiscordCheckCycle();
         }
     });
-    // Новый аларм для объявлений
     chrome.alarms.create(ANNOUNCEMENT_CHECK_ALARM, {
-        delayInMinutes: 1, // Проверить через минуту после запуска
-        periodInMinutes: 15 // И затем каждые 15 минут
+        delayInMinutes: 1, 
+        periodInMinutes: 15
     });
-    checkAnnouncements(); // И первая проверка сразу
+    checkAnnouncements(); 
 }
 
 chrome.runtime.onStartup.addListener(setupInitialAlarms);
@@ -750,16 +731,7 @@ chrome.runtime.onInstalled.addListener((details) => {
             showSalesStats: true,
             hideBalance: false,
             viewSellersPromo: true,
-            fpToolsGreetings: { enabled: false, text: '{welcome}, {buyername}!', cacheInitialChats: true },
             fpToolsDiscord: { enabled: false, webhookUrl: '', pingEveryone: false, pingHere: false }
-        });
-    } else if (details.reason === 'update') {
-        chrome.storage.local.get(['fpToolsGreetings'], (settings) => {
-            if (typeof settings.fpToolsGreetings?.cacheInitialChats === 'undefined') {
-                const updatedGreetings = settings.fpToolsGreetings || { enabled: false, text: '{welcome}, {buyername}!' };
-                updatedGreetings.cacheInitialChats = true;
-                chrome.storage.local.set({ fpToolsGreetings: updatedGreetings });
-            }
         });
     }
     
@@ -769,23 +741,6 @@ chrome.runtime.onInstalled.addListener((details) => {
 
 chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
-
-    if (changes.fpToolsGreetings) {
-        chrome.storage.local.get(['fpToolsGreetings'], ({ fpToolsGreetings }) => {
-            const isGreetingsEnabled = fpToolsGreetings && fpToolsGreetings.enabled;
-
-            if (isGreetingsEnabled) {
-                chrome.alarms.get(EVENT_CHECK_ALARM_NAME, (alarm) => {
-                    if (!alarm) {
-                        chrome.alarms.create(EVENT_CHECK_ALARM_NAME, { delayInMinutes: 1, periodInMinutes: 1 });
-                        runEventCheckCycle();
-                    }
-                });
-            } else {
-                chrome.alarms.clear(EVENT_CHECK_ALARM_NAME);
-            }
-        });
-    }
 
     if (changes.fpToolsDiscord) {
         const newValue = changes.fpToolsDiscord.newValue;

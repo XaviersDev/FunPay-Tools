@@ -176,11 +176,6 @@ function initializeToolsPopup() {
                 pingEveryone: document.getElementById('discordPingEveryone').checked,
                 pingHere: document.getElementById('discordPingHere').checked
             };
-
-            settingsToSave.fpToolsGreetings = {
-                enabled: document.getElementById('enableGreetings').checked,
-                text: document.getElementById('greetingsTemplate').value,
-            };
             
             await chrome.storage.local.set(settingsToSave);
 

@@ -6,7 +6,6 @@
         const announcementsTab = document.getElementById('announcementsNavTab');
         if (!announcementsTab) return;
 
-        // Функция для отображения объявлений
         const displayAnnouncements = (announcements) => {
             const contentArea = document.getElementById('announcements-content-area');
             if (!contentArea) return;
@@ -30,7 +29,6 @@
             }).join('');
         };
 
-        // Клик по вкладке
         announcementsTab.addEventListener('click', async () => {
             const popup = document.querySelector('.fp-tools-popup');
             const navItems = popup.querySelectorAll('.fp-tools-nav li, .fp-tools-header-tab');
@@ -42,15 +40,12 @@
             contentPages.forEach(page => page.classList.remove('active'));
             popup.querySelector('.fp-tools-page-content[data-page="announcements"]').classList.add('active');
 
-            // Отправляем сообщение, что пользователь прочитал объявления
             chrome.runtime.sendMessage({ action: 'markAnnouncementsAsRead' });
             
-            // Загружаем и отображаем контент
             const { fpToolsAnnouncements } = await chrome.storage.local.get('fpToolsAnnouncements');
             displayAnnouncements(fpToolsAnnouncements);
         });
 
-        // Кнопка принудительного обновления
         const refreshBtn = document.getElementById('refresh-announcements-btn');
         if (refreshBtn) {
             refreshBtn.addEventListener('click', () => {
@@ -66,11 +61,10 @@
                 setTimeout(() => {
                     refreshBtn.disabled = false;
                     refreshBtn.querySelector('.material-icons').classList.remove('spinning');
-                }, 5000); // КД 5 секунд
+                }, 5000);
             });
         }
 
-        // Проверяем наличие непрочитанных при инициализации
         chrome.storage.local.get('fpToolsUnreadCount', ({ fpToolsUnreadCount }) => {
             updateAnnouncementsBadgeUI(fpToolsUnreadCount || 0);
         });
@@ -149,10 +143,73 @@
         return true;
     }
 
+    async function handleAIReviewReply(event) {
+        const button = event.currentTarget;
+    
+        if (!document.querySelector('style[data-fp-tools-btn-loader]')) {
+            const style = document.createElement('style');
+            style.dataset.fpToolsBtnLoader = 'true';
+            style.textContent = `
+                .fp-tools-btn-loader {
+                    display: inline-block;
+                    width: 16px; height: 16px;
+                    border: 2px solid rgba(255,255,255,0.3);
+                    border-top-color: #fff;
+                    border-radius: 50%;
+                    animation: spin 1s linear infinite;
+                }
+                @keyframes spin { to { transform: rotate(360deg); } }
+            `;
+            document.head.appendChild(style);
+        }
+    
+        const originalText = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = `<span class="fp-tools-btn-loader"></span>`;
+        
+        const replyTextarea = document.querySelector('.review-item-answer-form textarea[name="text"]');
+        if (!replyTextarea) {
+            showNotification('Не найдено поле для ответа.', true);
+            button.disabled = false;
+            button.innerHTML = originalText;
+            return;
+        }
+        
+        try {
+            const myUsername = document.querySelector('.user-link-name')?.textContent.trim() || 'Продавец';
+    
+            const headers = Array.from(document.querySelectorAll('.param-item h5'));
+            const shortDescHeader = headers.find(h => h.textContent.trim() === 'Краткое описание');
+            const lotName = shortDescHeader ? shortDescHeader.nextElementSibling.textContent.trim() : 'ваш товар';
+    
+            const reviewText = document.querySelector('.review-item-text')?.textContent.trim() || 'положительный отзыв';
+    
+            const response = await chrome.runtime.sendMessage({
+                action: "getAIProcessedText",
+                text: lotName,
+                context: reviewText,
+                myUsername: myUsername,
+                type: "review_reply"
+            });
+    
+            if (response && response.success) {
+                replyTextarea.value = response.data;
+                replyTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+            } else {
+                throw new Error(response.error || 'Неизвестная ошибка ИИ.');
+            }
+    
+        } catch (error) {
+            showNotification(`Ошибка ИИ: ${error.message}`, true);
+            console.error('FP Tools AI Review Reply Error:', error);
+        } finally {
+            button.disabled = false;
+            button.innerHTML = originalText;
+        }
+    }
+
     function initializeDynamicFeatures() {
-        // Используем делегирование событий для элементов, которые могут появиться в будущем
         document.body.addEventListener('focusin', (event) => {
-            // ИИ-помощник и шаблоны в чате
             if (event.target.matches('.chat-form-input .form-control')) {
                 if (!document.querySelector('.chat-buttons-container') && !document.querySelector('.fp-tools-template-sidebar')) {
                     addChatTemplateButtons();
@@ -161,7 +218,6 @@
                     setupAIChatFeature();
                 }
             }
-            // Менеджер автовыдачи
             if (event.target.matches('textarea.textarea-lot-secrets')) {
                 if (!document.getElementById('ad-manager-placeholder')) {
                     initializeAutoDeliveryManager();
@@ -169,38 +225,45 @@
             }
         });
     
-        // Для элементов, которые появляются без фокуса, используем более умный наблюдатель
-        const observer = new MutationObserver((mutationsList) => {
-            for (const mutation of mutationsList) {
-                for (const node of mutation.addedNodes) {
-                    if (node.nodeType !== 1) continue;
-    
-                    // Генератор изображений
-                    if (node.querySelector('.attachments-box') || node.matches('.attachments-box')) {
-                        if (!document.getElementById('fpToolsGenerateImageBtn')) {
-                            initializeImageGenerator();
-                        }
-                    }
-                    // ИИ-генератор лотов
-                    const header = node.querySelector('h1.page-header, h1.page-header.page-header-no-hr') || (node.matches('h1.page-header, h1.page-header.page-header-no-hr') ? node : null);
-                    if (header && (header.textContent.includes('Добавление предложения') || header.textContent.includes('Редактирование предложения'))) {
-                        if (!document.getElementById('fp-tools-ai-gen-btn-wrapper')) {
-                            createAIGeneratorUI();
-                        }
-                    }
-                    if (node.querySelector('.chat-full-header') || node.matches('.chat-full-header')) {
-                        initializeMarkAllAsRead();
-                    }
+        const checkAndInitFeatures = () => {
+            if (!document.getElementById('fpToolsGenerateImageBtn') && document.querySelector('.attachments-box')) {
+                initializeImageGenerator();
+            }
+            if (!document.getElementById('fp-tools-ai-gen-btn-wrapper')) {
+                const header = document.querySelector('h1.page-header, h1.page-header.page-header-no-hr');
+                if (header && (header.textContent.includes('Добавление предложения') || header.textContent.includes('Редактирование предложения'))) {
+                    createAIGeneratorUI();
                 }
             }
-        });
+            if (!document.getElementById('fp-tools-read-all-btn') && document.querySelector('.chat-full-header')) {
+                initializeMarkAllAsRead();
+            }
+            // --- НОВЫЙ БЛОК ДЛЯ ИИ-ОТВЕТА НА ОТЗЫВ ---
+            const publishButton = document.querySelector('.review-item-answer-form .btn[data-action="save"]');
+            if (publishButton && !document.getElementById('fp-tools-ai-review-reply-btn')) {
+                const aiButton = createElement('button', {
+                    type: 'button',
+                    class: 'btn btn-primary action',
+                    id: 'fp-tools-ai-review-reply-btn'
+                });
+                aiButton.innerHTML = `<span class="material-icons" style="font-size: 16px; margin-right: 5px; vertical-align: text-bottom;">auto_awesome</span>Ответить`;
+                
+                publishButton.style.marginLeft = '10px';
+                publishButton.parentElement.prepend(aiButton);
     
-        // Наблюдаем только за основным контейнером контента, а не за всем body
+                aiButton.addEventListener('click', handleAIReviewReply);
+            }
+            // --- КОНЕЦ НОВОГО БЛОКА ---
+        };
+    
+        checkAndInitFeatures();
+    
+        const observer = new MutationObserver(throttle(checkAndInitFeatures, 500));
+    
         const contentNode = document.getElementById('content');
         if (contentNode) {
             observer.observe(contentNode, { childList: true, subtree: true });
         } else {
-            // Fallback, если #content не найден сразу
             observer.observe(document.body, { childList: true, subtree: true });
         }
     }
@@ -251,7 +314,6 @@
         initializeExactPrice();
         setupAIChatFeature();
         initializeFontTools();
-        if(settings.enableCustomTheme !== false) applyCustomTheme();
         
         applyHeaderPosition();
         initializeUserNotes();
@@ -269,7 +331,8 @@
         initializeMarketAnalytics();
         initializeMarkAllAsRead();
         initializeHeaderButtonStyler();
-        initializeAnnouncementsFeature(); // <-- ВЫЗОВ НОВОЙ ФУНКЦИИ
+        initializeAnnouncementsFeature();
+        initializeLotIO(); // <-- ВЫЗОВ НОВОЙ ФУНКЦИИ
 
         chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             if (request.action === 'logToAutoBumpConsole') {
@@ -290,16 +353,13 @@
                 }
                 return true;
             }
-            // --- НОВЫЙ ИСПРАВЛЕННЫЙ СЛУШАТЕЛЬ ---
             if (request.action === 'updateAnnouncementsBadge') {
                 updateAnnouncementsBadgeUI(request.unreadCount);
                 return true;
             }
             if (request.action === 'announcementsUpdated') {
                 const announcementsArea = document.getElementById('announcements-content-area');
-                // Проверяем, активна ли вкладка объявлений
                 if (announcementsArea && document.querySelector('.fp-tools-page-content[data-page="announcements"]').classList.contains('active')) {
-                    // Напрямую вызываем функцию для отрисовки полученных данных, БЕЗ клика
                     const displayAnnouncements = (announcements) => {
                         if (!announcementsArea) return;
                         if (!announcements || announcements.length === 0) {
@@ -323,7 +383,6 @@
                 }
                 return true;
             }
-            // --- КОНЕЦ НОВОГО ИСПРАВЛЕННОГО СЛУШАТЕЛЯ ---
         });
     }
 

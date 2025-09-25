@@ -131,62 +131,63 @@ async function addStatusButtonsToChatMenu() {
 
             // 3. Первичная отрисовка
             renderMenu();
-
+            
             // 4. ИСПРАВЛЕННЫЙ обработчик событий в меню (делегирование)
             chatMenu.addEventListener('click', async (e) => {
                 const target = e.target;
-                
-                // Останавливаем "всплытие" события для всех интерактивных элементов,
-                // чтобы меню не закрывалось при их использовании.
-                if (
-                    target.classList.contains('fp-tools-status-color-picker') ||
-                    target.classList.contains('fp-tools-status-label') ||
-                    target.classList.contains('fp-tools-status-delete') ||
-                    target.id === 'fp-tools-add-status-btn'
-                ) {
-                    e.stopPropagation();
-                }
-
                 const activeContact = document.querySelector('.contact-item.active');
                 if (!activeContact) return;
                 const userId = activeContact.dataset.id;
+
+                // --- Действия, которые не закрывают меню ---
                 
-                // Действие: Удаление метки
+                // Действие: Удаление метки из списка
                 if (target.classList.contains('fp-tools-status-delete')) {
                     e.preventDefault();
+                    e.stopPropagation();
                     const labelId = target.closest('a').dataset.id;
                     fpToolsCustomLabels = fpToolsCustomLabels.filter(l => l.id != labelId);
                     await saveLabels();
-                    renderMenu();
+                    renderMenu(); // Перерисовываем меню
                     return;
                 }
 
                 // Действие: Добавление новой метки
                 if (target.id === 'fp-tools-add-status-btn') {
                     e.preventDefault();
-                    fpToolsCustomLabels.push({ id: Date.now(), name: 'Новая метка', color: '#ff9800' });
+                    e.stopPropagation();
+                    fpToolsCustomLabels.push({ id: Date.now().toString(), name: 'Новая метка', color: '#ff9800' });
                     await saveLabels();
                     renderMenu();
                     return;
                 }
                 
-                // Действие: Удаление статуса с пользователя
-                if (target.id === 'fp-tools-remove-status-btn') {
-                    e.preventDefault();
-                    setUserStatus(userId, null);
-                    // Меню должно закрыться после этого действия
-                    return;
-                }
+                // --- Действия, которые закрывают меню (или не мешают этому) ---
 
-                // Действие: Применение метки (сработает только при клике на пустое место <a>)
+                // Действие: Применение метки к пользователю
                 const labelLink = target.closest('a[data-id]');
                 if (labelLink) {
+                    // Если клик был по внутреннему элементу (полю цвета, тексту), то не применяем метку,
+                    // а просто даем ему выполнить свое действие (открыть палитру, разрешить редактирование).
+                    if (target.classList.contains('fp-tools-status-color-picker') || target.classList.contains('fp-tools-status-label')) {
+                        e.stopPropagation(); // Останавливаем, чтобы меню не закрылось
+                        return;
+                    }
+                    
                     e.preventDefault();
                     const labelId = labelLink.dataset.id;
                     const label = fpToolsCustomLabels.find(l => l.id == labelId);
                     if (label) {
                         setUserStatus(userId, { name: label.name, color: label.color });
                     }
+                    // Не останавливаем событие, позволяя меню закрыться
+                }
+                
+                // Действие: Удаление статуса с пользователя
+                if (target.id === 'fp-tools-remove-status-btn') {
+                    e.preventDefault();
+                    setUserStatus(userId, null);
+                    // Не останавливаем событие, позволяя меню закрыться
                 }
             });
 

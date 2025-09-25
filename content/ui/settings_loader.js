@@ -125,7 +125,7 @@ async function loadSavedSettings() {
         'autoBumpEnabled', 'autoBumpCooldown', 'fpToolsCursorFx', 'fpToolsCustomCursor',
         'fpToolsPopupPosition', 'fpToolsPopupSize', 'enableRedesignedHomepage', 'fpToolsPopupDragged',
         'fpToolsAccounts', 'showSalesStats', 'hideBalance', 'viewSellersPromo', 'notificationSound',
-        'fpToolsGreetings', 'fpToolsDiscord',
+        'fpToolsDiscord',
         // New settings for selective bump
         'fpToolsSelectiveBumpEnabled', 'fpToolsSelectedBumpCategories' 
     ]);
@@ -183,10 +183,6 @@ async function loadSavedSettings() {
         discordLogEnabledEl.addEventListener('change', toggleDiscordControls);
         toggleDiscordControls();
     }
-
-    const greetingsSettings = settings.fpToolsGreetings || {};
-    document.getElementById('enableGreetings').checked = greetingsSettings.enabled === true;
-    document.getElementById('greetingsTemplate').value = greetingsSettings.text || '{welcome}, {buyername}!';
 
     await setupTemplateSettingsHandlers();
 

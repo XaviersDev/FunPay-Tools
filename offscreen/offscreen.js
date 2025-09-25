@@ -1,24 +1,14 @@
 // offscreen/offscreen.js
 
-// --- НОВЫЙ КОД ДЛЯ СТАТИСТИКИ, СКОПИРОВАННЫЙ И АДАПТИРОВАННЫЙ ---
+// --- КОД ДЛЯ СТАТИСТИКИ ---
 
 const RUSSIAN_MONTHS = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
 
-/**
- * Преобразует текстовую дату с FunPay в миллисекунды.
- * @param {string} dateString - Дата в формате "12 мая, 14:30" или "12 мая 2024, 14:30".
- * @returns {number} - Дата в миллисекундах (Unix timestamp).
- */
 function parseFunPayDate(dateString) {
     const now = new Date();
     let year = now.getFullYear();
-    
-    // Удаляем лишние пробелы и приводим к нижнему регистру
     const normalizedDate = dateString.trim().toLowerCase().replace(/\s+/g, ' ');
-
     let day, monthIndex, hours, minutes;
-
-    // Пробуем парсить формат "12 мая 2024, 14:30"
     let match = normalizedDate.match(/(\d{1,2})\s(.+?)\s(\d{4}),\s(\d{1,2}):(\d{2})/);
     if (match) {
         day = parseInt(match[1], 10);
@@ -27,7 +17,6 @@ function parseFunPayDate(dateString) {
         hours = parseInt(match[4], 10);
         minutes = parseInt(match[5], 10);
     } else {
-        // Пробуем парсить формат "12 мая, 14:30"
         match = normalizedDate.match(/(\d{1,2})\s(.+?),\s(\d{1,2}):(\d{2})/);
         if (match) {
             day = parseInt(match[1], 10);
@@ -50,36 +39,25 @@ function parseFunPayDate(dateString) {
              minutes = parseInt(match[2], 10);
         } else {
             console.warn("Неизвестный формат даты:", dateString);
-            return Date.now(); // Возвращаем текущую дату как fallback
+            return Date.now();
         }
     }
-
     if (monthIndex === -1) {
         console.warn("Не удалось распознать месяц:", dateString);
         return Date.now();
     }
-    
-    // Создаем дату по UTC, чтобы избежать проблем с часовыми поясами
     return new Date(Date.UTC(year, monthIndex, day, hours, minutes)).getTime();
 }
 
-
-/**
- * Парсит HTML-страницу с заказами и извлекает структурированные данные.
- * @param {string} html - HTML-код страницы.
- * @returns {{nextOrderId: string|null, orders: Array<Object>}}
- */
 function parseSalesPage(html) {
     try {
         const doc = new DOMParser().parseFromString(html, "text/html");
         const continueInput = doc.querySelector("input[type='hidden'][name='continue']");
         const nextOrderId = continueInput ? continueInput.value : null;
-
         const orderRows = doc.querySelectorAll("a.tc-item");
         if (!orderRows || orderRows.length === 0) {
             return { nextOrderId: null, orders: [] };
         }
-
         const orders = [];
         orderRows.forEach(row => {
             try {
@@ -88,47 +66,63 @@ function parseSalesPage(html) {
                 if (classList.contains("warning")) orderStatus = "refunded";
                 else if (classList.contains("info")) orderStatus = "paid";
                 else orderStatus = "closed";
-
                 const orderId = row.querySelector(".tc-order")?.textContent?.substring(1);
                 if (!orderId) return;
-
                 const description = row.querySelector(".order-desc div")?.textContent.trim() || "";
                 const subcategoryName = row.querySelector(".text-muted")?.textContent.trim() || "";
-                
                 const priceText = row.querySelector(".tc-price")?.textContent || "";
                 const priceRaw = priceText.replace(/\s/g, "");
                 const price = parseFloat(priceRaw) || 0;
-
                 let currency = "UNKNOWN";
                 if (priceText.includes("₽")) currency = "RUB";
                 else if (priceText.includes("$")) currency = "USD";
                 else if (priceText.includes("€")) currency = "EUR";
-
                 const buyerEl = row.querySelector(".media-user-name span");
                 const buyerUsername = buyerEl?.textContent.trim() || "";
                 const buyerHref = buyerEl?.getAttribute("data-href")?.split("/");
                 const buyerId = buyerHref ? parseInt(buyerHref[buyerHref.length - 2] || "0", 10) : 0;
-                
                 const orderDateText = row.querySelector(".tc-date-time")?.textContent.trim() || "";
                 const orderDate = parseFunPayDate(orderDateText);
-
                 orders.push({ orderId, description, subcategoryName, price, currency, buyerUsername, buyerId, orderStatus, orderDate, orderDateText });
-
             } catch (e) {
                 console.error("FP Tools Offscreen: Ошибка при парсинге одного заказа:", e, row);
             }
         });
-
         return { nextOrderId, orders };
-
     } catch (e) {
         console.error("FP Tools Offscreen: Глобальная ошибка парсинга страницы продаж:", e);
         return { nextOrderId: null, orders: [] };
     }
 }
 
-// --- КОНЕЦ НОВОГО КОДА ДЛЯ СТАТИСТИКИ ---
+// --- НОВЫЙ КОД ДЛЯ ЭКСПОРТА ЛОТОВ ---
+function parseLotEditPage(html) {
+    try {
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const form = doc.querySelector('form.form-offer-editor');
+        if (!form) {
+            throw new Error('Форма редактирования лота не найдена на странице.');
+        }
 
+        const formData = new FormData(form);
+        const dataObject = {};
+        
+        // Преобразуем FormData в обычный объект
+        for (const [key, value] of formData.entries()) {
+            dataObject[key] = value;
+        }
+
+        // Удаляем ненужные поля
+        delete dataObject.csrf_token;
+        delete dataObject.location;
+
+        return dataObject;
+    } catch (e) {
+        console.error("FP Tools Offscreen: Error in parseLotEditPage", e);
+        return null;
+    }
+}
+// --- КОНЕЦ НОВОГО КОДА ---
 
 function parseChatList(html) {
     try {
@@ -161,20 +155,19 @@ function parseUserLotsList(html) {
         lotRows.forEach(row => {
             const offerBlock = row.closest('.offer');
             if (!offerBlock) return;
-
             const categoryLink = offerBlock.querySelector('.offer-list-title a');
+            const categoryName = categoryLink?.textContent.trim() || "Без категории";
             const nodeIdMatch = categoryLink?.getAttribute('href')?.match(/\/(?:lots|chips)\/(\d+)/);
             const nodeId = nodeIdMatch ? nodeIdMatch[1] : null;
 
             if (!nodeId) return;
 
             const title = row.querySelector(".tc-desc-text")?.textContent?.trim() || "Без названия";
-            
             const idMatch = row.getAttribute('href')?.match(/(?:offer=|id=)(\d+)/);
             const id = idMatch ? idMatch[1] : null;
 
             if (id) {
-                allLots.push({ id, title, nodeId });
+                allLots.push({ id, title, nodeId, categoryName });
             }
         });
         
@@ -250,7 +243,18 @@ function parseUserCategories(html) {
             if (titleLink) {
                 const name = titleLink.textContent.trim();
                 const url = new URL(titleLink.href, 'https://funpay.com/');
-                categories.push({ id: url.pathname, name: name });
+                const lotItems = block.querySelectorAll('.tc-item');
+                const lots = Array.from(lotItems).map(item => {
+                    const idMatch = item.getAttribute('href')?.match(/id=(\d+)/);
+                    const nodeIdMatch = url.pathname.match(/\/lots\/(\d+)/);
+                    return {
+                        id: idMatch ? idMatch[1] : null,
+                        nodeId: nodeIdMatch ? nodeIdMatch[1] : null,
+                        title: item.querySelector('.tc-desc-text')?.textContent.trim() || 'Без названия'
+                    };
+                }).filter(lot => lot.id && lot.nodeId);
+                
+                categories.push({ id: url.pathname, name: name, lots: lots });
             }
         });
         return categories;
@@ -263,22 +267,32 @@ function parseUserCategories(html) {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.target !== 'offscreen') return true;
-
-    // --- ДОБАВЛЕН НОВЫЙ ОБРАБОТЧИК ---
-    if (message.action === 'parseSalesPage') {
-        sendResponse(parseSalesPage(message.html));
-    } else if (message.action === 'parseChatList') {
-        sendResponse(parseChatList(message.html));
-    } else if (message.action === 'parseUserLotsList') {
-        sendResponse(parseUserLotsList(message.html));
-    } else if (message.action === 'parseGameSearchResults') {
-        sendResponse(parseGameSearchResults(message.html));
-    } else if (message.action === 'parseCategoryPage') {
-        sendResponse(parseCategoryPage(message.html));
-    } else if (message.action === 'parseLotListPage') {
-        sendResponse(parseLotListPage(message.html));
-    } else if (message.action === 'parseUserCategories') {
-        sendResponse(parseUserCategories(message.html));
+    
+    switch (message.action) {
+        case 'parseSalesPage':
+            sendResponse(parseSalesPage(message.html));
+            break;
+        case 'parseLotEditPage':
+            sendResponse(parseLotEditPage(message.html));
+            break;
+        case 'parseChatList':
+            sendResponse(parseChatList(message.html));
+            break;
+        case 'parseUserLotsList':
+            sendResponse(parseUserLotsList(message.html));
+            break;
+        case 'parseGameSearchResults':
+            sendResponse(parseGameSearchResults(message.html));
+            break;
+        case 'parseCategoryPage':
+            sendResponse(parseCategoryPage(message.html));
+            break;
+        case 'parseLotListPage':
+            sendResponse(parseLotListPage(message.html));
+            break;
+        case 'parseUserCategories':
+            sendResponse(parseUserCategories(message.html));
+            break;
     }
 
     return true; 
