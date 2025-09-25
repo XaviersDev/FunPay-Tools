@@ -12,6 +12,7 @@ const IMPORT_PROCESS_KEY = 'fpToolsLotImportProcess';
 const RETRY_LIMIT = 5;
 const RETRY_DELAY = 5000; // 5 секунд
 
+
 async function fetchAnnouncements() {
     try {
         const response = await fetch(ANNOUNCEMENTS_URL, { cache: "no-store" });
