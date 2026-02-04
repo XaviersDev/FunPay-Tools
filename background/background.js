@@ -6,69 +6,11 @@ import { runAutoResponderCycle } from './autoresponder.js';
 
 const OFFSCREEN_DOCUMENT_PATH = 'offscreen/offscreen.html';
 const DISCORD_LOG_ALARM_NAME = 'fpToolsDiscordCheck';
-const ANNOUNCEMENT_CHECK_ALARM = 'fpToolsAnnouncementCheck';
 const AUTO_RESPONDER_ALARM_NAME = 'fpToolsAutoResponder';
 let lastDiscordChatTag = null;
-const ANNOUNCEMENTS_URL = 'https://gist.githubusercontent.com/XaviersDev/d2cf9207d39b55bd50207123e924456c/raw/fptoolsannouncements';
 const IMPORT_PROCESS_KEY = 'fpToolsLotImportProcess';
 const RETRY_LIMIT = 5;
 const RETRY_DELAY = 5000; // 5 секунд
-
-async function fetchAnnouncements() {
-    try {
-        const response = await fetch(ANNOUNCEMENTS_URL, { cache: "no-store" });
-        if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
-        const announcements = await response.json();
-        if (!Array.isArray(announcements)) throw new Error("Invalid format");
-        return announcements;
-    } catch (error) {
-        console.error("FP Tools: Failed to fetch announcements:", error);
-        return null;
-    }
-}
-
-async function checkAnnouncements(isForced = false) {
-    console.log("FP Tools: Checking for new announcements...");
-    const announcements = await fetchAnnouncements();
-    if (!announcements || announcements.length === 0) {
-        return;
-    }
-
-    const latestAnnouncement = announcements[0];
-    const { fpToolsLastReadAnnouncementId, fpToolsAnnouncements } = await chrome.storage.local.get(['fpToolsLastReadAnnouncementId', 'fpToolsAnnouncements']);
-
-    const storedAnnouncements = fpToolsAnnouncements || [];
-    const newUnreadCount = announcements.filter(a => a.id > (fpToolsLastReadAnnouncementId || 0)).length;
-
-    await chrome.storage.local.set({ 
-        fpToolsAnnouncements: announcements,
-        fpToolsUnreadCount: newUnreadCount
-    });
-
-    updateContentScriptUI(newUnreadCount);
-
-    if (isForced) {
-        const tabs = await chrome.tabs.query({ url: "*://funpay.com/*" });
-        tabs.forEach(tab => {
-            chrome.tabs.sendMessage(tab.id, {
-                action: 'announcementsUpdated',
-                announcements: announcements
-            }).catch(e => console.log("Could not send announcement update to tab", e.message));
-        });
-    }
-}
-
-async function updateContentScriptUI(unreadCount) {
-    const tabs = await chrome.tabs.query({ url: "*://funpay.com/*" });
-    tabs.forEach(tab => {
-        chrome.tabs.sendMessage(tab.id, {
-            action: 'updateAnnouncementsBadge',
-            unreadCount: unreadCount
-        }).catch(e => {});
-    });
-}
-// --- КОНЕЦ НОВОГО БЛОКА ---
-
 
 // --- ФИНАЛЬНАЯ, ИСПРАВЛЕННАЯ ФУНКЦИЯ СБОРА СТАТИСТИКИ БЕЗ ОГРАНИЧЕНИЙ ---
 async function runSalesUpdateCycle() {
@@ -521,26 +463,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true;
     }
     
-    // ANNOUNCEMENTS HANDLERS
-    if (request.action === 'forceCheckAnnouncements') {
-        checkAnnouncements(true).then(() => sendResponse({success: true}));
-        return true;
-    }
-    if (request.action === 'markAnnouncementsAsRead') {
-        (async () => {
-            const { fpToolsAnnouncements } = await chrome.storage.local.get(['fpToolsAnnouncements']);
-            if (fpToolsAnnouncements && fpToolsAnnouncements.length > 0) {
-                await chrome.storage.local.set({ 
-                    fpToolsLastReadAnnouncementId: fpToolsAnnouncements[0].id,
-                    fpToolsUnreadCount: 0
-                });
-                updateContentScriptUI(0);
-            }
-            sendResponse({success: true});
-        })();
-        return true;
-    }
-
     // --- ИЗМЕНЕННЫЙ БЛОК: LOT IO HANDLERS ---
     if (request.action === 'getLotForExport') {
         (async () => {
@@ -738,9 +660,6 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     if (alarm.name === DISCORD_LOG_ALARM_NAME) {
         await runDiscordCheckCycle();
     }
-    if (alarm.name === ANNOUNCEMENT_CHECK_ALARM) { 
-        await checkAnnouncements();
-    }
     // <-- НОВЫЙ ОБРАБОТЧИК -->
     if (alarm.name === AUTO_RESPONDER_ALARM_NAME) {
         await runAutoResponderCycle();
@@ -773,11 +692,6 @@ function setupInitialAlarms() {
             runAutoResponderCycle();
         }
     });
-    chrome.alarms.create(ANNOUNCEMENT_CHECK_ALARM, {
-        delayInMinutes: 1, 
-        periodInMinutes: 15
-    });
-    checkAnnouncements(); 
 }
 
 chrome.runtime.onStartup.addListener(setupInitialAlarms);

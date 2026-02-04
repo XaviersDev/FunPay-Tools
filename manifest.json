@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "FunPay Tools",
-    "version": "2.7",
+    "version": "2.7.3",
     "description": "Глобальное расширение для FunPay ⚡ 100+ инструментов • ИИ-помощник • Автоответчик • Аналитика • Автоматизация • Больше продаж",
     "permissions": [
         "storage",
@@ -17,8 +17,7 @@
         "https://funpay.com/*",
         "https://cdn.jsdelivr.net/*",
         "https://fonts.googleapis.com/*",
-        "https://fonts.gstatic.com/*",
-        "https://gist.githubusercontent.com/*"
+        "https://fonts.gstatic.com/*"
     ],
     "action": {
         "default_popup": "popup/popup.html",

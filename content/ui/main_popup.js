@@ -54,11 +54,6 @@ function createMainPopup() {
     toolsPopup.innerHTML = `
         <div class="fp-tools-header">
             <h2>FP Tools</h2>
-            <div id="announcementsNavTab" class="fp-tools-header-tab" data-page="announcements">
-                <span class="nav-icon">📢</span>
-                <span>Объявления</span>
-                <span class="notification-badge"></span>
-            </div>
             <button class="close-btn" aria-label="Закрыть"></button>
         </div>
         <div class="fp-tools-body">
@@ -81,18 +76,6 @@ function createMainPopup() {
                 </ul>
             </nav>
             <main class="fp-tools-content">
-                <div class="fp-tools-page-content" data-page="announcements">
-                    <div class="announcements-header">
-                        <h3>Объявления от разработчика</h3>
-                        <button id="refresh-announcements-btn" class="btn btn-default" title="Принудительно обновить">
-                            <span class="material-icons">refresh</span>
-                        </button>
-                    </div>
-                    <div id="announcements-content-area">
-                        <div class="fp-import-loader"></div>
-                    </div>
-                </div>
-
                 <div class="fp-tools-page-content active" data-page="general">
                     <h3>Общие настройки</h3>
                     <div class="checkbox-label-inline">
@@ -176,12 +159,10 @@ function createMainPopup() {
                         </ul>
                      </div>
                      
-                     <!-- === НОВЫЙ БЛОК === -->
                      <div class="template-info image-upload-warning">
                         <span class="nav-icon">🖼️</span>
                         <span><b>Изображения в шаблонах:</b> Используйте кнопку 🖼️, чтобы добавить картинку с компьютера. Она будет вставлена как код. При отправке шаблона картинка будет отправлена в чат, как будто вы её скопировали и вставили.</span>
                      </div>
-                     <!-- === КОНЕЦ НОВОГО БЛОКА === -->
 
                     <div id="template-settings-container" class="template-settings-list"></div>
                     <button id="addCustomTemplateBtn" class="btn" style="margin-top: 10px;">+ Добавить свой шаблон</button>
@@ -228,22 +209,12 @@ function createMainPopup() {
                         <label class="fp-tools-radio-option"><input type="radio" name="bonusMode" value="random"><span>Случайный из списка</span></label>
                     </div>
                     <div id="singleBonusContainer" class="template-container">
-                         <!-- === НОВЫЙ БЛОК === -->
-                        <div class="textarea-with-controls">
-                            <textarea id="singleBonusText" class="template-input" placeholder="Текст вашего бонуса..."></textarea>
-                            <button class="btn add-image-btn" title="Добавить изображение">🖼️</button>
-                        </div>
-                         <!-- === КОНЕЦ НОВОГО БЛОКА === -->
+                        <textarea id="singleBonusText" class="template-input" placeholder="Текст вашего бонуса..."></textarea>
                     </div>
                     <div id="randomBonusContainer" class="template-container" style="display: none;">
                         <div id="bonus-list-container" class="bonus-list"></div>
                         <div class="bonus-add-form">
-                             <!-- === НОВЫЙ БЛОК === -->
-                            <div class="textarea-with-controls">
-                                <textarea id="newBonusText" placeholder="Текст нового бонуса для списка..."></textarea>
-                                <button class="btn add-image-btn" title="Добавить изображение">🖼️</button>
-                            </div>
-                             <!-- === КОНЕЦ НОВОГО БЛОКА === -->
+                            <textarea id="newBonusText" placeholder="Текст нового бонуса для списка..."></textarea>
                             <button id="addBonusBtn" class="btn btn-default">Добавить бонус в список</button>
                         </div>
                     </div>
@@ -254,12 +225,7 @@ function createMainPopup() {
                             <input type="checkbox" id="greetingEnabled">
                             <label for="greetingEnabled" style="margin-bottom:0;"><span>Авто-приветствие для новых покупателей</span></label>
                         </div>
-                         <!-- === НОВЫЙ БЛОК === -->
-                        <div class="textarea-with-controls">
-                            <textarea id="greetingText" class="template-input" placeholder="Текст приветствия..."></textarea>
-                            <button class="btn add-image-btn" title="Добавить изображение">🖼️</button>
-                        </div>
-                         <!-- === КОНЕЦ НОВОГО БЛОКА === -->
+                        <textarea id="greetingText" class="template-input" placeholder="Текст приветствия..."></textarea>
                     </div>
                     <div class="template-container">
                         <div class="checkbox-label-inline">
@@ -269,12 +235,7 @@ function createMainPopup() {
                         <div id="keywords-list-container" class="keywords-list"></div>
                         <div class="keyword-add-form">
                             <input type="text" id="newKeyword" placeholder="Команда, например: !цена">
-                             <!-- === НОВЫЙ БЛОК === -->
-                            <div class="textarea-with-controls">
-                                <textarea id="newKeywordResponse" placeholder="Текст ответа, например: '5к за 1 коин'"></textarea>
-                                <button class="btn add-image-btn" title="Добавить изображение">🖼️</button>
-                            </div>
-                             <!-- === КОНЕЦ НОВОГО БЛОКА === -->
+                            <textarea id="newKeywordResponse" placeholder="Текст ответа, например: '5к за 1 коин'"></textarea>
                             <button id="addKeywordBtn" class="btn btn-default">Добавить команду</button>
                         </div>
                     </div>
@@ -388,15 +349,6 @@ function createMainPopup() {
                     <div class="feature-list-container"><h3>Справочник по функциям</h3><div class="feature-item"><div class="feature-title"><span class="material-icons">smart_toy</span>ИИ-Ассистент в чате</div><div class="feature-location"><strong>Где найти:</strong> В любом чате, кнопка "AI" рядом с полем ввода.</div><div class="feature-desc">Улучшает ваш текст, делая его вежливым и профессиональным. Активируйте режим и нажмите Enter для обработки. Также предупреждает о грубости.</div></div><div class="feature-item"><div class="feature-title"><span class="material-icons">auto_fix_high</span>AI-Генератор лотов</div><div class="feature-location"><strong>Где найти:</strong> На странице создания/редактирования лота.</div><div class="feature-desc">Создает название и описание для лота на основе ваших идей, анализируя и копируя стиль ваших существующих предложений.</div></div><div class="feature-item"><div class="feature-title"><span class="material-icons">add_photo_alternate</span>AI-Генератор изображений</div><div class="feature-location"><strong>Где найти:</strong> На странице создания/редактирования лота, в разделе "Изображения".</div><div class="feature-desc">Создавайте уникальные и стильные превью для ваших предложений с помощью встроенного генератора, в том числе по текстовому запросу.</div></div><div class="feature-item"><div class="feature-title"><span class="material-icons">palette</span>Полная кастомизация</div><div class="feature-location"><strong>Где найти:</strong> Вкладка "Кастомизация".</div><div class="feature-desc">Измените внешний вид FunPay: установите анимированный фон, настройте цвета, шрифты, прозрачность блоков и даже расположение верхней панели.</div></div><div class="feature-item"><div class="feature-title"><span class="material-icons">auto_fix_normal</span>"Кастомизатор (режим редактора)</div><div class="feature-location"><strong>Где найти:</strong> Вкладка "Кастомизация".</div><div class="feature-desc">Редактируйте любой элемент сайта в реальном времени. Меняйте цвета, размеры или скрывайте ненужное, сохраняя стили навсегда.</div></div><div class="feature-item"><div class="feature-title"><span class="material-icons">description</span>Шаблоны и AI-переменные</div><div class="feature-location"><strong>Где найти:</strong> Под полем ввода в чате. Настраиваются во вкладке "Шаблоны".</div><div class="feature-desc">Быстрая вставка готовых сообщений. Поддерживают переменные {buyername}, {date} и даже генерацию текста через {ai:ваш запрос}.</div></div><div class="feature-item"><div class="feature-title"><span class="material-icons">checklist</span>Управление лотами и ценами</div><div class="feature-location"><strong>Где найти:</strong> На странице вашего профиля (funpay.com/users/...).</div><div class="feature-desc">Кнопка "Выбрать" позволяет выделить несколько лотов для массового удаления, дублирования, отключения или редактирования цен.</div></div><div class="feature-item"><div class="feature-title"><span class="material-icons">control_point_duplicate</span>Клонирование лотов</div><div class="feature-location"><strong>Где найти:</strong> На странице редактирования любого вашего лота.</div><div class="feature-desc">Кнопка "Копировать" позволяет создать точную копию лота или массово размножить его по разным категориям (например, по разным серверам).</div></div><div class="feature-item"><div class="feature-title"><span class="material-icons">public</span>Глобальный импорт лотов</div><div class="feature-location"><strong>Где найти:</strong> На странице редактирования лота, кнопка "Импорт".</div><div class="feature-desc">Импортируйте название и описание любого лота с FunPay, чтобы анализировать конкурентов или использовать как основу.</div></div><div class="feature-item"><div class="feature-title"><span class="material-icons">sort_by_alpha</span>Сортировка по отзывам</div><div class="feature-location"><strong>Где найти:</strong> На любой странице со списком лотов.</div><div class="feature-desc">Кликните на заголовок "Продавец" в таблице, чтобы отсортировать все предложения по количеству отзывов у продавцов.</div></div><div class="feature-item"><div class="feature-title"><span class="material-icons">label</span>Пометки для пользователей</div><div class="feature-location"><strong>Где найти:</strong> В выпадающем меню в заголовке чата с человеком.</div><div class="feature-desc">Устанавливайте настраиваемые цветные метки для пользователей, которые будут видны в вашем списке контактов.</div></div><div class="feature-item"><div class="feature-title"><span class="material-icons">rocket_launch</span>Авто-поднятие лотов</div><div class="feature-location"><strong>Где найти:</strong> Вкладка "Авто-поднятие".</div><div class="feature-desc">Настройте автоматическое поднятие лотов по таймеру. Можно выбрать для поднятия только определенные категории.</div></div><div class="feature-item"><div class="feature-title"><span class="material-icons">monitoring</span>Статистика</div><div class="feature-location"><strong>Где найти:</strong> Страница "Продажи" - статистика продаж, кнопка "Аналитика рынка" на странице игры.</div><div class="feature-desc">Получайте детальную статистику по своим продажам и анализируйте рыночную ситуацию в любой категории.</div></div><div class="feature-item"><div class="feature-title"><span class="material-icons">savings</span>Финансовые копилки</div><div class="feature-location"><strong>Где найти:</strong> Вкладка "Копилки" и иконка в шапке сайта.</div><div class="feature-desc">Устанавливайте финансовые цели и отслеживайте их достижение. Копилка синхронизируется с балансом FunPay.</div></div></div>
                 </div>
                 <div class="fp-tools-page-content" data-page="support">
-                    <h3>Поддержка проекта</h3>
-                    <div class="support-container">
-                        <p>Если вам нравится FP Tools и вы хотите отблагодарить разработчика, вы можете поддержать проект. Это абсолютно добровольно, но каждая копейка помогает уделять больше времени развитию и добавлению новых функций.</p>
-                        <p>Вы можете ввести любую сумму и поддержать разработку:</p>
-                        <div class="support-buttons-container">
-                             <a href="http://t.me/send?start=IVTSEqtWdcPG" target="_blank" class="btn support-btn crypto-btn"><span class="material-icons" style="font-size: 20px; margin-right: 8px;">currency_bitcoin</span>Поддержать криптой (TG Bot)</a>
-                        </div>
-                    </div>
-                    <div style="border-top: 1px solid rgba(255,255,255,0.1); margin: 30px 0;"></div>
                     <h3>Оставьте отзыв! ⭐</h3>
                     <div class="support-container">
                         <p>Это <strong>самый важный</strong> вклад, который вы можете сделать. Ваш положительный отзыв — это топливо для новых обновлений и лучшая мотивация для разработчика.</p>

@@ -1,8 +1,4 @@
 // C:\Users\AlliSighs\Desktop\◘FUNPAY ◘\FunPay Tools 2.6\content\content_script.js 
-// Этот файл остается без изменений по сравнению с предыдущим ответом.
-// Просто убедитесь, что у вас последняя версия.
-// Единственное изменение - это добавление блока в функцию initializeDynamicFeatures.
-// Вот эта функция с новым блоком:
 
 function initializeDynamicFeatures() {
     document.body.addEventListener('focusin', (event) => {
