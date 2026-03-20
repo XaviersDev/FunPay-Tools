@@ -1,55 +1,79 @@
 <!DOCTYPE html>
 <html>
 <head>
-   <meta charset="utf-8">
-   <link rel="stylesheet" href="popup.css">
-   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="popup.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-   <div class="popup-wrapper">
-       <header>
-           <div class="header-logo">
-               <img src="../icons/icon128.png" alt="FP Tools Logo" width="32" height="32">
-               <div class="header-text">
-                   <h1>FunPay Tools</h1>
-                   <!-- ИЗМЕНЕНИЕ: Добавлен id для динамической вставки версии -->
-                   <span id="version-display"></span>
-               </div>
-           </div>
-       </header>
+    <div class="popup-wrapper">
+        <header>
+            <div class="header-logo">
+                <img src="../icons/icon128.png" alt="FP Tools" width="28" height="28">
+                <div class="header-text">
+                    <h1>FunPay Tools</h1>
+                    <span id="version-display"></span>
+                </div>
+            </div>
+            <div id="status-dot" class="status-dot" title="Проверка статуса..."></div>
+        </header>
 
-       <main>
-           <p class="instruction-text">
-               Все настройки и функции расширения находятся прямо на сайте FunPay!
-           </p>
-           
-           <div class="visual-guide">
-               <p>Ищите эту кнопку в шапке сайта:</p>
-               <img src="fp-tools-button-location.png" alt="Расположение кнопки FP Tools на сайте FunPay">
-           </div>
-           
-           <a id="goToFunPayBtn" class="cta-button" href="https://funpay.com" target="_blank">
-               Перейти на FunPay
-           </a>
-       </main>
+        <main>
+            <p class="instruction-text">
+                Все настройки находятся прямо на сайте FunPay — ищите кнопку в шапке.
+            </p>
 
-       <footer>
-           <div class="quick-links">
-               <a href="#" id="telegramBtn" title="Наш Telegram-канал">
-                   <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-1.37.2-1.64l16.44-5.99c.73-.27 1.36.17 1.15.99l-2.28 10.82c-.15.71-.56 1.01-1.2 1.01l-4.82-.01-1.15 4.35c-.32.74-1.23.46-1.42-.47z"></path></svg>
-                   <span>Сообщество</span>
-               </a>
-               <a href="#" id="reviewBtn" title="Оставить отзыв">
-                   <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27z"></path></svg>
-                   <span>Оценить</span>
-               </a>
-           </div>
-           <div class="credits">
-               Made with ❤️ by AlliSighs
-           </div>
-       </footer>
-   </div>
+            <div class="visual-guide">
+                <img src="fp-tools-button-location.png" alt="Расположение кнопки FP Tools">
+            </div>
 
-   <script src="popup.js"></script>
+            <a id="goToFunPayBtn" class="cta-button" href="https://funpay.com" target="_blank">
+                Открыть FunPay
+            </a>
+        </main>
+
+        <div class="divider"></div>
+
+        <section class="quick-stats" id="quickStats" style="display:none">
+            <div class="stat-item">
+                <span class="stat-label">Авто-ответы</span>
+                <span class="stat-value" id="statAutoReply">—</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Авто-поднятие</span>
+                <span class="stat-value" id="statAutoBump">—</span>
+            </div>
+        </section>
+
+        <footer>
+            <div class="quick-links">
+                <a href="#" id="telegramBtn" title="Telegram-канал">
+                    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-1.37.2-1.64l16.44-5.99c.73-.27 1.36.17 1.15.99l-2.28 10.82c-.15.71-.56 1.01-1.2 1.01l-4.82-.01-1.15 4.35c-.32.74-1.23.46-1.42-.47z"/></svg>
+                    Сообщество
+                </a>
+                <a href="#" id="reviewBtn" title="Оставить отзыв">
+                    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                    Оценить
+                </a>
+                <a href="#" id="changelogBtn" title="Что нового">
+                    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M13 2.05v2.02c3.95.49 7 3.85 7 7.93 0 3.21-1.81 6-4.5 7.54L13 17v5h5l-1.22-1.22C19.91 19.07 22 15.76 22 12c0-5.18-3.94-9.45-9-9.95zM11 2.05C5.95 2.55 2 6.82 2 12c0 3.76 2.09 7.07 5.22 8.78L6 22h5v-5l-2.5 2.47C6.81 18 5 15.21 5 12c0-4.08 3.05-7.44 7-7.93V2.05z"/></svg>
+                    Что нового
+                </a>
+            </div>
+            <div class="credits">Made with ♥ by AlliSighs · v<span id="footer-version"></span></div>
+        </footer>
+    </div>
+
+    <div id="changelog-panel" class="changelog-panel" style="display:none">
+        <div class="changelog-header">
+            <strong>Что нового в 3.0</strong>
+            <button id="changelog-close">✕</button>
+        </div>
+                <ul class="changelog-list">
+            <li><span class="tag new">Новое</span> Вы можете посмотреть всегда на сайте GitHub: https://github.com/XaviersDev/FunPay-Tools</li>
+        </ul>
+    </div>
+
+    <script src="popup.js"></script>
 </body>
 </html>

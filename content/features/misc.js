@@ -187,9 +187,48 @@ function initializeToolsPopup() {
                 reviewTemplates: reviewTemplates,
                 greetingEnabled: document.getElementById('greetingEnabled').checked,
                 greetingText: document.getElementById('greetingText').value,
-                keywordsEnabled: document.getElementById('keywordsEnabled').checked
+                keywordsEnabled: document.getElementById('keywordsEnabled').checked,
                 // 'keywords' сохраняются отдельно при добавлении/удалении и здесь не нужны
+
+                // 2.8: Identifier toggle
+                fpToolsIdentifierEnabled: document.getElementById('fptIdentifierEnabled')?.checked !== false,
+
+                // 2.9: New toggles
+                fpToolsShowPaymentType:  document.getElementById('fpToolsShowPaymentType')?.checked !== false,
+                fpToolsBuyerHistory:     document.getElementById('fpToolsBuyerHistory')?.checked !== false,
+                fpToolsShowUnconfirmed:  document.getElementById('fpToolsShowUnconfirmed')?.checked !== false
             };
+
+            // 3.0: Extended autoresponder settings
+            const existingAR = (await chrome.storage.local.get('fpToolsAutoReplies')).fpToolsAutoReplies || {};
+            const arExtras = {
+                ...existingAR,
+                newOrderReplyEnabled:    document.getElementById('newOrderReplyEnabled')?.checked ?? false,
+                newOrderReplyText:       document.getElementById('newOrderReplyText')?.value || '',
+                orderConfirmReplyEnabled: document.getElementById('orderConfirmReplyEnabled')?.checked ?? false,
+                orderConfirmReplyText:   document.getElementById('orderConfirmReplyText')?.value || '',
+                typingDelay:             document.getElementById('typingDelay')?.checked ?? false,
+                onlyNewChats:            document.getElementById('onlyNewChats')?.checked ?? false,
+                ignoreSystemMessages:    document.getElementById('ignoreSystemMessages')?.checked ?? false,
+                greetingCooldownDays:    parseFloat(document.getElementById('greetingCooldownDays')?.value || '0'),
+            };
+            chrome.storage.local.set({ fpToolsAutoReplies: arExtras });
+
+            // 3.0: Auto-restore/disable, review request template
+            const reviewTpl = document.getElementById('reviewRequestTemplate')?.value || '';
+            chrome.storage.local.set({
+                fpToolsAutoRestoreEnabled: document.getElementById('fpAutoRestoreEnabled')?.checked ?? false,
+                fpToolsAutoDisableEnabled: document.getElementById('fpAutoDisableEnabled')?.checked ?? false,
+                fpToolsReviewRequestTemplate: reviewTpl
+            });
+
+            // Save review request template separately (it's in auto_review section)
+            const rrTemplate = document.getElementById('fp-review-request-template')?.value?.trim();
+            if (rrTemplate !== undefined) {
+                const { fpToolsAutoReplies: curAR = {} } = await chrome.storage.local.get('fpToolsAutoReplies');
+                curAR.reviewRequestTemplate = rrTemplate;
+                await chrome.storage.local.set({ fpToolsAutoReplies: curAR });
+            }
 
             settingsToSave.fpToolsDiscord = {
                 enabled: document.getElementById('discordLogEnabled').checked,

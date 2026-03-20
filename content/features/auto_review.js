@@ -43,14 +43,23 @@ async function initializeAutoReviewUI() {
     toggleBonusContainers();
     renderBonusesList(settings.randomBonuses);
 
-    document.getElementById('autoReviewEnabled').checked = settings.autoReviewEnabled;
-    for (let i = 1; i <= 5; i++) {
-        const input = document.getElementById(`fpt-review-${i}`);
-        if (input) input.value = settings.reviewTemplates[i] || '';
-    }
-    document.getElementById('greetingEnabled').checked = settings.greetingEnabled;
-    document.getElementById('greetingText').value = settings.greetingText;
-    document.getElementById('keywordsEnabled').checked = settings.keywordsEnabled;
+    const setCheck = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
+    const setVal   = (id, val) => { const el = document.getElementById(id); if (el) el.value  = val || ''; };
+
+    setCheck('autoReviewEnabled', settings.autoReviewEnabled);
+    for (let i = 1; i <= 5; i++) setVal(`fpt-review-${i}`, settings.reviewTemplates?.[i]);
+    setCheck('greetingEnabled',       settings.greetingEnabled);
+    setVal('greetingText',            settings.greetingText || 'Здравствуйте! Чем могу помочь?');
+    setCheck('onlyNewChats',          settings.onlyNewChats);
+    setCheck('ignoreSystemMessages',  settings.ignoreSystemMessages);
+    setVal('greetingCooldownDays',    settings.greetingCooldownDays ?? 0);
+    setCheck('keywordsEnabled',       settings.keywordsEnabled);
+    // 3.0: New fields
+    setCheck('newOrderReplyEnabled',     settings.newOrderReplyEnabled);
+    setVal('newOrderReplyText',          settings.newOrderReplyText);
+    setCheck('orderConfirmReplyEnabled', settings.orderConfirmReplyEnabled);
+    setVal('orderConfirmReplyText',      settings.orderConfirmReplyText);
+    setCheck('typingDelay',              settings.typingDelay);
     
     renderKeywordsList(settings.keywords);
 
@@ -61,22 +70,37 @@ async function initializeAutoReviewUI() {
             const storedData = await chrome.storage.local.get('fpToolsAutoReplies');
             const currentSettings = storedData.fpToolsAutoReplies || {};
             
+            const getChecked = id => document.getElementById(id)?.checked ?? false;
+            const getVal = id => document.getElementById(id)?.value || '';
+
             const newSettings = {
                 ...currentSettings,
-                autoReviewEnabled: document.getElementById('autoReviewEnabled').checked,
+                // Review replies
+                autoReviewEnabled: getChecked('autoReviewEnabled'),
                 reviewTemplates: {
-                    '5': document.getElementById('fpt-review-5').value,
-                    '4': document.getElementById('fpt-review-4').value,
-                    '3': document.getElementById('fpt-review-3').value,
-                    '2': document.getElementById('fpt-review-2').value,
-                    '1': document.getElementById('fpt-review-1').value
+                    '5': getVal('fpt-review-5'),
+                    '4': getVal('fpt-review-4'),
+                    '3': getVal('fpt-review-3'),
+                    '2': getVal('fpt-review-2'),
+                    '1': getVal('fpt-review-1')
                 },
-                greetingEnabled: document.getElementById('greetingEnabled').checked,
-                greetingText: document.getElementById('greetingText').value,
-                keywordsEnabled: document.getElementById('keywordsEnabled').checked,
-                bonusForReviewEnabled: document.getElementById('bonusForReviewEnabled').checked,
-                bonusMode: document.querySelector('input[name="bonusMode"]:checked').value,
-                singleBonusText: document.getElementById('singleBonusText').value,
+                // Greeting
+                greetingEnabled:       getChecked('greetingEnabled'),
+                greetingText:          getVal('greetingText'),
+                onlyNewChats:          getChecked('onlyNewChats'),
+                ignoreSystemMessages:  getChecked('ignoreSystemMessages'),
+                greetingCooldownDays:  parseFloat(getVal('greetingCooldownDays') || '0'),
+                // Keywords
+                keywordsEnabled: getChecked('keywordsEnabled'),
+                // Bonus
+                bonusForReviewEnabled: getChecked('bonusForReviewEnabled'),
+                bonusMode:             document.querySelector('input[name="bonusMode"]:checked')?.value || 'single',
+                singleBonusText:       getVal('singleBonusText'),
+                // 3.0: New order / confirm replies
+                newOrderReplyEnabled:     getChecked('newOrderReplyEnabled'),
+                newOrderReplyText:        getVal('newOrderReplyText'),
+                orderConfirmReplyEnabled: getChecked('orderConfirmReplyEnabled'),
+                orderConfirmReplyText:    getVal('orderConfirmReplyText'),
             };
             await chrome.storage.local.set({ fpToolsAutoReplies: newSettings });
             console.log("FP Tools: Auto-reply settings saved.");
@@ -102,6 +126,9 @@ async function initializeAutoReviewUI() {
     document.getElementById('addKeywordBtn').addEventListener('click', async () => {
         const keyword = document.getElementById('newKeyword').value.trim().toLowerCase();
         const response = document.getElementById('newKeywordResponse').value.trim();
+        // 2.8: Save match mode (exact/contains)
+        const matchModeEl = document.querySelector('input[name="newKeywordMatchMode"]:checked');
+        const matchMode = matchModeEl ? matchModeEl.value : 'exact';
 
         if (!keyword || !response) {
             showNotification('Заполните оба поля для нового правила.', true);
@@ -110,7 +137,7 @@ async function initializeAutoReviewUI() {
 
         const { fpToolsAutoReplies = {} } = await chrome.storage.local.get('fpToolsAutoReplies');
         const keywords = fpToolsAutoReplies.keywords || [];
-        keywords.push({ keyword, response });
+        keywords.push({ keyword, response, matchMode });
         fpToolsAutoReplies.keywords = keywords;
 
         await chrome.storage.local.set({ fpToolsAutoReplies });
@@ -175,16 +202,20 @@ function renderKeywordsList(keywords) {
         return;
     }
 
-    listContainer.innerHTML = keywords.map((item, index) => `
+    listContainer.innerHTML = keywords.map((item, index) => {
+        const modeBadge = item.matchMode === 'contains'
+            ? '<span style="font-size:10px;background:#1e2030;padding:1px 5px;border-radius:3px;color:#7a7f9a;margin-left:4px;">содержит</span>'
+            : '<span style="font-size:10px;background:#1e2030;padding:1px 5px;border-radius:3px;color:#7a7f9a;margin-left:4px;">точно</span>';
+        return `
         <div class="keyword-item">
             <div class="keyword-pair">
-                <span class="keyword-key">${item.keyword}</span>
+                <span class="keyword-key">${item.keyword}</span>${modeBadge}
                 <span class="keyword-arrow">→</span>
                 <span class="keyword-value">${item.response}</span>
             </div>
             <button class="btn btn-default delete-keyword-btn" data-index="${index}">Удалить</button>
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
 }
 
 function renderBonusesList(bonuses) {

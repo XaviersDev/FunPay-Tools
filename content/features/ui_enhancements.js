@@ -88,6 +88,17 @@ function getStatsBlockHTML() {
                 <span class="detail-label">🎮 Самая популярная категория:</span>
                 <span class="detail-value" id="fpTools-stats-popular-category">-</span>
             </div>
+            <div class="fp-stats-unconf-divider"></div>
+            <div class="fp-stats-expand-row" id="fpTools-stats-expand-btn">
+                <span class="fp-stats-expand-label">Показать ещё</span>
+                <span class="fp-stats-expand-arrow">▾</span>
+            </div>
+            <div class="fp-stats-extra" id="fpTools-stats-extra" style="display:none;">
+                <div class="fp-stat-detail-item">
+                    <span class="detail-label">🔒 Неподтверждённые заказы:</span>
+                    <span class="detail-value" id="fpTools-stats-unconfirmed">—</span>
+                </div>
+            </div>
         </div>
     </div>
     `;
@@ -204,6 +215,33 @@ async function displaySalesStats() {
     document.getElementById("fpTools-stats-top-sale").onclick = () => { if(stats.mostExpensiveSale.orderId) window.open(`https://funpay.com/orders/${stats.mostExpensiveSale.orderId}/`); };
     document.getElementById("fpTools-stats-popular-product").textContent = stats.mostPopularProduct || "-";
     document.getElementById("fpTools-stats-popular-category").textContent = stats.mostPopularCategory || "-";
+
+    // Fetch unconfirmed (pending) balance from live trade page
+    // FIX: Always fetch status=paid specifically (ignores the period filter — unconfirmed is always real-time)
+    const unconfEl = document.getElementById("fpTools-stats-unconfirmed");
+    if (unconfEl) {
+        unconfEl.textContent = "…";
+        try {
+            const resp = await fetch('https://funpay.com/orders/trade?status=paid', { credentials: 'include' });
+            if (resp.ok) {
+                const html = await resp.text();
+                const result = await new Promise(r =>
+                    chrome.runtime.sendMessage({ target: 'offscreen', action: 'parseUnconfirmedBalance', html }, d => r(d))
+                );
+                if (result) {
+                    const sym = result.currency === 'USD' ? '$' : result.currency === 'EUR' ? '€' : '₽';
+                    unconfEl.textContent = result.count > 0
+                        ? `${result.total.toLocaleString('ru')} ${sym} (${result.count} шт.)`
+                        : '0 ' + sym;
+                    // Style: highlight if there's money waiting
+                    if (result.count > 0) {
+                        unconfEl.style.color = '#ffa000';
+                        unconfEl.style.fontWeight = '700';
+                    }
+                }
+            }
+        } catch(_) { unconfEl.textContent = "—"; }
+    }
 }
 
 function initializeSalesStatistics() {
@@ -234,6 +272,18 @@ function initializeSalesStatistics() {
     displaySalesStats();
     if (chrome.runtime?.id) {
         chrome.runtime.sendMessage({ action: 'updateSales' });
+    }
+
+    // Expand/collapse "Показать ещё"
+    const expandBtn = document.getElementById('fpTools-stats-expand-btn');
+    const extraBlock = document.getElementById('fpTools-stats-extra');
+    if (expandBtn && extraBlock) {
+        expandBtn.addEventListener('click', () => {
+            const open = extraBlock.style.display !== 'none';
+            extraBlock.style.display = open ? 'none' : 'block';
+            expandBtn.querySelector('.fp-stats-expand-arrow').textContent = open ? '▾' : '▴';
+            expandBtn.querySelector('.fp-stats-expand-label').textContent = open ? 'Показать ещё' : 'Скрыть';
+        });
     }
 
     // Слушаем изменения в хранилище, чтобы обновить UI

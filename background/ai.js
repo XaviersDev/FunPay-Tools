@@ -80,6 +80,18 @@ export async function fetchAIResponse(textForAI, context, myUsername, type = "re
 
 ГОТОВЫЙ ТЕКСТ ОТВЕТА:`;
 
+    } else if (type === 'translate_to_russian') {
+        finalPrompt = `Переведи следующий текст на русский язык. Верни ТОЛЬКО перевод, без пояснений и кавычек:\n\n${textForAI}`;
+
+    } else if (type === 'lot_audit_raw') {
+        // Pass the full constructed prompt directly — no wrapping
+        finalPrompt = textForAI;
+
+    } else if (type === 'lot_audit') {
+        // For lot_audit, context contains the full system prompt, textForAI is the user message
+        // Build multi-turn conversation from context
+        finalPrompt = `${context}\n\nСообщение продавца: ${textForAI}\n\nОтветь на русском языке кратко и по существу.`;
+
     } else { // Логика по умолчанию для переписывания текста в чате
         finalPrompt = `
 Ты — ИИ-ассистент, который помогает продавцу "${myUsername}" на FunPay. Твоя задача — переписать его черновик сообщения, сохранив основной смысл, но сделав его вежливым, профессиональным и четким.

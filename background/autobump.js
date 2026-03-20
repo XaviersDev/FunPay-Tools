@@ -42,7 +42,10 @@ async function parseHtmlViaOffscreen(html, action) {
 async function getAuthDetails() {
     const goldenKeyCookie = await chrome.cookies.get({ url: 'https://funpay.com', name: 'golden_key' });
     if (!goldenKeyCookie) throw new Error('Не удалось найти cookie "golden_key". Вы вошли в свой аккаунт FunPay?');
-    const cookies = `golden_key=${goldenKeyCookie.value};`;
+    // FIX: include PHPSESSID — FunPay requires it alongside golden_key for runner requests
+    const phpSessIdCookie = await chrome.cookies.get({ url: 'https://funpay.com', name: 'PHPSESSID' });
+    const phpsessidPart = phpSessIdCookie?.value ? `; PHPSESSID=${phpSessIdCookie.value}` : '';
+    const cookies = `golden_key=${goldenKeyCookie.value}${phpsessidPart};`;
 
     const tabs = await chrome.tabs.query({ url: "https://funpay.com/*" });
     if (tabs.length === 0) throw new Error("Не найдено открытых вкладок FunPay. Откройте сайт для получения данных.");
@@ -194,7 +197,7 @@ export async function runBumpCycle() {
             } else {
                 await logToConsole(`Не поднято: ${categoryName}. Причина: Не найдена кнопка поднятия.`);
             }
-            await new Promise(resolve => setTimeout(resolve, 3000));
+            await new Promise(resolve => setTimeout(resolve, 4500)); // 2.9: increased to 4.5s to avoid rate limiting
         }
     } catch (error) {
         await logToConsole(`Не поднято: [Системная ошибка]. Причина: ${error.message}`);

@@ -333,21 +333,7 @@ function initializeDynamicFeatures() {
                 initializeMarkAllAsRead();
             }
             // --- НОВЫЙ БЛОК ДЛЯ ИИ-ОТВЕТА НА ОТЗЫВ ---
-            const publishButton = document.querySelector('.review-item-answer-form .btn[data-action="save"]');
-            if (publishButton && !document.getElementById('fp-tools-ai-review-reply-btn')) {
-                const aiButton = createElement('button', {
-                    type: 'button',
-                    class: 'btn btn-primary action',
-                    id: 'fp-tools-ai-review-reply-btn'
-                });
-                aiButton.innerHTML = `<span class="material-icons" style="font-size: 16px; margin-right: 5px; vertical-align: text-bottom;">auto_awesome</span>Ответить`;
-                
-                publishButton.style.marginLeft = '10px';
-                publishButton.parentElement.prepend(aiButton);
-    
-                aiButton.addEventListener('click', handleAIReviewReply);
-            }
-            // --- КОНЕЦ НОВОГО БЛОКА ---
+            // AI review reply button removed in 3.0 (use template buttons)
 
             // --- НОВЫЙ БЛОК: Добавление кнопки копирования на публичную страницу лота ---
             if (window.location.pathname.includes('/lots/offer') && !document.getElementById('fp-tools-public-clone-btn')) {
@@ -466,8 +452,22 @@ function initializeDynamicFeatures() {
         initializeHeaderButtonStyler();
         initializeAnnouncementsFeature();
         initializeLotIO();
-        initializeAutoReview(); // <-- ВЫЗОВ НОВОЙ ФУНКЦИИ
-        initializeFPTIdentifier(); // <-- ВЫЗОВ НОВОЙ ФУНКЦИИ
+        initializeAutoReview();
+        initializeFPTIdentifier();
+        // 2.9: New features
+        initializeAILotAudit();
+        initializeSettingsIO();
+        initBulkLotEditor();
+        initializeBlacklist();
+        initAutoDeliveryUI();
+        initializePaymentTypeBadges();
+        initializeUnconfirmedBalanceDisplay();
+        initializeSalesFilters();
+        initializeResetButtons();
+        initSalesChart();
+        // order_page_enhancements.js, lot_context_menu.js, auto_restore_lots.js self-initialize
+        // New 3.0 features (self-initializing modules loaded separately)
+        // quick_lot_search.js, chat_enhancements.js, order_timer.js self-initialize
 
         chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             if (request.action === 'logToAutoBumpConsole') {
@@ -486,6 +486,10 @@ function initializeDynamicFeatures() {
                 } catch (e) {
                     sendResponse({ success: false, error: e.message });
                 }
+                return true;
+            }
+            if (request.action === 'fpToolsCheckRestoreLots') {
+                setTimeout(checkAndRestoreLots, 5000);
                 return true;
             }
             if (request.action === 'updateAnnouncementsBadge') {
@@ -518,6 +522,185 @@ function initializeDynamicFeatures() {
                 }
                 return true;
             }
+        });
+    }
+
+    // ── 2.9: Payment type badges in orders list ─────────────────────────────────
+    function initializePaymentTypeBadges() {
+        chrome.storage.local.get('fpToolsShowPaymentType', ({ fpToolsShowPaymentType }) => {
+            if (fpToolsShowPaymentType === false) return;
+            if (!window.location.pathname.includes('/orders/')) return;
+            const addBadges = () => {
+                document.querySelectorAll('a.tc-item:not(.fp-typed)').forEach(row => {
+                    row.classList.add('fp-typed');
+                    const isDeal = row.classList.contains('deal');
+                    // Only add badge if not already present
+                    const orderEl = row.querySelector('.tc-order');
+                    if (!orderEl || orderEl.querySelector('.fp-type-badge')) return;
+                    const badge = document.createElement('span');
+                    badge.className = 'fp-type-badge';
+                    badge.style.cssText = `display:inline-block;font-size:10px;font-weight:700;border-radius:3px;padding:1px 5px;margin-left:6px;vertical-align:middle;background:${isDeal ? 'rgba(76,175,130,0.15)' : 'rgba(107,102,255,0.15)'};color:${isDeal ? '#4caf82' : '#a09ef8'};border:1px solid ${isDeal ? 'rgba(76,175,130,0.3)' : 'rgba(107,102,255,0.3)'};`;
+                    badge.textContent = isDeal ? 'Сделка' : 'Обычный';
+                    orderEl.appendChild(badge);
+                });
+            };
+            addBadges();
+            // Only watch the list container, not whole document
+            const listEl = document.querySelector('.order-list, #content');
+            if (listEl) new MutationObserver(addBadges).observe(listEl, { childList: true, subtree: false });
+        });
+    }
+
+    // ── 2.9: Unconfirmed balance display ─────────────────────────────────────
+    function initializeUnconfirmedBalanceDisplay() {
+        chrome.storage.local.get('fpToolsShowUnconfirmed', ({ fpToolsShowUnconfirmed }) => {
+            if (fpToolsShowUnconfirmed === false) return;
+
+            async function updateUnconfirmedBadge() {
+                const balanceEl = document.querySelector('.user-balance-sum, .navbar-balance');
+                if (!balanceEl || document.getElementById('fp-unconfirmed-badge')) return;
+
+                try {
+                    const res = await chrome.runtime.sendMessage({ action: 'getUnconfirmedBalance' });
+                    if (!res?.success || !res.data?.total) return;
+
+                    const { total, count } = res.data;
+                    if (!count) return;
+
+                    const badge = document.createElement('span');
+                    badge.id = 'fp-unconfirmed-badge';
+                    badge.title = `${count} неподтверждённых заказа(ов) на сумму ${total} ₽`;
+                    badge.style.cssText = `
+                        font-size:11px;color:#ff9800;cursor:default;margin-left:4px;
+                        font-family:Inter,sans-serif;
+                    `;
+                    badge.textContent = `(+${total} ₽ ожид.)`;
+                    balanceEl.parentElement?.appendChild(badge);
+                } catch (e) {}
+            }
+
+            setTimeout(updateUnconfirmedBadge, 3000);
+        });
+    }
+
+    // ── 2.9: Sales period filter ──────────────────────────────────────────────
+    function initializeSalesFilters() {
+        const salesSection = document.querySelector('.sales-statistics, #fp-tools-sales-block');
+        if (!salesSection) return;
+        if (document.getElementById('fp-sales-filter-bar')) return;
+
+        const filterBar = document.createElement('div');
+        filterBar.id = 'fp-sales-filter-bar';
+        filterBar.style.cssText = `
+            display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;
+        `;
+
+        const periods = [
+            { label: 'Сегодня',    days: 1   },
+            { label: 'Неделя',     days: 7   },
+            { label: 'Месяц',      days: 30  },
+            { label: '3 месяца',   days: 90  },
+            { label: 'Всё время',  days: 9999 }
+        ];
+
+        periods.forEach((p, i) => {
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-default';
+            btn.style.cssText = 'padding:4px 10px;font-size:11px;font-weight:600;';
+            btn.textContent = p.label;
+            if (i === 2) { // Default: month
+                btn.style.background = '#252847';
+                btn.style.color = '#a09ef8';
+                btn.style.borderColor = '#363a5a';
+            }
+            btn.addEventListener('click', () => {
+                filterBar.querySelectorAll('button').forEach(b => {
+                    b.style.background = '';
+                    b.style.color = '';
+                    b.style.borderColor = '';
+                });
+                btn.style.background = '#252847';
+                btn.style.color = '#a09ef8';
+                btn.style.borderColor = '#363a5a';
+                applySalesPeriodFilter(p.days);
+            });
+            filterBar.appendChild(btn);
+        });
+
+        salesSection.insertBefore(filterBar, salesSection.firstChild);
+    }
+
+    function applySalesPeriodFilter(days) {
+        chrome.storage.local.get('fpToolsSalesData', ({ fpToolsSalesData }) => {
+            if (!fpToolsSalesData) return;
+            const cutoff = days >= 9999 ? 0 : Date.now() - days * 24 * 60 * 60 * 1000;
+            const filtered = Object.values(fpToolsSalesData).filter(o => o.orderDate >= cutoff);
+            const total = filtered.reduce((s, o) => s + (o.price || 0), 0);
+            const countEl = document.getElementById('fp-sales-count');
+            const totalEl = document.getElementById('fp-sales-total');
+            if (countEl) countEl.textContent = filtered.length;
+            if (totalEl) totalEl.textContent = `${Math.round(total).toLocaleString('ru-RU')} ₽`;
+        });
+    }
+
+    // ── 2.9: Reset buttons in settings_io page ────────────────────────────────
+    // Helper: visually confirm a reset button action
+    function _resetBtnFeedback(btn, successText) {
+        if (!btn) return;
+        const orig = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '⏳ Сброс...';
+        setTimeout(() => {
+            btn.textContent = '✅ ' + successText;
+            btn.style.color = '#4caf82';
+            setTimeout(() => {
+                btn.textContent = orig;
+                btn.style.color = '';
+                btn.disabled = false;
+            }, 2000);
+        }, 400);
+    }
+
+    function initializeResetButtons() {
+        const arBtn = document.getElementById('fp-reset-autoresponder-btn');
+        arBtn?.addEventListener('click', async () => {
+            await chrome.storage.local.remove(['fpToolsAutoResponderTag']);
+            const { fpToolsAutoReplies = {} } = await chrome.storage.local.get('fpToolsAutoReplies');
+            fpToolsAutoReplies.processedMessageIds = [];
+            await chrome.storage.local.set({ fpToolsAutoReplies });
+            _resetBtnFeedback(arBtn, 'Сброшено');
+        });
+
+        const pinBtn = document.getElementById('fp-reset-pinned-btn');
+        pinBtn?.addEventListener('click', async () => {
+            await chrome.storage.local.remove('fpToolsPinnedLots');
+            _resetBtnFeedback(pinBtn, 'Очищено');
+        });
+
+        const greetBtn = document.getElementById('fp-reset-greeted-btn');
+        greetBtn?.addEventListener('click', async () => {
+            const { fpToolsAutoReplies = {} } = await chrome.storage.local.get('fpToolsAutoReplies');
+            fpToolsAutoReplies.greetedUsers = [];
+            await chrome.storage.local.set({ fpToolsAutoReplies });
+            _resetBtnFeedback(greetBtn, 'Сброшено');
+        });
+
+        // 3.0: Reset April Fools date counter
+        const aprBtn = document.getElementById('fp-reset-april-btn');
+        aprBtn?.addEventListener('click', async () => {
+            const year = new Date().getFullYear();
+            try { localStorage.removeItem(`fpApril_${year}_done`); } catch(e) {}
+            try { localStorage.removeItem(`fpApril_${year - 1}_done`); } catch(e) {}
+            try { sessionStorage.removeItem('fpAprilReloads'); } catch(e) {}
+            try { sessionStorage.removeItem('fpAprilActive'); } catch(e) {}
+            await chrome.storage.local.remove([
+                `fpApril_${year}_done`,
+                `fpApril_${year - 1}_done`,
+                `fpApril_${year + 1}_done`,
+                'fpAprilReloads',
+                'fpAprilActive',
+            ]);
+            _resetBtnFeedback(aprBtn, 'Сброшено');
         });
     }
 

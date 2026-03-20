@@ -59,6 +59,14 @@ async function replaceTemplateVariables(template) {
     if(lotNameInChat) lotName = lotNameInChat.textContent.trim();
     result = result.replace(/{lotname}/g, lotName);
 
+    // 2.9: {orderlink} — link to the active order in this chat
+    const orderLinkEl = document.querySelector('.deal-title a, .order-link a, a[href*="/orders/"]');
+    const orderHref   = orderLinkEl?.getAttribute('href') || '';
+    const orderIdInChat = orderHref.match(/\/orders\/([A-Z0-9]+)/)?.[1] || null;
+    const orderLinkVal  = orderIdInChat ? `https://funpay.com/orders/${orderIdInChat}/` : '';
+    result = result.replace(/{orderlink}/gi, orderLinkVal);
+    result = result.replace(/{orderid}/gi,   orderIdInChat || '');
+
     const aiRegex = /\{ai:([^}]+)\}/g;
     let match;
     const aiPromises = [];
@@ -264,6 +272,10 @@ async function addChatTemplateButtons() {
     await loadTemplateSettings();
     const chatInput = document.querySelector('.chat-form-input .form-control');
     if (!chatInput) return;
+    // Don't show buttons when no conversation is selected (placeholder state)
+    if (document.querySelector('.chat-not-selected') ||
+        document.querySelector('.chat-empty-message') ||
+        !document.querySelector('.chat-header, .chat-full-header, .chat-message-list')) return;
 
     document.querySelectorAll('.chat-buttons-container, .fp-tools-template-sidebar').forEach(el => el.remove());
 
@@ -285,7 +297,13 @@ async function addChatTemplateButtons() {
         chatDetail.prepend(buttonsContainer);
     } else {
         buttonsContainer = createElement('div', { class: 'chat-buttons-container' });
-        chatInput.parentElement.insertBefore(buttonsContainer, chatInput);
+        // Insert above the chat-form wrapper so we don't break the form's internal flex layout
+        const chatFormEl = chatInput.closest('.chat-form') || chatInput.closest('form');
+        if (chatFormEl && chatFormEl.parentNode) {
+            chatFormEl.parentNode.insertBefore(buttonsContainer, chatFormEl);
+        } else {
+            chatInput.parentElement.insertBefore(buttonsContainer, chatInput);
+        }
     }
 
     for (const key in templateSettings.standard) {

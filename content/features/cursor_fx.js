@@ -1,7 +1,7 @@
 class CursorFX {
     constructor() {
         this.canvas = createElement('canvas', { id: 'fp-tools-cursor-fx' });
-        this.ctx = this.canvas.getContext('2d');
+        this.ctx = this.canvas.getContext('2d', { willReadFrequently: false, alpha: true });
         this.config = {};
         this.particles = [];
         this.hue = 0;
@@ -11,7 +11,8 @@ class CursorFX {
         this.customCursor = null;
         this.customCursorConfig = {};
         this.cursorHideStyleTag = null;
-        this.maxParticles = 500; // Ограничение на 500 частиц
+        this.maxParticles = 120; // 2.8: reduced for GPU perf (review #5)
+        this._lastMouseTime = 0;
 
         this.init();
     }
@@ -48,7 +49,12 @@ class CursorFX {
             this.mouse.x = e.clientX;
             this.mouse.y = e.clientY;
             this.customCursor.style.transform = `translate(calc(${e.clientX}px - 50%), calc(${e.clientY}px - 50%))`;
-            this.createParticle(); 
+            // 2.8 FIX: throttle particle creation to ~60fps (16ms) to reduce GPU load
+            const now = performance.now();
+            if (now - this._lastMouseTime >= 16) {
+                this._lastMouseTime = now;
+                this.createParticle();
+            }
         });
     }
 
@@ -181,7 +187,7 @@ class CursorFX {
             p.x += p.vx; p.y += p.vy;
             if (p.gravity) p.vy += p.gravity;
 
-            this.ctx.globalAlpha = p.life / 50;
+            this.ctx.globalAlpha = p.life / 35;
             this.ctx.fillStyle = p.color;
             this.ctx.beginPath();
             this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);

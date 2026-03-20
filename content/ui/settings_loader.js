@@ -12,7 +12,7 @@ async function renderTemplateSettings() {
         const item = createElement('div', { class: 'template-item' });
         if (!config.enabled) item.classList.add('disabled-in-settings');
         
-        const colorPickerHtml = isCustom ? `<input type="color" class="template-color-picker" value="${config.color}" data-key="${key}" data-custom="true">` : '';
+        const colorPickerHtml = `<input type="color" class="template-color-picker" value="${config.color || '#6B66FF'}" data-key="${key}" data-custom="${isCustom}">`;
         const deleteBtnHtml = isCustom ? `<button class="delete-custom-template-btn" data-id="${config.id}">🗑️</button>` : '';
 
         // === ИЗМЕНЕНИЕ ЗДЕСЬ ===
@@ -70,6 +70,7 @@ async function setupTemplateSettingsHandlers() {
             const template = templateSettings.standard[key];
             if (!template) return;
             if (target.classList.contains('template-toggle')) template.enabled = target.checked;
+            if (target.classList.contains('template-color-picker')) template.color = target.value;
             if (target.classList.contains('template-label')) template.label = target.textContent;
             if (target.classList.contains('template-text')) template.text = target.value;
         }
@@ -142,7 +143,14 @@ async function loadSavedSettings() {
         'fpToolsAccounts', 'showSalesStats', 'hideBalance', 'viewSellersPromo', 'notificationSound',
         'fpToolsDiscord',
         'fpToolsSelectiveBumpEnabled', 'fpToolsSelectedBumpCategories', 'fpToolsBumpOnlyAutoDelivery',
-        'autoReviewEnabled', 'reviewTemplates', 'greetingEnabled', 'greetingText', 'keywordsEnabled', 'keywords'
+        'autoReviewEnabled', 'reviewTemplates', 'greetingEnabled', 'greetingText', 'keywordsEnabled', 'keywords',
+        'fpToolsIdentifierEnabled',
+        'fpToolsShowPaymentType',
+        'fpToolsBuyerHistory',
+        'fpToolsShowUnconfirmed',
+        'fpToolsAutoRestoreEnabled',
+        'fpToolsAutoDisableEnabled',
+        'fpToolsReviewRequestTemplate'
     ]);
     
     fpToolsAccounts = settings.fpToolsAccounts || [];
@@ -268,6 +276,51 @@ async function loadSavedSettings() {
     document.getElementById('showSalesStatsCheckbox').checked = settings.showSalesStats !== false;
     document.getElementById('hideBalanceCheckbox').checked = settings.hideBalance === true;
     document.getElementById('viewSellersPromoCheckbox').checked = settings.viewSellersPromo !== false;
+    // 2.8: FPT identifier toggle (default: enabled)
+    const identifierEl = document.getElementById('fptIdentifierEnabled');
+    if (identifierEl) {
+        identifierEl.checked = settings.fpToolsIdentifierEnabled !== false;
+    }
+
+    // 2.9: New settings toggles
+    const paymentTypeEl = document.getElementById('fpToolsShowPaymentType');
+    if (paymentTypeEl) paymentTypeEl.checked = settings.fpToolsShowPaymentType !== false;
+
+    const buyerHistoryEl = document.getElementById('fpToolsBuyerHistory');
+    if (buyerHistoryEl) buyerHistoryEl.checked = settings.fpToolsBuyerHistory !== false;
+
+    const unconfirmedEl = document.getElementById('fpToolsShowUnconfirmed');
+    if (unconfirmedEl) unconfirmedEl.checked = settings.fpToolsShowUnconfirmed !== false;
+
+    // 3.0: Auto-restore/disable
+    const autoRestoreEl = document.getElementById('fpAutoRestoreEnabled');
+    if (autoRestoreEl) autoRestoreEl.checked = settings.fpToolsAutoRestoreEnabled === true;
+
+    const autoDisableEl = document.getElementById('fpAutoDisableEnabled');
+    if (autoDisableEl) autoDisableEl.checked = settings.fpToolsAutoDisableEnabled === true;
+
+    const reviewTplEl = document.getElementById('reviewRequestTemplate');
+    if (reviewTplEl) reviewTplEl.value = settings.fpToolsReviewRequestTemplate || '';
+
+    // 3.0: Extended autoresponder
+    chrome.storage.local.get('fpToolsAutoReplies', ({ fpToolsAutoReplies: ar = {} }) => {
+        const setCheck = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
+        const setVal   = (id, val) => { const el = document.getElementById(id); if (el) el.value  = val || ''; };
+        setCheck('newOrderReplyEnabled',     ar.newOrderReplyEnabled);
+        setCheck('orderConfirmReplyEnabled', ar.orderConfirmReplyEnabled);
+        setCheck('typingDelay',              ar.typingDelay);
+        setCheck('onlyNewChats',             ar.onlyNewChats);
+        setCheck('ignoreSystemMessages',     ar.ignoreSystemMessages);
+        setVal('newOrderReplyText',          ar.newOrderReplyText);
+        setVal('orderConfirmReplyText',      ar.orderConfirmReplyText);
+        setVal('greetingCooldownDays',       ar.greetingCooldownDays ?? 0);
+    });
+
+    // Review request template
+    const rrTemplateEl = document.getElementById('fp-review-request-template');
+    if (rrTemplateEl && settings.fpToolsAutoReplies?.reviewRequestTemplate !== undefined) {
+        rrTemplateEl.value = settings.fpToolsAutoReplies.reviewRequestTemplate;
+    }
 
     const savedSound = settings.notificationSound || 'default';
     const soundRadio = document.querySelector(`input[name="notificationSound"][value="${savedSound}"]`);

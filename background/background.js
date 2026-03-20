@@ -1,8 +1,8 @@
-// background/background.js
+// background/background.js — FunPay Tools 2.8
 
 import { fetchAIResponse, fetchAILotGeneration, fetchAITranslation, fetchAIImageGeneration } from './ai.js';
 import { BUMP_ALARM_NAME, startAutoBump, stopAutoBump, runBumpCycle } from './autobump.js';
-import { runAutoResponderCycle } from './autoresponder.js';
+import { runAutoResponderCycle, resetAutoResponderState } from './autoresponder.js';
 
 const OFFSCREEN_DOCUMENT_PATH = 'offscreen/offscreen.html';
 const DISCORD_LOG_ALARM_NAME = 'fpToolsDiscordCheck';
@@ -136,6 +136,9 @@ async function getAuthDetailsForBackground() {
         return {};
     }
     const golden_key = goldenKeyCookie.value;
+    // FIX: PHPSESSID is required by FunPay runner alongside golden_key
+    const phpSessIdCookie = await chrome.cookies.get({ url: 'https://funpay.com', name: 'PHPSESSID' });
+    const phpsessid = phpSessIdCookie?.value || '';
 
     const tabs = await chrome.tabs.query({ url: "https://funpay.com/*" });
     for (const tab of tabs) {
@@ -148,6 +151,7 @@ async function getAuthDetailsForBackground() {
                     console.log("FP Tools: Auth-данные получены из активной вкладки.");
                     return {
                         golden_key: golden_key,
+                        phpsessid: phpsessid,
                         csrf_token: appData['csrf-token'],
                         userId: appData.userId,
                         username: appData.userName,
@@ -176,6 +180,7 @@ async function getAuthDetailsForBackground() {
                 console.log("FP Tools: Auth-данные успешно получены через прямой запрос.");
                 return {
                     golden_key: golden_key,
+                    phpsessid: phpsessid,
                     csrf_token: userData['csrf-token'],
                     userId: userData.userId,
                     username: userData.userName,
@@ -185,7 +190,7 @@ async function getAuthDetailsForBackground() {
         throw new Error("Не удалось найти data-app-data в HTML страницы.");
     } catch (e) {
         console.error("FP Tools: Прямой запрос для получения appData также провалился.", e.message);
-        return { golden_key };
+        return { golden_key, phpsessid };
     }
 }
 
@@ -274,12 +279,15 @@ async function runDiscordCheckCycle() {
             csrf_token: auth.csrf_token
         };
 
+        const discordCookieStr = auth.phpsessid
+            ? `golden_key=${auth.golden_key}; PHPSESSID=${auth.phpsessid}`
+            : `golden_key=${auth.golden_key}`;
         const response = await fetch("https://funpay.com/runner/", {
             method: "POST",
             headers: {
                 "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
                 "x-requested-with": "XMLHttpRequest",
-                "cookie": `golden_key=${auth.golden_key}`
+                "cookie": discordCookieStr
             },
             body: new URLSearchParams(runnerPayload).toString()
         });
@@ -287,6 +295,20 @@ async function runDiscordCheckCycle() {
         if (!response.ok) throw new Error(`Runner-запрос для Discord провалился: ${response.status}`);
 
         const data = await response.json();
+        // 3.0: Also capture buyer_viewing data for chat header display
+        const buyerViewingObjects = data.objects.filter(o => o.type === "buyer_viewing");
+        if (buyerViewingObjects.length > 0) {
+            const tabs = await chrome.tabs.query({ url: "https://funpay.com/*" });
+            buyerViewingObjects.forEach(bv => {
+                tabs.forEach(tab => {
+                    chrome.tabs.sendMessage(tab.id, {
+                        action: 'fpToolsBuyerViewing',
+                        buyerId: bv.id,
+                        data: bv.data
+                    }).catch(() => {});
+                });
+            });
+        }
         const chatObject = data.objects.find(o => o.type === "chat_bookmarks");
 
         if (!chatObject || !chatObject.data || !chatObject.data.html) return;
@@ -413,7 +435,39 @@ async function processNextLotImport() {
 
 // --- Главный обработчик сообщений ---
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    // Relay parse requests from content scripts to the offscreen document
     if (request.target === 'offscreen') {
+        parseHtmlViaOffscreen(request.html, request.action)
+            .then(result => sendResponse(result))
+            .catch(() => sendResponse(null));
+        return true;
+    }
+
+    // RMTHUB PROXY (bypasses CORS — content scripts can't fetch cross-origin)
+    if (request.action === 'rmthubFetch') {
+        (async () => {
+            const API = 'https://fptools-ai-server.vercel.app/api';
+            try {
+                const res = await fetch(`${API}/rmthub?username=${encodeURIComponent(request.username)}`);
+                if (res.status === 404) { sendResponse({ ok: false, notFound: true }); return; }
+                if (!res.ok) { sendResponse({ ok: false, status: res.status }); return; }
+                const json = await res.json();
+                if (json.error) { sendResponse({ ok: false, notFound: true }); return; }
+                // Fetch avatar
+                let avatar = 'https://funpay.com/img/layout/avatar.png';
+                const uid = String(json.user?.id || '');
+                if (uid) {
+                    try {
+                        const ar = await fetch(`${API}/avatar?user_id=${uid}`);
+                        const aj = await ar.json();
+                        if (aj.avatar && aj.avatar !== avatar) avatar = aj.avatar;
+                    } catch (_) {}
+                }
+                sendResponse({ ok: true, data: json, avatar });
+            } catch (e) {
+                sendResponse({ ok: false, error: String(e) });
+            }
+        })();
         return true;
     }
 
@@ -474,6 +528,64 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 const html = await response.text();
                 const data = await parseHtmlViaOffscreen(html, 'parseLotEditPage');
                 sendResponse({ success: true, data: data });
+            } catch (e) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    // 2.9: Save/update a single lot (used by bulk editor)
+    if (request.action === 'saveSingleLot') {
+        (async () => {
+            try {
+                const auth = await getAuthDetailsForBackground();
+                if (!auth.csrf_token) throw new Error('Нет CSRF токена');
+
+                const formData = new URLSearchParams(request.data);
+                formData.set('csrf_token', auth.csrf_token);
+
+                const response = await fetch('https://funpay.com/lots/offerSave', {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                        'Cookie': `golden_key=${auth.golden_key}`
+                    },
+                    body: formData
+                });
+
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const result = await response.json();
+
+                if (result && (result.error === 0 || result.error === false)) {
+                    sendResponse({ success: true });
+                } else {
+                    throw new Error(result.msg || 'Неизвестная ошибка API');
+                }
+            } catch (e) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    // 2.9: Get unconfirmed (pending) balance
+    if (request.action === 'getUnconfirmedBalance') {
+        (async () => {
+            try {
+                const auth = await getAuthDetailsForBackground();
+                const res = await fetch('https://funpay.com/orders/trade?status=paid', {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Cookie': `golden_key=${auth.golden_key}`
+                    }
+                });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const html = await res.text();
+                const data = await parseHtmlViaOffscreen(html, 'parseUnconfirmedBalance');
+                sendResponse({ success: true, data });
             } catch (e) {
                 sendResponse({ success: false, error: e.message });
             }
@@ -570,13 +682,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true;
     }
     if (request.action === 'setGoldenKey') {
-        chrome.cookies.set({
-            url: "https://funpay.com", name: "golden_key", value: request.key, domain: "funpay.com",
-            path: "/", secure: true, httpOnly: true, expirationDate: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60)
-        }).then(() => {
+        (async () => {
+            // Remove PHPSESSID so FunPay creates a fresh session for the new golden_key
+            // Without this, FunPay can mismatch session→account and force a logout
+            const sessionCookie = await chrome.cookies.get({ url: 'https://funpay.com', name: 'PHPSESSID' });
+            if (sessionCookie) {
+                await chrome.cookies.remove({ url: 'https://funpay.com', name: 'PHPSESSID' });
+            }
+            await chrome.cookies.set({
+                url: 'https://funpay.com', name: 'golden_key', value: request.key, domain: 'funpay.com',
+                path: '/', secure: true, httpOnly: true,
+                expirationDate: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60)
+            });
             chrome.tabs.reload(sender.tab.id);
             sendResponse({ success: true });
-        });
+        })();
         return true;
     }
     if (request.action === 'deleteCookiesAndReload') {
@@ -649,6 +769,171 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         })();
         return true;
     }
+
+    // ── Support / Tickets handlers ────────────────────────────────────────────
+    if (request.action === 'supportGetTickets' || request.action === 'supportGetCategories' ||
+        request.action === 'supportGetFields' || request.action === 'supportCreateTicket' ||
+        request.action === 'getUnconfirmedOrders' || request.action === 'supportGetTicketDetails' ||
+        request.action === 'supportAddComment' || request.action === 'supportCloseTicket') {
+        (async () => {
+            try {
+                const gkCookie = await chrome.cookies.get({ url: 'https://funpay.com', name: 'golden_key' });
+                const phpCookie = await chrome.cookies.get({ url: 'https://funpay.com', name: 'PHPSESSID' });
+                if (!gkCookie) { sendResponse({ success: false, error: 'Не авторизован на FunPay' }); return; }
+                const baseCookie = `golden_key=${gkCookie.value}${phpCookie ? '; PHPSESSID=' + phpCookie.value : ''}`;
+                const ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+                const supportBase = 'https://support.funpay.com';
+
+                async function sfetch(url, opts = {}) {
+                    // SSO: first go through funpay.com/support/sso to get support session cookies
+                    const resp = await fetch(url, {
+                        ...opts,
+                        headers: { ...(opts.headers || {}), 'Cookie': baseCookie, 'User-Agent': ua }
+                    });
+                    return resp;
+                }
+
+                async function sfetchSupport(url, opts = {}) {
+                    // For support.funpay.com we need to do SSO first to get the session
+                    const ssoResp = await fetch('https://funpay.com/support/sso?return_to=' + encodeURIComponent(url.replace(supportBase, '')), {
+                        redirect: 'follow',
+                        headers: { 'Cookie': baseCookie, 'User-Agent': ua }
+                    });
+                    // The SSO sets a cookie on support.funpay.com - but we can't read cross-domain cookies
+                    // Instead use the direct URL with the same golden_key (funpay SSO shares session)
+                    const finalResp = await fetch(url, {
+                        ...opts,
+                        headers: { ...(opts.headers || {}), 'Cookie': baseCookie, 'User-Agent': ua }
+                    });
+                    return finalResp;
+                }
+
+                if (request.action === 'getUnconfirmedOrders') {
+                    const r = await sfetch('https://funpay.com/orders/trade?state=paid');
+                    const html = await r.text();
+                    const ids = await parseHtmlViaOffscreen(html, 'parseOrdersPage');
+                    sendResponse({ success: true, orderIds: (ids || []).slice(0, request.maxOrders || 5) });
+                    return;
+                }
+
+                if (request.action === 'supportGetTickets') {
+                    const r = await sfetchSupport(`${supportBase}/tickets?status=all&order=last_answered&page=1`);
+                    const html = await r.text();
+                    const tickets = await parseHtmlViaOffscreen(html, 'parseSupportTickets');
+                    sendResponse({ success: true, tickets: tickets || [] });
+                    return;
+                }
+
+                if (request.action === 'supportGetCategories') {
+                    const r = await sfetchSupport(`${supportBase}/tickets/new`);
+                    const html = await r.text();
+                    const categories = await parseHtmlViaOffscreen(html, 'parseSupportCategories');
+                    sendResponse({ success: true, categories: categories || [] });
+                    return;
+                }
+
+                if (request.action === 'supportGetFields') {
+                    const r = await sfetchSupport(`${supportBase}/tickets/new/${request.categoryId}`);
+                    const html = await r.text();
+                    const fields = await parseHtmlViaOffscreen(html, 'parseSupportFields');
+                    sendResponse({ success: true, fields: fields || [] });
+                    return;
+                }
+
+                if (request.action === 'supportCreateTicket') {
+                    const { categoryId, fieldValues, message } = request;
+                    const formResp = await sfetchSupport(`${supportBase}/tickets/new/${categoryId}`);
+                    const formHtml = await formResp.text();
+                    const token = await parseHtmlViaOffscreen(formHtml, 'parseSupportFormToken');
+                    if (!token) { sendResponse({ success: false, error: 'Не удалось получить токен формы (возможно, не авторизован в ТП)' }); return; }
+                    const params = new URLSearchParams();
+                    Object.entries(fieldValues || {}).forEach(([k, v]) => { if (v) params.set(k, v); });
+                    if (message) params.set('ticket[comment][body_html]', `<p>${message}</p>`);
+                    params.set('ticket[comment][attachments]', '');
+                    params.set('ticket[_token]', token);
+                    const createResp = await fetch(`${supportBase}/tickets/create/${categoryId}`, {
+                        method: 'POST',
+                        headers: { 'Cookie': baseCookie, 'User-Agent': ua, 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json', 'Referer': `${supportBase}/tickets/new/${categoryId}` },
+                        body: params.toString()
+                    });
+                    const body = await createResp.text();
+                    let ticketId = null;
+                    try { ticketId = JSON.parse(body)?.action?.url?.split('/').pop(); } catch (_) {}
+                    if (!createResp.ok && createResp.status >= 400) {
+                        let errMsg = `Ошибка ${createResp.status}`;
+                        try { errMsg = JSON.parse(body)?.error || errMsg; } catch (_) {}
+                        sendResponse({ success: false, error: errMsg }); return;
+                    }
+                    sendResponse({ success: true, ticketId });
+                    return;
+                }
+
+
+                if (request.action === 'supportGetTicketDetails') {
+                    const r = await fetch(`${supportBase}/tickets/${request.ticketId}`, {
+                        headers: { 'Cookie': baseCookie, 'User-Agent': ua }
+                    });
+                    const html = await r.text();
+                    const details = await parseHtmlViaOffscreen(html, 'parseTicketDetails');
+                    sendResponse({ success: true, ...details });
+                    return;
+                }
+
+                if (request.action === 'supportAddComment') {
+                    const { ticketId, message, token } = request;
+                    const params = new URLSearchParams();
+                    params.set('add_comment[comment][body_html]', `<p>${message}</p>`);
+                    params.set('add_comment[comment][attachments]', '');
+                    params.set('add_comment[_token]', token);
+                    const r = await fetch(`${supportBase}/tickets/${ticketId}/comments/create`, {
+                        method: 'POST',
+                        headers: { 'Cookie': baseCookie, 'User-Agent': ua, 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json', 'Referer': `${supportBase}/tickets/${ticketId}` },
+                        body: params.toString()
+                    });
+                    if (!r.ok) {
+                        let err = `Ошибка ${r.status}`;
+                        try { const b = await r.text(); err = JSON.parse(b)?.error || err; } catch(_) {}
+                        sendResponse({ success: false, error: err }); return;
+                    }
+                    sendResponse({ success: true });
+                    return;
+                }
+
+                if (request.action === 'supportCloseTicket') {
+                    const { ticketId } = request;
+                    // Get token from ticket page
+                    const pageResp = await fetch(`${supportBase}/tickets/${ticketId}`, {
+                        headers: { 'Cookie': baseCookie, 'User-Agent': ua }
+                    });
+                    const pageHtml = await pageResp.text();
+                    // Parse token: try close_ticket[_token] input, fallback to data-app-config csrfToken
+                    let token = null;
+                    const tokenMatch = pageHtml.match(/name="close_ticket\[_token\]"[^>]*value="([^"]+)"/);
+                    if (tokenMatch) token = tokenMatch[1];
+                    if (!token) {
+                        const cfgMatch = pageHtml.match(/data-app-config="([^"]+)"/);
+                        if (cfgMatch) {
+                            try { token = JSON.parse(cfgMatch[1].replace(/&quot;/g, '"'))?.csrfToken || null; } catch(_) {}
+                        }
+                    }
+                    if (!token) { sendResponse({ success: false, error: 'Не удалось получить токен' }); return; }
+                    const closeResp = await fetch(`${supportBase}/tickets/${ticketId}/close`, {
+                        method: 'POST',
+                        headers: { 'Cookie': baseCookie, 'User-Agent': ua, 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                        body: new URLSearchParams({ csrf_token: token }).toString()
+                    });
+                    sendResponse({ success: closeResp.ok });
+                    return;
+                }
+
+                sendResponse({ success: false, error: 'Unknown action' });
+            } catch (e) {
+                console.error('[FPTools Support]', e);
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
     return false;
 });
 
@@ -664,6 +949,13 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     if (alarm.name === AUTO_RESPONDER_ALARM_NAME) {
         await runAutoResponderCycle();
     }
+    if (alarm.name === 'fpToolsAutoRestore') {
+        // Notify all FunPay tabs to check and restore/disable lots
+        const tabs = await chrome.tabs.query({ url: "https://funpay.com/*" });
+        tabs.forEach(tab => {
+            chrome.tabs.sendMessage(tab.id, { action: 'fpToolsCheckRestoreLots' }).catch(() => {});
+        });
+    }
 });
 
 function setupInitialAlarms() {
@@ -675,6 +967,15 @@ function setupInitialAlarms() {
             });
             runBumpCycle();
         }
+        // 3.0: Periodic lot restore/disable check (every 5 minutes)
+        const AUTO_RESTORE_ALARM = 'fpToolsAutoRestore';
+        if (settings.fpToolsAutoRestoreEnabled || settings.fpToolsAutoDisableEnabled) {
+            chrome.alarms.create(AUTO_RESTORE_ALARM, {
+                delayInMinutes: 1,
+                periodInMinutes: 5
+            });
+        }
+
         if (settings.fpToolsDiscord && settings.fpToolsDiscord.enabled && settings.fpToolsDiscord.webhookUrl) {
             chrome.alarms.create(DISCORD_LOG_ALARM_NAME, {
                 delayInMinutes: 1,
@@ -684,7 +985,11 @@ function setupInitialAlarms() {
         }
         // <-- НОВЫЙ БЛОК ДЛЯ АВТООТВЕТЧИКА -->
         const autoReplies = settings.fpToolsAutoReplies || {};
-        if (autoReplies.greetingEnabled || autoReplies.keywordsEnabled || autoReplies.autoReviewEnabled || autoReplies.bonusForReviewEnabled) {
+        const arAnyEnabled = autoReplies.greetingEnabled || autoReplies.keywordsEnabled ||
+            autoReplies.autoReviewEnabled || autoReplies.bonusForReviewEnabled ||
+            autoReplies.newOrderReplyEnabled || autoReplies.orderConfirmReplyEnabled ||
+            autoReplies.autoDeliveryEnabled;
+        if (arAnyEnabled) {
             chrome.alarms.create(AUTO_RESPONDER_ALARM_NAME, {
                 delayInMinutes: 1,
                 periodInMinutes: 0.25 // Каждые 15 секунд
@@ -732,7 +1037,8 @@ chrome.storage.onChanged.addListener((changes, area) => {
     // <-- НОВЫЙ БЛОК ДЛЯ УПРАВЛЕНИЯ БУДИЛЬНИКОМ АВТООТВЕТЧИКА -->
     if (changes.fpToolsAutoReplies) {
         const newSettings = changes.fpToolsAutoReplies.newValue || {};
-        const isEnabled = newSettings.greetingEnabled || newSettings.keywordsEnabled || newSettings.autoReviewEnabled || newSettings.bonusForReviewEnabled;
+        const isEnabled = newSettings.greetingEnabled || newSettings.keywordsEnabled || newSettings.autoReviewEnabled || newSettings.bonusForReviewEnabled ||
+            newSettings.newOrderReplyEnabled || newSettings.orderConfirmReplyEnabled || newSettings.autoDeliveryEnabled;
 
         chrome.alarms.get(AUTO_RESPONDER_ALARM_NAME, (alarm) => {
             if (isEnabled && !alarm) {
@@ -740,6 +1046,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
                 runAutoResponderCycle();
             } else if (!isEnabled && alarm) {
                 chrome.alarms.clear(AUTO_RESPONDER_ALARM_NAME);
+                resetAutoResponderState(); // 2.8: clear persisted tag on disable
             }
         });
     }

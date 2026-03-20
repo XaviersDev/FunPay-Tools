@@ -1,19 +1,64 @@
 'use strict';
 
+function waitForProfileContainer(timeout = 8000) {
+    return new Promise((resolve) => {
+        const check = () => {
+            const container = document.querySelector('.profile-data-container');
+            if (container && container.querySelector('.offer')) return container;
+            return null;
+        };
+        const existing = check();
+        if (existing) { resolve(existing); return; }
+
+        let resolved = false;
+        const done = (el) => {
+            if (resolved) return;
+            resolved = true;
+            clearInterval(poll);
+            observer.disconnect();
+            resolve(el);
+        };
+
+        // Poll every 150ms as primary mechanism (most reliable)
+        const poll = setInterval(() => {
+            const el = check();
+            if (el) done(el);
+        }, 150);
+
+        // MutationObserver as secondary
+        const observer = new MutationObserver(() => {
+            const el = check();
+            if (el) done(el);
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+
+        setTimeout(() => done(null), timeout);
+    });
+}
+
 async function displayPinnedLotsOnLoad() {
     const { fpToolsPinnedLots = [] } = await chrome.storage.local.get('fpToolsPinnedLots');
     if (fpToolsPinnedLots.length === 0) return;
 
-    const profileDataContainer = $('.profile-data-container');
-    if (!profileDataContainer.length) return;
+    // Don't re-insert if already there
+    if ($('#fp-tools-pinned-lots-container').length) return;
+
+    // Wait for FunPay to render the profile container (it arrives after their own JS runs)
+    const profileDataContainerEl = await waitForProfileContainer();
+    if (!profileDataContainerEl) return;
+    const profileDataContainer = $(profileDataContainerEl);
 
     let pinnedLotsHtml = '';
     fpToolsPinnedLots.forEach(lotData => {
+        if (!lotData.html) return;
         const $lot = $(lotData.html);
+        if (!$lot.length) return;
         $lot.attr('data-fp-tooltip', lotData.gameName);
         $lot.addClass('fp-tooltip-host');
         pinnedLotsHtml += $lot[0].outerHTML;
     });
+
+    if (!pinnedLotsHtml) return;
 
     const pinnedContainer = $(`
         <div class="offer" id="fp-tools-pinned-lots-container">
@@ -38,6 +83,19 @@ function initializeLotManagement() {
 
         if (!isProfileSalesPage && !isCategoryTradePage) return;
         if (document.getElementById('fp-tools-select-lots-btn')) return;
+
+        // FIX: Only show lot management on OWN profile page
+        if (isProfileSalesPage) {
+            try {
+                const raw = document.body?.dataset?.appData;
+                if (raw) {
+                    const d = JSON.parse(raw);
+                    const userId = String((Array.isArray(d) ? d[0] : d)?.userId || '');
+                    const profileMatch = window.location.pathname.match(/\/users\/(\d+)\//);
+                    if (profileMatch && userId && profileMatch[1] !== userId) return;
+                }
+            } catch (_) {}
+        }
 
         if (isProfileSalesPage) {
             displayPinnedLotsOnLoad();
@@ -395,8 +453,19 @@ function setupActionProcessing() {
         if (changesMade > 0) {
             await chrome.storage.local.set({ fpToolsPinnedLots });
             
+            // Remove old container and rebuild
             $('#fp-tools-pinned-lots-container').remove();
             await displayPinnedLotsOnLoad();
+
+            // Re-attach checkbox cells to newly inserted pinned lots
+            if ($('#fp-tools-selection-controls').is(':visible')) {
+                $('#fp-tools-pinned-lots-container .tc-item').each(function() {
+                    if ($(this).find('.action-lots-checkbox-cell').length === 0) {
+                        const checkboxCell = $('<div class="action-lots-checkbox-cell"><label class="lot-box"><input type="checkbox" hidden /><span class="lot-mark"></span></label></div>');
+                        $(this).prepend(checkboxCell);
+                    }
+                });
+            }
             
             showNotification(isPinning ? `Закреплено ${changesMade} лот(ов).` : `Откреплено ${changesMade} лот(ов).`);
         }

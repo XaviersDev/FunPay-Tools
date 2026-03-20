@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "FunPay Tools",
-    "version": "2.7.3",
+    "version": "2.7.4",
     "description": "Глобальное расширение для FunPay ⚡ 100+ инструментов • ИИ-помощник • Автоответчик • Аналитика • Автоматизация • Больше продаж",
     "permissions": [
         "storage",
@@ -17,7 +17,8 @@
         "https://funpay.com/*",
         "https://cdn.jsdelivr.net/*",
         "https://fonts.googleapis.com/*",
-        "https://fonts.gstatic.com/*"
+        "https://fonts.gstatic.com/*",
+        "https://support.funpay.com/*"
     ],
     "action": {
         "default_popup": "popup/popup.html",
@@ -58,6 +59,8 @@
                 "content/features/lot_cloning.js",
                 "content/features/market_analytics.js",
                 "content/features/lot_management.js",
+                "content/features/inline_price_editor.js",
+                "content/features/quick_lot_search.js",
                 "content/features/templates.js",
                 "content/features/theme.js",
                 "content/features/exact_price.js",
@@ -78,7 +81,23 @@
                 "content/features/fpt_identifier.js",
                 "content/ui/main_popup.js",
                 "content/ui/header_button_styler.js",
-                "content/content_script.js"
+                "content/features/april_fools.js",
+                "content/features/lot_context_menu.js",
+                "content/features/ai_lot_audit.js",
+                "content/features/settings_io.js",
+                "content/features/bulk_lot_editor.js",
+                "content/features/buyer_history.js",
+                "content/features/chat_enhancements.js",
+                "content/features/order_enhancements.js",
+                "content/features/order_timer.js",
+                "content/features/blacklist.js",
+                "content/features/auto_delivery_ui.js",
+                "content/features/rmthub_search.js",
+                "content/features/support.js",
+                "content/content_script.js",
+                "content/features/auto_restore_lots.js",
+                "content/features/order_page_enhancements.js",
+                "content/features/sales_chart.js"
             ],
             "css": [
                 "css/content_styles.css",
@@ -94,7 +113,8 @@
             "resources": [
                 "sounds/*.mp3",
                 "background/remake.html",
-                "background/remake.js"
+                "background/remake.js",
+                "icons/magic.png"
             ],
             "matches": [
                 "https://funpay.com/*"
