@@ -81,7 +81,6 @@
                 "content/features/fpt_identifier.js",
                 "content/ui/main_popup.js",
                 "content/ui/header_button_styler.js",
-                "content/features/april_fools.js",
                 "content/features/lot_context_menu.js",
                 "content/features/ai_lot_audit.js",
                 "content/features/settings_io.js",
