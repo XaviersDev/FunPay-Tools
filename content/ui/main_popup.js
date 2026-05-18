@@ -84,6 +84,8 @@ function createMainPopup() {
                     <li class="fp-nav-divider">Основное</li>
                     <li data-page="general" class="active"><a><span class="nav-icon">⚙️</span><span>Общие</span></a></li>
                     <li data-page="accounts"><a><span class="nav-icon">👥</span><span>Аккаунты</span></a></li>
+                    <li class="fp-nav-divider">Эксклюзив</li>
+                    <li data-page="epic_nicks"><a><span class="nav-icon">💎</span><span>Это увидят все</span></a></li>
                     <li class="fp-nav-divider">Чат и продажи</li>
                     <li data-page="templates"><a><span class="nav-icon">📄</span><span>Шаблоны</span></a></li>
                     <li data-page="auto_review"><a><span class="nav-icon">🤖</span><span>Авто-ответы</span></a></li>
@@ -150,6 +152,7 @@ function createMainPopup() {
                         <span class="nav-icon">❤️</span>
                         <span>Понравился FP Tools? <a href="#" data-nav-to="support">Поддержите труд разработчика</a> во вкладке "Поддержка"!</span>
                     </div>
+                    
                     <h3 style="margin-top: 30px;">Заказы и статистика</h3>
                     <div class="checkbox-label-inline">
                         <input type="checkbox" id="fpToolsShowPaymentType" checked>
@@ -175,7 +178,33 @@ function createMainPopup() {
                         <span class="nav-icon" style="color: #ff9800;">⚠️</span>
                         <span>Для корректной работы расширения рекомендуется использовать FunPay на <strong>русском языке</strong>, так как большинство функций не будут работать на других языках.</span>
                     </div>
-                </div>
+                </div> <!-- КОНЕЦ ВКЛАДКИ "ОБЩИЕ" -->
+
+                <!-- НАЧАЛО ВКЛАДКИ "ЭПИЧЕСКИЕ НИКИ" -->
+                <div class="fp-tools-page-content" data-page="epic_nicks">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <h3>Эпический никнейм 💎</h3>
+                    </div>
+                    <p class="template-info" style="font-size: 14px; line-height: 1.5;">
+                        Выделитесь среди конкурентов! Ваш никнейм будет светиться, переливаться и излучать частицы <b>у всех пользователей расширения FP Tools</b> (более 12 000 человек).
+                    </p>
+
+                    <div style="background: rgba(107, 102, 255, 0.1); border: 1px solid rgba(107, 102, 255, 0.3); border-radius: 12px; padding: 18px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+                        <div style="font-size: 15px; margin-bottom: 12px; color: #fff;">Приобрести уникальный стиль можно навсегда по очень низкой цене.</div>
+                        <div style="font-size: 13px; color: #a0a0a0; margin-bottom: 15px;">Больше 6 способов оплаты на выбор. Нажав на кнопку ниже, вы перейдёте в Telegram-бота, где сможете нажать на "Украсить ник на сайте FunPay"</div>
+                        <a href="https://t.me/FPToolsBot" target="_blank" class="btn" style="text-decoration:none; display:flex; align-items:center; justify-content:center; gap:8px; font-size: 14px; padding: 10px;">
+                            <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-1.37.2-1.64l16.44-5.99c.73-.27 1.36.17 1.15.99l-2.28 10.82c-.15.71-.56 1.01-1.2 1.01l-4.82-.01-1.15 4.35c-.32.74-1.23.46-1.42-.47z"/></svg>
+                            Получить уникальный ник
+                        </a>
+                    </div>
+
+                    <h4 style="margin-bottom: 15px;">Вот несколько примеров для того, чтобы вы посмотрели, как это будет выглядеть у всех пользователей расширения:</h4>
+                    <div id="fpt-epic-previews-container" style="display: flex; flex-direction: column; gap: 30px; margin-top: 10px; background: #0e0f16; border: 1px solid #1e2030; border-radius: 8px; padding: 20px;">
+                        <div style="text-align: center; color: #5a5f7a; font-size: 12px;">Загрузка движка частиц...</div>
+                    </div>
+                </div> <!-- КОНЕЦ ВКЛАДКИ "ЭПИЧЕСКИЕ НИКИ" -->
+
+                <!-- НАЧАЛО ВКЛАДКИ "АККАУНТЫ" -->
                 <div class="fp-tools-page-content" data-page="accounts">
                     <h3>Управление аккаунтами</h3>
                     <p class="template-info">Добавьте текущий аккаунт в список, чтобы быстро переключаться между профилями без ввода пароля.</p>
@@ -917,7 +946,7 @@ function setupPopupNavigation() {
             contentPages.forEach(page => {
                 page.classList.toggle('active', page.dataset.page === pageId);
             });
-
+            if (pageId === 'epic_nicks') { if (typeof renderEpicPreviews === 'function') renderEpicPreviews(); }
             if (pageId === 'currency_calc') initializeCurrencyCalculator();
             if (pageId === 'notes') { if (typeof initializeNotes === 'function') initializeNotes(); }
             if (pageId === 'templates') { if (typeof setupTemplateSettingsHandlers === 'function') setupTemplateSettingsHandlers(); }

@@ -471,6 +471,27 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true;
     }
 
+    if (request.action === 'fetchDonaters') {
+        (async () => {
+            try {
+                // Пытаемся получить через API сайта
+                let res = await fetch('https://funpay.tools/api/donaters/');
+                
+                // Если API вдруг недоступно (например, 404/405), берем напрямую из GitHub Raw
+                if (!res.ok) {
+                    res = await fetch('https://raw.githubusercontent.com/XaviersDev/FunPayTools-Site/main/donaters.json');
+                }
+                
+                if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+                const json = await res.json();
+                sendResponse({ success: true, data: json });
+            } catch (e) {
+                sendResponse({ success: false, error: String(e) });
+            }
+        })();
+        return true;
+    }
+
     // AI HANDLERS
     if (request.action === "getAIProcessedText") {
         fetchAIResponse(request.text, request.context, request.myUsername, request.type).then(sendResponse);
