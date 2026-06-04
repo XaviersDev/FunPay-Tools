@@ -1,5 +1,55 @@
 // offscreen/offscreen.js
 
+// 3.0: Offscreen keepalive driver. The offscreen document is NOT killed on the 30s idle
+// timer the way the service worker is, so a periodic message FROM here keeps the worker
+// awake. This is one of several redundancy layers for background reliability.
+(function startOffscreenKeepalive() {
+    const PING_MS = 20000; // < 30s worker idle timeout
+    setInterval(() => {
+        try {
+            chrome.runtime.sendMessage({ target: 'background', action: 'fptEngineKeepalive', t: Date.now() })
+                .catch(() => {});
+        } catch (_) {}
+    }, PING_MS);
+})();
+
+// 3.0 FIX: при чтении описания со страницы лот превращается в HTML, где визуальные
+// переносы строк закодированы И как <br>, И как реальные \n в исходнике + отступы.
+// Из-за этого после замены <br>→\n появлялись лишние ПУСТЫЕ строки. Эта функция
+// извлекает чистый текст: <br> и блочные теги дают ровно один \n, а исходные
+// переносы/отступы между тегами не считаются за переносы. Затем схлопываем подряд
+// идущие пустые строки и убираем хвостовые пробелы - как в оригинальном описании.
+function fptCleanDescriptionHtml(rawHtml) {
+    if (!rawHtml) return '';
+    let html = String(rawHtml);
+    // Убираем реальные переносы/табы исходника - они НЕ являются контентом.
+    html = html.replace(/[\r\n\t]+/g, ' ');
+    // <br> и закрытия блоков → один перенос.
+    html = html.replace(/<br\s*\/?>/gi, '\n');
+    html = html.replace(/<\/(p|div|li)>/gi, '\n');
+    html = html.replace(/<li[^>]*>/gi, '');
+    // Снимаем оставшиеся теги.
+    html = html.replace(/<[^>]+>/g, '');
+    // Декодируем базовые HTML-сущности.
+    const ent = { '&nbsp;': ' ', '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'" };
+    html = html.replace(/&nbsp;|&amp;|&lt;|&gt;|&quot;|&#39;/gi, m => ent[m.toLowerCase()] || m);
+    return fptNormalizeText(html);
+}
+
+// Нормализует уже готовый текст: убирает лишние пробелы в строках,
+// схлопывает 2+ пустых строк в одну и обрезает края.
+function fptNormalizeText(text) {
+    if (!text) return '';
+    return String(text)
+        .replace(/\r\n?/g, '\n')                 // CRLF → LF
+        .split('\n')
+        .map(l => l.trim())
+        .join('\n')
+        .replace(/[ \t]{2,}/g, ' ')              // двойные пробелы → один
+        .replace(/\n{3,}/g, '\n\n')              // 3+ переносов → одна пустая строка (намеренные пустые строки сохраняем)
+        .trim();
+}
+
 // --- КОД ДЛЯ СТАТИСТИКИ ---
 
 const RUSSIAN_MONTHS = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
@@ -117,9 +167,327 @@ function parseLotEditPage(html) {
         // keep csrf_token for saving; remove only location
         delete dataObject.location;
 
+        // 3.0 FIX: normalize multi-line text fields so export/import doesn't accumulate
+        // spurious blank lines (FunPay textareas may store CRLF / trailing spaces).
+        Object.keys(dataObject).forEach(k => {
+            if (/fields\[(desc|summary|payment_msg)\]/.test(k) && typeof dataObject[k] === 'string') {
+                dataObject[k] = fptNormalizeText(dataObject[k]);
+            }
+        });
+
         return dataObject;
     } catch (e) {
         console.error("FP Tools Offscreen: Error in parseLotEditPage", e);
+        return null;
+    }
+}
+
+// =====================================================================================
+// 3.0 SERVER-SIDE LOT CLONING
+// -------------------------------------------------------------------------------------
+// Эти две функции реализуют ПОЛНОЦЕННОЕ серверное копирование чужого лота, по той же
+// схеме, что и официальный плагин AutoCopy + методы Cardinal get_lot_fields / save_lot:
+//   1) parsePublicLotForClone  - читает ПУБЛИЧНУЮ страницу чужого лота (lots/offer?id=)
+//      и достаёт всё, что видно: название, описание, сообщение покупателю, видимые
+//      параметры категории (param-item), кол-во, цену и ID подкатегории (node).
+//   2) solveCloneForm - берёт ПУСТУЮ форму offerEdit?node=<node> ИЗ НАШЕГО аккаунта
+//      (валидный шаблон со всеми скрытыми полями, csrf, селектами, радио и галочками)
+//      и сопоставляет видимые параметры жертвы с реальными option/radio нашей формы.
+//      На выходе - готовый словарь полей для POST lots/offerSave с offer_id=0.
+// =====================================================================================
+
+// Заголовки параметров, которые НЕ являются атрибутами категории (их не сопоставляем
+// и не показываем). Базовый список - как в плагине get_lot_data, плюс блоки оформления
+// заказа и рейтинга, которые тоже размечены как .param-item на странице покупки.
+const CLONE_EXCLUDE_HEADERS = [
+    "цена", "продавец", "отзывы", "вопросы", "наличие", "количество", "тип",
+    "краткое описание", "подробное описание",
+    "price", "seller", "reviews", "questions", "in stock", "amount", "type",
+    "short description", "detailed description"
+];
+// Доп. фильтр по вхождению подстроки (блоки чек-аута/рейтинга).
+const CLONE_EXCLUDE_CONTAINS = [
+    "с вашего баланса", "останется оплатить", "рейтинг продавца", "скидка за оплату",
+    "способ оплаты", "with your balance", "left to pay", "seller rating", "payment method",
+    "discount", "balance"
+];
+const CLONE_SUMMARY_HEADERS = ["краткое описание", "short description"];
+const CLONE_DESC_HEADERS = ["подробное описание", "detailed description"];
+
+function parsePublicLotForClone(html) {
+    try {
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+
+        // Проверка "лот не найден" - как в Cardinal.get_lot_page.
+        const pageHeader = doc.querySelector('h1.page-header');
+        if (pageHeader && /Предложение не найдено|Пропозицію не знайдено|Offer not found/i.test(pageHeader.textContent)) {
+            return { notFound: true };
+        }
+
+        let summary = '';
+        let description = '';
+        const attributes = [];     // видимые значения параметров (для сопоставления селектов)
+        const attributePairs = []; // {label, value} - для показа пользователю
+        let images = [];
+
+        // 1) ID подкатегории (node) - ТОЧНО как в Cardinal: a.js-back-link href .../<node>/...
+        //    Cardinal: int(parser.find("a", class_="js-back-link")['href'].split("/")[-2])
+        let nodeId = null;
+        let isChips = false;
+        let categoryName = '';
+        const backLink = doc.querySelector('a.js-back-link');
+        if (backLink) {
+            const href = backLink.getAttribute('href') || '';
+            const parts = href.split('/').filter(Boolean); // [..., 'lots', '<node>'] или [..., 'chips', '<node>']
+            const nodeCand = parts[parts.length - 1];
+            if (nodeCand && /^\d+$/.test(nodeCand)) nodeId = nodeCand;
+            isChips = href.includes('/chips/');
+            categoryName = backLink.textContent.trim();
+        }
+        // запасные селекторы, если разметка изменится
+        if (!nodeId) {
+            const alt = doc.querySelector('a[href*="/lots/"][href$="/"], a[href*="/chips/"][href$="/"]');
+            const m = alt?.getAttribute('href')?.match(/\/(lots|chips)\/(\d+)\//);
+            if (m) { nodeId = m[2]; isChips = m[1] === 'chips'; categoryName = categoryName || alt.textContent.trim(); }
+        }
+
+        // 2) Параметры лота - как в Cardinal.get_lot_page (div.param-item > h5/div).
+        const SUMMARY_H = ['краткое описание', 'короткий опис', 'short description'];
+        const DESC_H = ['подробное описание', 'докладний опис', 'detailed description'];
+        const IMG_H = ['картинки', 'зображення', 'images'];
+
+        doc.querySelectorAll('div.param-item').forEach(item => {
+            const h5 = item.querySelector('h5');
+            if (!h5) return;
+            const headerRaw = h5.textContent.trim();
+            const header = headerRaw.toLowerCase();
+            const valDiv = item.querySelector('div');
+            const value = valDiv ? valDiv.textContent.trim() : '';
+            const valueHtml = valDiv ? fptCleanDescriptionHtml(valDiv.innerHTML) : '';
+
+            if (SUMMARY_H.includes(header)) {
+                summary = fptNormalizeText(value);
+            } else if (DESC_H.includes(header)) {
+                description = valueHtml;
+            } else if (IMG_H.includes(header)) {
+                images = Array.from(item.querySelectorAll('a.attachments-thumb')).map(a => a.getAttribute('href')).filter(Boolean);
+            } else if (!CLONE_EXCLUDE_HEADERS.includes(header) &&
+                       !CLONE_EXCLUDE_CONTAINS.some(s => header.includes(s))) {
+                if (value) {
+                    attributes.push(value.toLowerCase());
+                    attributePairs.push({ label: headerRaw, value });
+                }
+            }
+        });
+
+        // 3) Цена и количество - из самой формы покупки, если есть (точные значения),
+        //    иначе из видимых параметров.
+        let price = '';
+        const priceInput = doc.querySelector('input[name="price"], [data-price]');
+        if (priceInput) {
+            price = priceInput.getAttribute('value') || priceInput.getAttribute('data-price') || '';
+        }
+        if (!price) {
+            // запасной вариант: ищем число рядом с валютой
+            const pm = doc.body.textContent.match(/(\d[\d\s]*[.,]?\d*)\s*(₽|руб|грн|\$|€|USD|EUR|RUB|UAH)/i);
+            if (pm) price = pm[1].replace(/\s/g, '').replace(',', '.');
+        }
+
+        let amount = '';
+        const amountInput = doc.querySelector('input[name="amount"]');
+        if (amountInput) amount = amountInput.getAttribute('value') || '';
+        if (!amount) {
+            doc.querySelectorAll('div.param-item').forEach(item => {
+                const h = item.querySelector('h5')?.textContent.trim().toLowerCase();
+                if (['количество', 'наличие', 'кількість', 'amount', 'in stock'].includes(h)) {
+                    const v = item.querySelector('div')?.textContent.trim().match(/\d+/);
+                    if (v) amount = v[0];
+                }
+            });
+        }
+
+        // Продавец: сначала из data-seller на блоке чата, потом из ссылки.
+        let sellerName = '';
+        let sellerId = '';
+        const chatBox = doc.querySelector('[data-seller]');
+        if (chatBox) sellerId = chatBox.getAttribute('data-seller') || '';
+        const sellerLink = doc.querySelector('.chat-header .media-user-name a, .media-user-name a');
+        if (sellerLink) {
+            sellerName = sellerLink.textContent.trim();
+            if (!sellerId) {
+                const sm = sellerLink.getAttribute('href')?.match(/\/users\/(\d+)/);
+                if (sm) sellerId = sm[1];
+            }
+        }
+
+        const pageTitle = pageHeader ? pageHeader.textContent.trim() : '';
+        if (!summary && pageTitle) summary = pageTitle;
+
+        return {
+            summary, description, attributes, attributePairs, images,
+            nodeId, categoryName, isChips, price, amount,
+            sellerName, sellerId, title: pageTitle
+        };
+    } catch (e) {
+        console.error("FP Tools Offscreen: Error in parsePublicLotForClone", e);
+        return null;
+    }
+}
+
+// Парсит список лотов продавца (users/{id}/) и находит цену конкретного оффера -
+// ровно тот источник цены, что использует плагин: tc-price[data-s] + валюта из span.unit.
+// Возвращает { price, currency } для нужного offerId, либо null.
+function parseSellerLotPrice(html, offerId) {
+    try {
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const oid = String(offerId);
+        const offers = doc.querySelectorAll('a.tc-item');
+        for (const a of offers) {
+            const href = a.getAttribute('href') || '';
+            if (!href.includes('id=' + oid)) continue;
+            const tcPrice = a.querySelector('.tc-price');
+            if (!tcPrice) return null;
+            let price = tcPrice.getAttribute('data-s');
+            if (!price) {
+                // запасной разбор текста
+                const t = tcPrice.textContent.trim().match(/[\d\s.,]+/);
+                if (t) price = t[0].replace(/\s/g, '').replace(',', '.');
+            }
+            let currency = '';
+            const unit = tcPrice.querySelector('span.unit');
+            if (unit) {
+                const u = unit.textContent.trim();
+                if (u.includes('₽') || /руб/i.test(u)) currency = 'rub';
+                else if (u.includes('$')) currency = 'usd';
+                else if (u.includes('€')) currency = 'eur';
+            }
+            return { price: price ? String(price).replace(',', '.') : '', currency };
+        }
+        return null;
+    } catch (e) {
+        console.error("FP Tools Offscreen: Error in parseSellerLotPrice", e);
+        return null;
+    }
+}
+
+// Сопоставляет видимые параметры жертвы с полями НАШЕЙ пустой формы offerEdit?node=...
+// Логика повторяет solve_form из официального плагина AutoCopy, но аккуратнее с радио/чекбоксами.
+function solveCloneForm(html, attributes) {
+    try {
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const form = doc.querySelector('form.form-offer-editor');
+        if (!form) throw new Error('Форма создания лота не найдена (offerEdit).');
+
+        const attrs = (attributes || []).map(a => String(a).toLowerCase());
+        const data = {};
+
+        // 1) Скрытые поля + csrf - берём как есть.
+        form.querySelectorAll('input[type="hidden"]').forEach(i => {
+            const name = i.getAttribute('name');
+            if (name) data[name] = i.getAttribute('value') || '';
+        });
+
+        const matchText = (txt) => {
+            if (!txt) return false;
+            if (attrs.includes(txt)) return true;
+            for (const a of attrs) {
+                if ((txt.length > 2 && a.includes(txt)) || (a.length > 2 && txt.includes(a))) return true;
+            }
+            return false;
+        };
+
+        // 2) Селекты: пытаемся выбрать option, текст которого совпадает с параметром жертвы.
+        //    history хранит выбранный индекс по «базовому» имени, чтобы согласованно
+        //    заполнять связанные (зависимые) селекты с тем же префиксом.
+        const history = {};
+        const selects = Array.from(form.querySelectorAll('select'));
+
+        selects.forEach(s => {
+            const name = s.getAttribute('name');
+            if (!name) return;
+            const opts = Array.from(s.querySelectorAll('option'));
+            let chosen = null, idx = -1;
+            for (let i = 0; i < opts.length; i++) {
+                const val = opts[i].getAttribute('value');
+                const txt = opts[i].textContent.trim().toLowerCase();
+                if (!val || val === '0') continue;
+                if (matchText(txt)) { chosen = val; idx = i; break; }
+            }
+            if (chosen !== null) {
+                data[name] = chosen;
+                history[name.replace(/\d+$/, '')] = { val: chosen, idx };
+            }
+        });
+
+        // зависимые селекты по базовому имени
+        selects.forEach(s => {
+            const name = s.getAttribute('name');
+            if (!name || data[name] !== undefined) return;
+            const base = name.replace(/\d+$/, '');
+            if (history[base]) {
+                const opts = Array.from(s.querySelectorAll('option'));
+                const t = history[base];
+                if (t.idx >= 0 && t.idx < opts.length && opts[t.idx].getAttribute('value')) {
+                    data[name] = opts[t.idx].getAttribute('value');
+                } else {
+                    for (const o of opts) {
+                        if (o.getAttribute('value') === t.val) { data[name] = t.val; break; }
+                    }
+                }
+            }
+        });
+
+        // если селект обязателен, но ничего не подобрали - берём первый непустой option,
+        // иначе FunPay вернёт ошибку валидации.
+        selects.forEach(s => {
+            const name = s.getAttribute('name');
+            if (!name || data[name] !== undefined) return;
+            const required = s.hasAttribute('required') || (s.closest('.form-group')?.querySelector('.required'));
+            if (required) {
+                const opt = Array.from(s.querySelectorAll('option')).find(o => {
+                    const v = o.getAttribute('value');
+                    return v && v !== '0';
+                });
+                if (opt) data[name] = opt.getAttribute('value');
+            }
+        });
+
+        // 3) Радио и чекбоксы.
+        const radios = {};
+        form.querySelectorAll('input').forEach(inp => {
+            const n = inp.getAttribute('name');
+            const t = (inp.getAttribute('type') || 'text').toLowerCase();
+            if (!n) return;
+            // эти поля задаём отдельно при сохранении - пропускаем
+            if (['offer_id', 'active', 'price', 'amount', 'location', 'csrf_token', 'secrets', 'fields[images]', 'query'].includes(n)) return;
+            if (data[n] !== undefined) return;
+
+            if (t === 'radio') {
+                if (!radios[n]) radios[n] = [];
+                let label = '';
+                const lab = inp.closest('label') || inp.parentElement;
+                if (lab) label = lab.textContent.trim().toLowerCase();
+                radios[n].push({ value: inp.getAttribute('value') || '', label });
+                if (inp.hasAttribute('checked')) data[n] = inp.getAttribute('value') || '';
+            } else if (t === 'checkbox') {
+                if (inp.hasAttribute('checked')) data[n] = inp.getAttribute('value') || 'on';
+            } else if (t === 'text' || t === 'number') {
+                // как в solve_form: обязательное пустое текстовое/числовое поле = "1"
+                const v = inp.getAttribute('value') || '';
+                if (inp.hasAttribute('required') && !v) data[n] = '1';
+            }
+        });
+
+        Object.entries(radios).forEach(([n, opts]) => {
+            if (data[n] !== undefined) return;
+            for (const o of opts) {
+                if (matchText(o.label)) { data[n] = o.value; break; }
+            }
+        });
+
+        return data;
+    } catch (e) {
+        console.error("FP Tools Offscreen: Error in solveCloneForm", e);
         return null;
     }
 }
@@ -128,14 +496,25 @@ function parseChatList(html) {
     try {
         const doc = new DOMParser().parseFromString(html, "text/html");
         const chatItems = doc.querySelectorAll('a.contact-item');
+        const BOT_MARKER = '\u2061';
+        const OLD_BOT_MARKER = '\u2064';
         return Array.from(chatItems).map(item => {
             const nameEl = item.querySelector('.media-user-name');
             const avatarEl = item.querySelector('.avatar-photo');
+            const nodeMsg = parseInt(item.dataset.nodeMsg, 10);   // last message id in the chat
+            const userMsg = parseInt(item.dataset.userMsg, 10);   // last message id the user has read
+            const rawMsg = item.querySelector('.contact-item-message')?.textContent || '';
+            const lastByBot = rawMsg.startsWith(BOT_MARKER) || rawMsg.startsWith(OLD_BOT_MARKER);
+            // strip marker + zero-width chars for clean text used in matching
+            const cleanMsg = rawMsg.replace(/[\u2061\u2064]/g, '').trim();
             return {
                 chatId: item.dataset.id,
                 chatName: nameEl ? nameEl.textContent.trim() : 'Unknown',
                 msgId: item.dataset.nodeMsg,
-                messageText: item.querySelector('.contact-item-message')?.textContent.trim() || '',
+                nodeMsg: Number.isNaN(nodeMsg) ? null : nodeMsg,
+                userMsg: Number.isNaN(userMsg) ? null : userMsg,
+                messageText: cleanMsg,
+                lastByBot,
                 isUnread: item.classList.contains('unread'),
                 avatarUrl: avatarEl ? avatarEl.style.backgroundImage.slice(5, -2) : null
             };
@@ -286,7 +665,7 @@ function parseOrderPageForReview(html) {
         const doc = new DOMParser().parseFromString(html, 'text/html');
 
         // --- Detect if this review was written by the current user (skip own reviews) ---
-        // FIX: Use more reliable selector — the profile link in the order page header
+        // FIX: Use more reliable selector - the profile link in the order page header
         const reviewAuthorLink = doc.querySelector('.review-item-head .media-user-name a');
         const reviewAuthorId = reviewAuthorLink
             ? reviewAuthorLink.href.split('/').filter(Boolean).pop()
@@ -362,7 +741,7 @@ function parseBuyerHistory(html, buyerUsername) {
         const doc = new DOMParser().parseFromString(html, 'text/html');
         const orders = [];
         doc.querySelectorAll('a.tc-item').forEach(row => {
-            // Server pre-filters by username — just parse all returned rows
+            // Server pre-filters by username - just parse all returned rows
             const orderId = row.querySelector('.tc-order')?.textContent?.trim().replace(/^#/, '');
             const desc    = row.querySelector('.order-desc div, .tc-desc-text')?.textContent.trim() || '';
             const price   = row.querySelector('.tc-price')?.textContent.trim() || '';
@@ -375,7 +754,7 @@ function parseBuyerHistory(html, buyerUsername) {
     }
 }
 
-// 3.0: Parse order page for auto-delivery — get secrets, lotId, chatId
+// 3.0: Parse order page for auto-delivery - get secrets, lotId, chatId
 function parseOrderPageForDelivery(html) {
     try {
         const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -563,6 +942,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case 'parseLotEditPage':
             sendResponse(parseLotEditPage(message.html));
             break;
+        case 'parsePublicLotForClone':
+            sendResponse(parsePublicLotForClone(message.html));
+            break;
+        case 'parseSellerLotPrice':
+            sendResponse(parseSellerLotPrice(message.html, message.offerId));
+            break;
+        case 'solveCloneForm':
+            sendResponse(solveCloneForm(message.html, message.attributes));
+            break;
         case 'parseChatList':
             sendResponse(parseChatList(message.html));
             break;
@@ -610,6 +998,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             break;
         case 'parseTicketDetails':
             sendResponse(parseTicketDetails(message.html));
+            break;
+        case 'keepalivePing':
+            // 3.0: offscreen → worker keepalive. Just acknowledge; the act of receiving
+            // a message resets the service worker's idle timer.
+            sendResponse({ alive: true, t: Date.now() });
             break;
     }
 

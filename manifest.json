@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
     "name": "FunPay Tools",
-    "version": "2.7.4.2",
-    "description": "Глобальное расширение для FunPay ⚡ 100+ инструментов • ИИ-помощник • Автоответчик • Аналитика • Автоматизация • Больше продаж",
+    "version": "2.8",
+    "description": "Глобальное расширение для FunPay ⚡ 120+ инструментов • ИИ-помощник • Автоответчик • Аналитика • Автоматизация • Больше продаж",
     "permissions": [
         "storage",
         "tabs",
@@ -14,9 +14,14 @@
     ],
     "host_permissions": [
         "https://fptools-ai-server.vercel.app/*",
+        "https://fptools.onrender.com/*",
         "https://funpay.com/*",
+        "https://*.funpay.com/*",
+        "https://sfunpay.com/*",
+        "https://*.sfunpay.com/*",
         "https://funpay.tools/*",
         "https://cdn.jsdelivr.net/*",
+        "https://raw.githubusercontent.com/*",
         "https://fonts.googleapis.com/*",
         "https://fonts.gstatic.com/*",
         "https://support.funpay.com/*"
@@ -35,6 +40,16 @@
     "content_scripts": [
         {
             "matches": [
+                "https://support.funpay.com/*"
+            ],
+            "js": [
+                "content/features/support_theme.js"
+            ],
+            "run_at": "document_start",
+            "all_frames": false
+        },
+        {
+            "matches": [
                 "https://funpay.com/*"
             ],
             "js": [
@@ -50,6 +65,8 @@
             "js": [
                 "content/scripts/jquery.js",
                 "content/utils.js",
+                "content/features/feature_registry.js",
+                "content/features/feature_disabler.js",
                 "content/features/cursor_fx.js",
                 "content/ui/settings_loader.js",
                 "content/features/font_tools.js",
@@ -74,12 +91,14 @@
                 "content/features/ai_lot_creator.js",
                 "content/features/currency_calculator.js",
                 "content/features/notes.js",
+                "content/features/global_chat.js",
                 "content/features/overview_tour.js",
                 "content/features/magicstick.js",
                 "content/features/piggy_bank.js",
                 "content/features/lot_io.js",
                 "content/features/auto_review.js",
                 "content/features/fpt_identifier.js",
+                "content/features/needs_tab.js",
                 "content/ui/main_popup.js",
                 "content/ui/header_button_styler.js",
                 "content/features/lot_context_menu.js",
@@ -88,8 +107,10 @@
                 "content/features/bulk_lot_editor.js",
                 "content/features/buyer_history.js",
                 "content/features/chat_enhancements.js",
+                "content/features/chat_image_attach.js",
+                "content/features/chat_image_album.js",
+                "content/features/chat_search.js",
                 "content/features/order_enhancements.js",
-                "content/features/order_timer.js",
                 "content/features/blacklist.js",
                 "content/features/epic_nicknames.js",
                 "content/features/auto_delivery_ui.js",
@@ -104,7 +125,8 @@
                 "css/content_styles.css",
                 "css/image_generator.css",
                 "css/ai_creator.css",
-                "css/live_styler.css"
+                "css/live_styler.css",
+                "css/fpt_icons_theme.css"
             ],
             "run_at": "document_idle"
         }
@@ -115,10 +137,13 @@
                 "sounds/*.mp3",
                 "background/remake.html",
                 "background/remake.js",
-                "icons/magic.png"
+                "icons/magic.png",
+                "icons/icon128.png",
+                "fonts/*.woff2"
             ],
             "matches": [
-                "https://funpay.com/*"
+                "https://funpay.com/*",
+                "https://support.funpay.com/*"
             ]
         }
     ]

@@ -1,6 +1,6 @@
-// background/remake.js — FunPay Tools 3.0
+// background/remake.js - FunPay Tools 3.0
 // FIXED: auto_delivery no longer placed into "message after payment".
-//        Cardinal `answer` → order_msg, `secrets` stays as auto-delivery goods.
+//        FP Tools `answer` → order_msg, `secrets` stays as auto-delivery goods.
 
 const dropZone    = document.getElementById('drop-zone');
 const fileInput   = document.getElementById('file-input');
@@ -55,7 +55,7 @@ async function handleFiles(files) {
 
     const results = await Promise.all(Array.from(files).map(file => new Promise(resolve => {
         if (!file.name.endsWith('.json')) {
-            log(`Пропущен: "${file.name}" — нужен .json.`, 'error');
+            log(`Пропущен: "${file.name}" - нужен .json.`, 'error');
             resolve([]); return;
         }
         const reader = new FileReader();
@@ -66,11 +66,11 @@ async function handleFiles(files) {
                 // Support: array, { lots: [] }, { data: [] }, single object
                 if (!Array.isArray(raw)) {
                     raw = raw?.lots || raw?.data || raw?.items || (raw?.offer_id !== undefined ? [raw] : null);
-                    if (!raw) throw new Error('Неизвестный формат. Ожидается массив лотов Cardinal.');
+                    if (!raw) throw new Error('Неизвестный формат. Ожидается массив лотов FP Tools.');
                 }
                 if (!raw.length) { log(`"${file.name}": лотов не найдено.`, 'error'); resolve([]); return; }
                 const converted = convertFormat(raw);
-                log(`✓ "${file.name}" — ${converted.length} лот(ов).`, 'success');
+                log(`✓ "${file.name}" - ${converted.length} лот(ов).`, 'success');
                 resolve(converted);
             } catch (err) {
                 log(`Ошибка в "${file.name}": ${err.message}`, 'error');
@@ -101,7 +101,7 @@ function convertFormat(cardinalLots) {
         // Reset offer_id so FunPay creates a new lot
         if (data.offer_id !== undefined) data.offer_id = '0';
 
-        // ── FIX: Cardinal field mapping ──────────────────────────────────
+        // ── FIX: FP Tools field mapping ──────────────────────────────────
         // `secrets`  = array of goods for auto-delivery  → keep as `secrets`
         // `answer`   = message sent after order payment  → maps to `order_msg`
         //

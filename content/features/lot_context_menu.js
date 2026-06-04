@@ -134,7 +134,7 @@
                 <div style="font-size:11px;color:#4a4f68;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Лот: ${lot.title}</div>
                 <textarea id="fp-ctx-chat-text" placeholder="Сообщение... (Ctrl+Enter отправить)" style="width:100%;height:80px;background:#0e0f16;border:1px solid #22253a;border-radius:6px;color:#d8dae8;font-size:13px;padding:8px;resize:none;outline:none;font-family:inherit;box-sizing:border-box;"></textarea>
                 <div style="display:flex;gap:8px;margin-top:8px;">
-                    <button id="fp-ctx-chat-send" style="flex:1;background:#6B66FF;color:#fff;border:none;border-radius:6px;padding:9px;font-size:13px;font-weight:600;cursor:pointer;">Отправить</button>
+                    <button id="fp-ctx-chat-send" style="flex:1;background:#C026D3;color:#fff;border:none;border-radius:6px;padding:9px;font-size:13px;font-weight:600;cursor:pointer;">Отправить</button>
                     <a href="https://funpay.com/chat/?node=" id="fp-ctx-open-chat-link" target="_blank" style="display:flex;align-items:center;padding:0 10px;background:#1e2030;border:1px solid #2a2d44;border-radius:6px;color:#9099b8;text-decoration:none;font-size:12px;white-space:nowrap;">Открыть чат</a>
                 </div>
                 <div id="fp-ctx-chat-status" style="font-size:11px;color:#5a5f7a;margin-top:6px;min-height:16px;"></div>
@@ -154,7 +154,7 @@
         const status = document.getElementById('fp-ctx-chat-status');
 
         sendBt.addEventListener('mouseenter', () => sendBt.style.background = '#5d58f0');
-        sendBt.addEventListener('mouseleave', () => sendBt.style.background = '#6B66FF');
+        sendBt.addEventListener('mouseleave', () => sendBt.style.background = '#C026D3');
         ta.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendBt.click(); } });
         ta.focus();
 
@@ -246,7 +246,7 @@
             row.className = 'tc-item fp-pinned-row';
             row.href = lot.lotUrl;
             row.setAttribute('data-pinned-id', lot.offerId);
-            row.style.cssText = 'display:flex;align-items:center;padding:8px 12px;background:rgba(107,102,255,0.06);border-left:2px solid #6B66FF;';
+            row.style.cssText = 'display:flex;align-items:center;padding:8px 12px;background:rgba(192,38,211,0.06);border-left:2px solid #C026D3;';
 
             // Clone original row's structure if we can find it
             const origRow = document.querySelector(`a.tc-item[href*="id=${lot.offerId}"]`);
@@ -255,7 +255,7 @@
                 const clone = origRow.cloneNode(true);
                 clone.classList.add('fp-pinned-row');
                 clone.setAttribute('data-pinned-id', lot.offerId);
-                clone.style.cssText = 'border-left:2px solid #6B66FF;background:rgba(107,102,255,0.05);';
+                clone.style.cssText = 'border-left:2px solid #C026D3;background:rgba(192,38,211,0.05);';
                 // Remove any existing pinned clone to avoid duplication
                 targetTable.querySelector(`[data-pinned-id="${lot.offerId}"]`)?.remove();
                 // Add unpin button to cloned price cell
@@ -281,7 +281,7 @@
 
             // Fallback: minimal row
             row.innerHTML = `
-                <div class="tc-desc" style="flex:1;"><div class="tc-desc-text" style="color:#a09ef8;">📌 ${lot.title}</div></div>
+                <div class="tc-desc" style="flex:1;"><div class="tc-desc-text" style="color:#E9A8FF;">📌 ${lot.title}</div></div>
                 <div class="tc-price"><button data-unpin="${lot.offerId}" style="background:none;border:none;color:#3a3d52;cursor:pointer;font-size:14px;padding:0 4px;" title="Открепить">✕</button></div>`;
             row.querySelector('button').addEventListener('click', (e) => {
                 e.preventDefault(); e.stopPropagation();
@@ -311,7 +311,7 @@
     document.addEventListener('click', (e) => { if (!e.target.closest(`#${MENU_ID}`)) removeMenu(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { removeMenu(); removeChatPanel(); } });
 
-    // FIX: Don't call renderPinnedInTable() immediately — the lot rows (.tc-item)
+    // FIX: Don't call renderPinnedInTable() immediately - the lot rows (.tc-item)
     // aren't in the DOM yet at script execution time (FunPay renders them later).
     // Wait until at least one .tc-item appears, then render, then keep watching.
     function waitForLotsAndRender() {

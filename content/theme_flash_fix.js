@@ -5,10 +5,92 @@
     const THEME_STYLE_ID = 'fp-tools-custom-theme';
     const FONT_STYLE_ID = 'fp-tools-google-fonts';
 
+    // 3.0: выставляем класс темы как можно раньше (document_start), чтобы окна
+    // статистики/аналитики/системные алерты сразу рисовались в правильном режиме
+    // (гласс при включённой теме / нейтрально под страницу при выключенной) и не было
+    // вспышки «белое→серое» при перезагрузке.
+    try {
+        const tData = await chrome.storage.local.get('enableCustomTheme');
+        const on = tData.enableCustomTheme !== false; // по умолчанию включена
+        document.documentElement.classList.toggle('fpt-custom-theme-on', on);
+        document.documentElement.classList.toggle('fpt-custom-theme-off', !on);
+    } catch (_) { /* storage not ready - applyCustomTheme выставит позже */ }
+
     const hideStyle = document.createElement('style');
     hideStyle.id = HIDE_STYLE_ID;
     hideStyle.textContent = `body { visibility: hidden !important; background: #0b0b0b !important; }`;
     document.documentElement.appendChild(hideStyle);
+
+    // 3.0.6.2: hide the balance at document_start so the real number never flashes
+    // for ~0.1s on reload. We can't rewrite textContent this early (elements don't
+    // exist yet), so we mask via CSS immediately, then ui_enhancements.js rewrites the
+    // text and removes the mask once the DOM is ready. This runs regardless of theme.
+    try {
+        const balData = await chrome.storage.local.get('hideBalance');
+        if (balData.hideBalance === true) {
+            const balStyle = document.createElement('style');
+            balStyle.id = 'fp-tools-balance-prehide';
+            // make the digits invisible but keep layout; JS will swap in "?" then unmask
+            balStyle.textContent = `
+                .badge-balance, .balances-value {
+                    color: transparent !important;
+                    text-shadow: none !important;
+                }
+                .badge-balance::after { content: '••••'; color: #9099b8; }
+            `;
+            document.documentElement.appendChild(balStyle);
+        }
+    } catch (_) { /* storage not ready - ignore */ }
+
+    // 3.0.6.2: «Что тебе нужно» - instantly hide any features the user disabled.
+    // We can't import the full registry this early, so we keep a compact id→selector
+    // map here. Hiding via CSS at document_start means disabled buttons/blocks never
+    // flash into view before the content scripts get a chance to run.
+    try {
+        const dfData = await chrome.storage.local.get('fpToolsDisabledFeatures');
+        const disabled = Array.isArray(dfData.fpToolsDisabledFeatures) ? dfData.fpToolsDisabledFeatures : [];
+        if (disabled.length) {
+            const SELECTOR_MAP = {
+                rmthub_seller_search: '#fp-rmthub-form',
+                chat_ai_rewrite_btn: '#aiModeToggleBtn',
+                chat_char_counter: '#fp-chat-char-count',
+                profanity_warning: '#fpToolsProfanityWarning',
+                chat_read_all_btn: '#fp-tools-read-all-btn',
+                chat_filter_marked_btn: '#fp-tools-filter-marked-btn',
+                chat_menu_buyer_history: '#fp-buyer-hist-menu-btn',
+                chat_menu_translate: '#fp-translate-menu-btn',
+                chat_menu_export: '#fp-export-chat-menu-btn',
+                chat_menu_blacklist: '#fp-blacklist-menu-btn',
+                chat_image_generator_btn: '#fpToolsGenerateImageBtn, .generate-btn-container',
+                lot_ai_gen_btn: '#fp-tools-ai-gen-btn-wrapper',
+                lot_font_controls: '.fp-tools-font-controls, .fp-tools-symbols-panel',
+                lot_keyboard_btn: '#fpToolsKeyboardToggleBtn',
+                lot_translate_btn: '#fp-tools-translate-btn',
+                lot_exact_price_btn: '.set-exact-price',
+                lot_paste_bar: '#fp-tools-paste-bar',
+                lot_clone_btn: '.fp-tools-clone-btn',
+                lot_import_btn: '.fp-tools-import-btn',
+                lot_public_clone_btn: '#fp-tools-public-clone-btn',
+                lot_search_bar: '#fp-lot-search-bar',
+                lot_select_btn: '#fp-tools-select-lots-btn',
+                lot_reactivate_btn: '#fp-tools-reactivate-lots-btn',
+                lot_pinned_container: '#fp-tools-pinned-lots-container',
+                market_analytics_btn: '#fpTools-market-analytics-btn-wrapper',
+                sales_stats_expand: '#fpTools-stats-extra, #fpTools-stats-expand-btn',
+                notes_add_status_btn: '#fp-tools-add-status-btn'
+            };
+            const selectors = disabled
+                .map(id => SELECTOR_MAP[id])
+                .filter(Boolean);
+            if (selectors.length) {
+                const offStyle = document.createElement('style');
+                offStyle.id = 'fp-tools-disabled-features';
+                offStyle.textContent = selectors.join(', ') +
+                    ' { display: none !important; }';
+                document.documentElement.appendChild(offStyle);
+            }
+        }
+    } catch (_) { /* ignore */ }
 
     const GOOGLE_FONTS = ['Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Source Sans Pro'];
     const DEFAULT_THEME = {

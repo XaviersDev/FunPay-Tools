@@ -16,7 +16,7 @@ body.fp-tools-magic-stick-active #ms-selector-modal * {
     position: fixed;
     pointer-events: none;
     z-index: 99998;
-    box-shadow: 0 0 0 2px #00c9ff, 0 0 15px 3px rgba(0, 201, 255, 0.7);
+    box-shadow: 0 0 0 2px #E879F9, 0 0 15px 3px rgba(232, 121, 249, 0.7);
     border-radius: 4px;
     transition: all 0.1s linear;
 }
@@ -176,8 +176,8 @@ body.fp-tools-magic-stick-active #ms-selector-modal * {
     transition: all 0.2s ease;
 }
 .ms-toggle-btn.active {
-    background: #00c9ff;
-    border-color: #00c9ff;
+    background: #E879F9;
+    border-color: #E879F9;
 }
 
 /* --- Кнопки действий --- */
@@ -246,7 +246,7 @@ body.fp-tools-magic-stick-active #ms-selector-modal * {
 }
 .ms-style-selector {
     font-family: monospace;
-    color: #00c9ff;
+    color: #E879F9;
     flex-basis: 40%;
     overflow-wrap: break-word;
 }
@@ -285,7 +285,7 @@ body.fp-tools-magic-stick-active #ms-selector-modal * {
 }
 .ms-selector-option:hover {
     background: #3c3c3c;
-    border-color: #00c9ff;
+    border-color: #E879F9;
     color: #fff;
 }
 

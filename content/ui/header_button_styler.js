@@ -53,7 +53,7 @@ async function saveButtonStyles(settings) {
 
 async function loadAndApplyButtonStyles() {
     const data = await chrome.storage.local.get(STORAGE_KEY);
-    const defaults = { color: '#6B66FF', size: 14, opacity: 100 };
+    const defaults = { color: '#C026D3', size: 14, opacity: 100 };
     const settings = { ...defaults, ...(data[STORAGE_KEY] || {}) };
     applyButtonStyles(settings);
 }
@@ -66,22 +66,20 @@ function applyButtonStyles(settings) {
         document.head.appendChild(styleTag);
     }
 
-    const [h, s, l] = hexToHsl(settings.color);
-    const colorStart = hslToHex(h, s, l);
-    const colorEnd = hslToHex((h + 40) % 360, Math.min(100, s + 10), Math.min(100, l + 5));
-
-    // ИСПРАВЛЕНИЕ: Добавлены `background-clip`, `-webkit-background-clip` и `color: transparent`
+    // Drive everything through a single CSS variable that the base stylesheet reads
+    // (var(--fpt-btn-color)). The old code injected a gradient + background-clip:text,
+    // but a later rule in content_styles.css forced `color:#C026D3 !important`, so the
+    // user's custom colour was always ignored. Setting the variable + plain color avoids
+    // the specificity fight entirely and the colour now actually changes.
     styleTag.textContent = `
         #fpToolsButton {
-            background: linear-gradient(45deg, ${colorStart}, ${colorEnd});
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
+            --fpt-btn-color: ${settings.color};
+            color: ${settings.color} !important;
             font-size: ${settings.size}px !important;
-            opacity: ${settings.opacity / 100};
+            opacity: ${settings.opacity / 100} !important;
         }
         #fpToolsButton::before {
-            background: linear-gradient(90deg, ${colorStart}, ${colorEnd});
+            background: ${settings.color} !important;
         }
     `;
 
@@ -192,5 +190,12 @@ function hideHeaderButtonTooltip() {
 
 function initializeHeaderButtonStyler() {
     createButtonStyler();
+    loadAndApplyButtonStyles();
+}
+
+// Applies the saved colour/size/opacity to the header button WITHOUT creating the
+// styler panel. Safe to call at page load so the button looks right before the popup
+// (which builds the panel) is ever opened.
+function applyHeaderButtonStylesEarly() {
     loadAndApplyButtonStyles();
 }

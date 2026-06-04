@@ -42,7 +42,7 @@ async function parseHtmlViaOffscreen(html, action) {
 async function getAuthDetails() {
     const goldenKeyCookie = await chrome.cookies.get({ url: 'https://funpay.com', name: 'golden_key' });
     if (!goldenKeyCookie) throw new Error('Не удалось найти cookie "golden_key". Вы вошли в свой аккаунт FunPay?');
-    // FIX: include PHPSESSID — FunPay requires it alongside golden_key for runner requests
+    // FIX: include PHPSESSID - FunPay requires it alongside golden_key for runner requests
     const phpSessIdCookie = await chrome.cookies.get({ url: 'https://funpay.com', name: 'PHPSESSID' });
     const phpsessidPart = phpSessIdCookie?.value ? `; PHPSESSID=${phpSessIdCookie.value}` : '';
     const cookies = `golden_key=${goldenKeyCookie.value}${phpsessidPart};`;

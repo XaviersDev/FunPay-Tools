@@ -1,5 +1,5 @@
 // content/features/quick_lot_search.js
-// Quick search / filter over lots on the offers page — no page reload needed
+// Quick search / filter over lots on the offers page - no page reload needed
 
 (function () {
     'use strict';
@@ -23,7 +23,7 @@
         `;
         container.prepend(bar);
 
-        // Если есть заголовок "Предложения" с кнопками Выбрать/Включить — перемещаем поиск после него
+        // Если есть заголовок "Предложения" с кнопками Выбрать/Включить - перемещаем поиск после него
         const offersHeader = Array.from(container.querySelectorAll('h5.mb10.text-bold'))
             .find(h => h.textContent.trim() === 'Предложения' || h.textContent.trim() === 'Отзывы');
         if (offersHeader) offersHeader.insertAdjacentElement('afterend', bar);

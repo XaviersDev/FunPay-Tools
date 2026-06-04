@@ -70,7 +70,7 @@ const SCENES = [
             <div class="tour-magicstick-mockup">
                 <div class="tour-ms-element" id="tour-ms-target">Кнопка</div>
                 <div class="tour-ms-panel">
-                    <span>Цвет:</span> <input type="color" value="#00c9ff" disabled>
+                    <span>Цвет:</span> <input type="color" value="#E879F9" disabled>
                 </div>
                 <div class="tour-ms-cursor"></div>
             </div>`,
@@ -148,7 +148,7 @@ const SCENES = [
                     <span class="material-icons">upgrade</span><h4>Авто-поднятие</h4><p>Следующее через: 3:59:58</p>
                 </div>
                 <div class="tour-auto-item-3d">
-                    <span class="material-icons">discord</span><h4>Discord</h4><p>Новое сообщение!</p>
+                    <span class="material-icons">forum</span><h4>Discord</h4><p>Новое сообщение!</p>
                 </div>
             </div>`,
         duration: 6000

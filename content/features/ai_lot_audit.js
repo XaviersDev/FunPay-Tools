@@ -51,7 +51,7 @@ function robustParseObject(text) {
     } catch (_) { return null; }
 }
 
-// content/features/ai_lot_audit.js — FunPay Tools 2.9 (full rewrite)
+// content/features/ai_lot_audit.js - FunPay Tools 2.9 (full rewrite)
 // Survey-style audit: AI generates ~40 questions, user answers, AI gives recommendations.
 // Question types: yesno, choice, rating, text, number
 
@@ -101,8 +101,8 @@ async function auditLoadData() {
 // ── Phase 2: Generate questions (AI call 1) ─────────────────────────────────
 async function auditGenerateQuestions(data) {
     const realLots    = data.lots.slice(0, 60);
-    const lotsText    = realLots.map((l, i) => `${i+1}. [${l.categoryName || '—'}] "${l.title}"`).join('\n');
-    const totalLots   = realLots.length; // cap at 60 — don't confuse AI with huge numbers
+    const lotsText    = realLots.map((l, i) => `${i+1}. [${l.categoryName || '-'}] "${l.title}"`).join('\n');
+    const totalLots   = realLots.length; // cap at 60 - don't confuse AI with huge numbers
 
     const vagueTitle  = realLots.filter(l => l.title.length < 10 || /^лот|^товар|^услуга|тест|demo|копир/i.test(l.title));
     const longTitle   = realLots.filter(l => l.title.length > 80);
@@ -112,15 +112,15 @@ async function auditGenerateQuestions(data) {
         .slice(0, 4)
         .map(l => `"${l.title}"`);
 
-    // Build conditional sections — only mention real problems that actually exist
+    // Build conditional sections - only mention real problems that actually exist
     const titleIssues = [
-        vagueTitle.length ? `  • Лоты с очень коротким или расплывчатым названием: ${vagueTitle.map(l => '"'+l.title+'"').join(', ')} — спроси конкретно что продаётся в каждом из них` : '',
-        longTitle.length  ? `  • Лоты с названием длиннее 80 символов: ${longTitle.map(l => '"'+l.title+'"').slice(0,3).join(', ')} — спроси, первые 40 символов содержат суть или воду?` : '',
-        probeLots.length  ? `  • Лоты с подозрительными словами (тест/старый/неполный): ${probeLots.join(', ')} — спроси про каждый конкретно` : '',
+        vagueTitle.length ? `  • Лоты с очень коротким или расплывчатым названием: ${vagueTitle.map(l => '"'+l.title+'"').join(', ')} - спроси конкретно что продаётся в каждом из них` : '',
+        longTitle.length  ? `  • Лоты с названием длиннее 80 символов: ${longTitle.map(l => '"'+l.title+'"').slice(0,3).join(', ')} - спроси, первые 40 символов содержат суть или воду?` : '',
+        probeLots.length  ? `  • Лоты с подозрительными словами (тест/старый/неполный): ${probeLots.join(', ')} - спроси про каждый конкретно` : '',
     ].filter(Boolean).join('\n') || '  • Спроси есть ли в названиях что-то уникальное (УТП) или они выглядят как у всех конкурентов';
 
-    const prompt = `Ты — аналитик рекламных объявлений на FunPay.com.
-FunPay — маркетплейс игровых товаров. Покупатели ищут через поиск, сортируют по цене. Дешевле = выше.
+    const prompt = `Ты - аналитик рекламных объявлений на FunPay.com.
+FunPay - маркетплейс игровых товаров. Покупатели ищут через поиск, сортируют по цене. Дешевле = выше.
 
 ЛОТЫ ПРОДАВЦА (показаны ${totalLots} из ${data.lots.length}):
 ${lotsText}
@@ -128,9 +128,9 @@ ${lotsText}
 КАТЕГОРИИ: ${gameList.join(', ')}
 
 ПРАВИЛА FunPay которые влияют на продажи:
-- Название обрезается после ~50 символов в списке — начало названия критично
+- Название обрезается после ~50 символов в списке - начало названия критично
 - Лоты без фото получают меньше кликов
-- Продавец может дублировать лоты по серверам — это нормально, не спрашивай об этом
+- Продавец может дублировать лоты по серверам - это нормально, не спрашивай об этом
 
 ЗАДАЧА: Сгенерируй РОВНО 30 вопросов строго по РЕАЛЬНЫМ лотам выше.
 
@@ -141,29 +141,29 @@ ${lotsText}
 ✗ НЕ спрашивай про автовыдачу, авто-поднятие, дублирование по серверам
 ✗ НЕ задавай вопросы рейтинга 1-5
 
-ТЕМЫ (все вопросы — про конкретные лоты из списка):
+ТЕМЫ (все вопросы - про конкретные лоты из списка):
 
-— НАЗВАНИЯ (7-9 вопросов):
+- НАЗВАНИЯ (7-9 вопросов):
 ${titleIssues}
-  • Есть ли лот название которого не отличается от конкурентов — что уникального можно добавить?
+  • Есть ли лот название которого не отличается от конкурентов - что уникального можно добавить?
 
-— ЦЕНЫ (8-10 вопросов):
+- ЦЕНЫ (8-10 вопросов):
   • Для каждой категории из списка: текущая цена ниже/равна/выше минимума в категории?
-  • Тестировал снижение цены на 10-15% — как влияло на заказы?
+  • Тестировал снижение цены на 10-15% - как влияло на заказы?
   • Есть ли лоты с ценой которую не менял больше месяца?
-  • Если несколько лотов в одной категории — чем обоснована разница в цене?
+  • Если несколько лотов в одной категории - чем обоснована разница в цене?
 
-— ОПИСАНИЕ И ФОТО (6-8 вопросов):
+- ОПИСАНИЕ И ФОТО (6-8 вопросов):
   • На каких конкретных лотах нет фото?
   • В описании написано конкретно что получит покупатель, или общие слова ("быстро", "качественно")?
-  • Указано время выдачи и онлайн-часы — или покупатель не знает когда ждать?
+  • Указано время выдачи и онлайн-часы - или покупатель не знает когда ждать?
 
-— ПРОДАЖИ (4-6 вопросов):
+- ПРОДАЖИ (4-6 вопросов):
   • Какой лот из списка приносит больше всего денег и почему?
   • Есть ли лот который хочешь продавать больше, но он плохо идёт?
   • Какой лот чаще всего видят но не покупают?
 
-Формат — ТОЛЬКО JSON массив, без markdown, без текста до или после:
+Формат - ТОЛЬКО JSON массив, без markdown, без текста до или после:
 [
   {"id":1,"q":"Вопрос про конкретный лот?","type":"yesno"},
   {"id":2,"q":"Вопрос с вариантами?","type":"choice","opts":["А","Б","В"]},
@@ -196,7 +196,7 @@ async function auditGenerateRecommendations(data, questions, answers) {
 
     const lotsText = data.lots.slice(0, 50).map(l => `"${l.title}" [${l.categoryName}]`).join(', ');
 
-    const prompt = `Ты — аналитик рекламных объявлений FunPay. Тебе предоставлены лоты продавца и его ответы на вопросы аудита.
+    const prompt = `Ты - аналитик рекламных объявлений FunPay. Тебе предоставлены лоты продавца и его ответы на вопросы аудита.
 
 ЛОТЫ: ${lotsText}
 
@@ -207,7 +207,7 @@ ${qaText}
 - В поиске выше тот, у кого ниже цена И свежее поднятие (раз в 4 часа максимум)
 - Покупатель ищет точными словами: "1000 голды", "купить ключ", "сервер Гордунни"
 - Лот без фото = меньше кликов в среднем
-- Первые 40 символов названия — единственное что видно в поисковой выдаче до обрезки
+- Первые 40 символов названия - единственное что видно в поисковой выдаче до обрезки
 
 ПРАВИЛА РЕКОМЕНДАЦИЙ:
 ✗ ЗАПРЕЩЕНО: советы про общение, сервис, клиентов, отзывы, вежливость, скорость ответа
@@ -215,17 +215,17 @@ ${qaText}
 ✓ КАЖДАЯ рекомендация должна называть конкретный лот по имени или конкретную цифру
 
 ПРИМЕРЫ ХОРОШИХ рекомендаций:
-✓ "Лот \"Голда WoW\" — переименуйте в \"1000 Голды WoW Classic Пламегор\" (сервер + количество = ключевые слова)"
-✓ "Лот \"Ключ Steam\" стоит 299₽ — если в категории минимум 250₽, снизьте до 255₽ чтобы попасть в топ"
-✓ "Лот \"Аккаунт Minecraft\" — добавьте скриншот инвентаря или уровня, без фото CTR ниже"
-✓ "Поднятие раз в день — этого мало, лот уходит в конец за 4 часа. Нужно поднятие каждые 4 часа"
-✓ "В описании лота \"X\" не указано время выдачи — покупатели уходят к конкурентам у кого написано \"онлайн 24/7\""
+✓ "Лот \"Голда WoW\" - переименуйте в \"1000 Голды WoW Classic Пламегор\" (сервер + количество = ключевые слова)"
+✓ "Лот \"Ключ Steam\" стоит 299₽ - если в категории минимум 250₽, снизьте до 255₽ чтобы попасть в топ"
+✓ "Лот \"Аккаунт Minecraft\" - добавьте скриншот инвентаря или уровня, без фото CTR ниже"
+✓ "Поднятие раз в день - этого мало, лот уходит в конец за 4 часа. Нужно поднятие каждые 4 часа"
+✓ "В описании лота \"X\" не указано время выдачи - покупатели уходят к конкурентам у кого написано \"онлайн 24/7\""
 
-Формат ответа — ТОЛЬКО JSON, без markdown:
+Формат ответа - ТОЛЬКО JSON, без markdown:
 {
-  "critical": ["Самое важное что нужно сделать прямо сейчас — с конкретным лотом", "..."],
-  "titles": ["Лот \"X\" — конкретное новое название вместо старого", "..."],
-  "pricing": ["Лот \"X\" — конкретное ценовое действие", "..."],
+  "critical": ["Самое важное что нужно сделать прямо сейчас - с конкретным лотом", "..."],
+  "titles": ["Лот \"X\" - конкретное новое название вместо старого", "..."],
+  "pricing": ["Лот \"X\" - конкретное ценовое действие", "..."],
   "visibility": ["Конкретное действие по поднятию/фото/описанию с названием лота", "..."],
   "summary": "1-2 предложения: главная слабая точка продавца и один главный приоритет"
 }`;
@@ -301,7 +301,7 @@ function auditRenderQuestion(index) {
                 wrap.querySelectorAll('.fp-audit-opt').forEach(b => {
                     b.style.borderColor = '#22253a'; b.style.background = '#1a1c2e'; b.style.color = '#d8dae8';
                 });
-                btn.style.borderColor = '#6B66FF'; btn.style.background = '#252847'; btn.style.color = '#a09ef8';
+                btn.style.borderColor = '#C026D3'; btn.style.background = '#2A1830'; btn.style.color = '#E9A8FF';
                 btn.dataset.selected = '1';
             });
             wrap.appendChild(btn);
@@ -326,7 +326,7 @@ function auditRenderQuestion(index) {
                 wrap.querySelectorAll('.fp-audit-opt').forEach(b => {
                     b.style.borderColor = '#22253a'; b.style.background = '#1a1c2e'; b.style.color = '#d8dae8';
                 });
-                btn.style.borderColor = '#6B66FF'; btn.style.background = '#252847'; btn.style.color = '#a09ef8';
+                btn.style.borderColor = '#C026D3'; btn.style.background = '#2A1830'; btn.style.color = '#E9A8FF';
                 btn.dataset.selected = '1';
             });
             wrap.appendChild(btn);
@@ -370,7 +370,7 @@ function auditRenderQuestion(index) {
         const labelEl = document.createElement('span');
         labelEl.style.cssText = 'font-size:12px;color:#5a5f7a;margin-left:6px;';
         wrap.appendChild(labelEl);
-        getValue = () => selectedRating ? `${selectedRating}/5 — ${labels[selectedRating]}` : '';
+        getValue = () => selectedRating ? `${selectedRating}/5 - ${labels[selectedRating]}` : '';
         container.appendChild(wrap);
 
     } else {
@@ -378,7 +378,7 @@ function auditRenderQuestion(index) {
         const ta = document.createElement('textarea');
         ta.placeholder = 'Ваш ответ...';
         ta.style.cssText = `width:100%;height:80px;background:#0e0f16;border:1px solid #22253a;border-radius:8px;padding:10px;color:#d8dae8;font-size:13px;resize:vertical;outline:none;font-family:inherit;box-sizing:border-box;`;
-        ta.addEventListener('focus', () => ta.style.borderColor = '#6B66FF');
+        ta.addEventListener('focus', () => ta.style.borderColor = '#C026D3');
         ta.addEventListener('blur',  () => ta.style.borderColor = '#22253a');
         getValue = () => ta.value.trim();
         container.appendChild(ta);
@@ -423,10 +423,10 @@ function auditShowResults(recs) {
         <div style="background:#1a1c2e;border-radius:8px;padding:14px;margin-bottom:16px;font-size:13px;color:#c0c4d8;line-height:1.5;">
             <strong style="color:#eceef6;">Резюме:</strong><br>${recs.summary || ''}
         </div>
-        ${section('🔴 Критично — исправить первым делом', recs.critical, '#e05252')}
+        ${section('🔴 Критично - исправить первым делом', recs.critical, '#e05252')}
         ${section('📝 Названия и описания', recs.titles, '#FF6B6B')}
         ${section('💰 Цены', recs.pricing, '#ff9800')}
-        ${section('🔍 Видимость в поиске', recs.visibility, '#6B66FF')}
+        ${section('🔍 Видимость в поиске', recs.visibility, '#C026D3')}
         ${section('💬 Клиентский сервис', recs.service, '#4caf82')}
         <button onclick="document.getElementById('fp-audit-start-btn').click()" style="margin-top:10px;background:#1e2030;border:1px solid #22253a;border-radius:6px;padding:8px 16px;color:#9099b8;cursor:pointer;font-size:13px;font-family:inherit;">Начать заново</button>
     `;
@@ -512,7 +512,7 @@ function initializeAILotAudit() {
             _answers[_currentQ] = val;
 
             if (_currentQ >= _questions.length - 1) {
-                // Finish — generate recommendations
+                // Finish - generate recommendations
                 auditSetState('processing');
                 try {
                     const recs = await auditGenerateRecommendations(_auditData, _questions, _answers);

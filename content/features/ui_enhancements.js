@@ -96,7 +96,7 @@ function getStatsBlockHTML() {
             <div class="fp-stats-extra" id="fpTools-stats-extra" style="display:none;">
                 <div class="fp-stat-detail-item">
                     <span class="detail-label">🔒 Неподтверждённые заказы:</span>
-                    <span class="detail-value" id="fpTools-stats-unconfirmed">—</span>
+                    <span class="detail-value" id="fpTools-stats-unconfirmed">-</span>
                 </div>
             </div>
         </div>
@@ -217,7 +217,7 @@ async function displaySalesStats() {
     document.getElementById("fpTools-stats-popular-category").textContent = stats.mostPopularCategory || "-";
 
     // Fetch unconfirmed (pending) balance from live trade page
-    // FIX: Always fetch status=paid specifically (ignores the period filter — unconfirmed is always real-time)
+    // FIX: Always fetch status=paid specifically (ignores the period filter - unconfirmed is always real-time)
     const unconfEl = document.getElementById("fpTools-stats-unconfirmed");
     if (unconfEl) {
         unconfEl.textContent = "…";
@@ -240,7 +240,7 @@ async function displaySalesStats() {
                     }
                 }
             }
-        } catch(_) { unconfEl.textContent = "—"; }
+        } catch(_) { unconfEl.textContent = "-"; }
     }
 }
 
@@ -315,7 +315,33 @@ function initializeSalesStatistics() {
 function initializeHideBalance() {
     const balanceElements = document.querySelectorAll('.badge-balance, .balances-value');
     balanceElements.forEach(el => {
+        // stash original once so we can restore when toggled off
+        if (el.dataset.fptOrigBalance === undefined) el.dataset.fptOrigBalance = el.textContent;
         el.textContent = el.textContent.replace(/[\d.,\s]/g, '?');
+    });
+    // 3.0.6.2: now that the text is masked, drop the document_start pre-hide CSS so the
+    // "?" masked value is shown (instead of the transparent/•••• placeholder).
+    const preHide = document.getElementById('fp-tools-balance-prehide');
+    if (preHide) preHide.remove();
+}
+
+function restoreBalance() {
+    document.querySelectorAll('.badge-balance, .balances-value').forEach(el => {
+        if (el.dataset.fptOrigBalance !== undefined) {
+            el.textContent = el.dataset.fptOrigBalance;
+        }
+    });
+    // ensure the early mask is gone when balance hiding is turned off
+    const preHide = document.getElementById('fp-tools-balance-prehide');
+    if (preHide) preHide.remove();
+}
+
+// 3.0: react to the toggle instantly - no page reload needed.
+if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
+    chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== 'local' || !changes.hideBalance) return;
+        if (changes.hideBalance.newValue === true) initializeHideBalance();
+        else restoreBalance();
     });
 }
 

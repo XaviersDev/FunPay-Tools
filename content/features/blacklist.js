@@ -1,6 +1,12 @@
 function initializeBlacklist() {
     const page = document.querySelector('.fp-tools-page-content[data-page="blacklist"]');
-    if (!page || page.dataset.initialized) return;
+    if (!page) return;
+    if (page.dataset.initialized) {
+        // Уже инициализировано - просто перерисуем актуальный список
+        // (на случай добавлений из чата, пока панель была закрыта).
+        if (typeof page._fpBlRender === 'function') page._fpBlRender();
+        return;
+    }
     page.dataset.initialized = 'true';
 
     const listEl = document.getElementById('fp-bl-list');
@@ -100,6 +106,7 @@ function initializeBlacklist() {
     });
 
     render();
+    page._fpBlRender = render;
 
     document.addEventListener('fpToolsBlacklistUpdated', () => {
         if (page.classList.contains('active')) render();
@@ -116,5 +123,19 @@ async function addToBlacklistFromChat(username) {
     fpToolsBlacklist.push({ username, note: 'Добавлен из чата', blockDelivery: true, blockResponse: true, blockNotification: false, addedAt: Date.now() });
     await chrome.storage.local.set({ fpToolsBlacklist });
     showNotification(`${username} добавлен в чёрный список`);
+    document.dispatchEvent(new Event('fpToolsBlacklistUpdated'));
+}
+async function isInBlacklist(username) {
+    if (!username) return false;
+    const { fpToolsBlacklist = [] } = await chrome.storage.local.get('fpToolsBlacklist');
+    return fpToolsBlacklist.some(e => e.username.toLowerCase() === username.toLowerCase());
+}
+
+async function removeFromBlacklistByName(username) {
+    if (!username) return;
+    const { fpToolsBlacklist = [] } = await chrome.storage.local.get('fpToolsBlacklist');
+    const next = fpToolsBlacklist.filter(e => e.username.toLowerCase() !== username.toLowerCase());
+    await chrome.storage.local.set({ fpToolsBlacklist: next });
+    showNotification(`${username} удалён из чёрного списка`);
     document.dispatchEvent(new Event('fpToolsBlacklistUpdated'));
 }

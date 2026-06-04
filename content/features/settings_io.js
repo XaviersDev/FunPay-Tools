@@ -1,4 +1,4 @@
-// content/features/settings_io.js — FunPay Tools 2.9
+// content/features/settings_io.js - FunPay Tools 2.9
 // Экспорт и импорт всех настроек FunPay Tools в файл .fpconfig
 
 const FP_CONFIG_VERSION  = 1;
@@ -87,7 +87,7 @@ async function importSettings(file) {
         await chrome.storage.local.set(safe);
 
         const fromVer = obj._extVer ? ` (из v${obj._extVer})` : '';
-        showNotification(`Настройки импортированы${fromVer} — перезагрузите страницу ✓`);
+        showNotification(`Настройки импортированы${fromVer} - перезагрузите страницу ✓`);
 
         // Reload after 1.5s
         setTimeout(() => window.location.reload(), 1500);

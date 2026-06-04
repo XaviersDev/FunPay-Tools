@@ -21,6 +21,68 @@ function addOrderStatusBadge() {
     if (color) statusEl.style.cssText += `;color:${color}!important;font-weight:700;`;
 }
 
+// Task: make the order number easy to copy with one click.
+// The order page header looks like: <h1 ...>Заказ #N2Y2BNJN <br><span>...</span></h1>
+// We wrap the "#XXXXXXXX" token in a clickable chip that copies the raw id to clipboard.
+function makeOrderNumberCopyable() {
+    const header = document.querySelector('h1.page-header');
+    if (!header || header.dataset.fpOrderCopy) return;
+
+    // Find the text node that contains "#XXXXXXXX"
+    const walker = document.createTreeWalker(header, NodeFilter.SHOW_TEXT, null);
+    let node, target = null, match = null;
+    while ((node = walker.nextNode())) {
+        const m = node.nodeValue.match(/#([A-Z0-9]{6,})/);
+        if (m) { target = node; match = m; break; }
+    }
+    if (!target || !match) return;
+    header.dataset.fpOrderCopy = '1';
+
+    const orderId = match[1];
+    const full = target.nodeValue;
+    const idx = full.indexOf(match[0]);
+
+    const before = document.createTextNode(full.slice(0, idx));
+    const after  = document.createTextNode(full.slice(idx + match[0].length));
+
+    const chip = document.createElement('span');
+    chip.className = 'fp-order-copy-chip';
+    chip.textContent = `#${orderId}`;
+    chip.title = 'Нажмите, чтобы скопировать номер заказа';
+    chip.style.cssText =
+        'cursor:pointer;display:inline-flex;align-items:center;gap:6px;' +
+        'border-radius:6px;padding:0 6px;transition:background .15s ease;';
+    const icon = document.createElement('span');
+    icon.textContent = '⧉';
+    icon.style.cssText = 'font-size:0.75em;opacity:.6;';
+    chip.appendChild(icon);
+
+    chip.addEventListener('mouseenter', () => chip.style.background = 'rgba(192,38,211,0.15)');
+    chip.addEventListener('mouseleave', () => chip.style.background = '');
+    chip.addEventListener('click', async () => {
+        try {
+            await navigator.clipboard.writeText(orderId);
+        } catch (_) {
+            // Fallback for older contexts
+            const ta = document.createElement('textarea');
+            ta.value = orderId; document.body.appendChild(ta); ta.select();
+            try { document.execCommand('copy'); } catch (_) {}
+            ta.remove();
+        }
+        const old = chip.firstChild.nodeValue;
+        chip.firstChild.nodeValue = '✓ скопировано ';
+        chip.style.color = '#4caf82';
+        setTimeout(() => { chip.firstChild.nodeValue = old; chip.style.color = ''; }, 1200);
+        if (typeof showNotification === 'function') showNotification(`Номер заказа ${orderId} скопирован`);
+    });
+
+    const frag = document.createDocumentFragment();
+    frag.appendChild(before);
+    frag.appendChild(chip);
+    frag.appendChild(after);
+    target.parentNode.replaceChild(frag, target);
+}
+
 let _colorCodingActive = false;
 function initChatListColorCoding() {
     if (!window.location.pathname.startsWith('/chat/')) return;
@@ -64,12 +126,12 @@ function showDearVendorsBanner() {
     banner.id = 'fp-dear-vendors-banner';
     banner.style.cssText = `
         position:fixed;top:70px;left:50%;transform:translateX(-50%);
-        background:#2a1a1a;border:1px solid #e05252;border-radius:8px;
+        background:var(--fpt-surface-2, #2a1a1a);border:1px solid #e05252;border-radius:8px;
         padding:10px 18px;z-index:9999;font-family:Inter,sans-serif;
-        font-size:13px;color:#ff8a80;display:flex;align-items:center;gap:10px;
-        box-shadow:0 4px 16px rgba(0,0,0,0.5);max-width:600px;
+        font-size:13px;color:var(--fpt-text, #ff8a80);display:flex;align-items:center;gap:10px;
+        box-shadow:0 4px 16px var(--fpt-shadow, rgba(0,0,0,0.5));max-width:600px;
     `;
-    banner.innerHTML = `<span style="font-size:18px;">⚠️</span><span><strong>Системное сообщение FunPay</strong> — это предупреждение от администрации, не от покупателя.</span><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#e05252;cursor:pointer;font-size:16px;margin-left:auto;padding:0 0 0 8px;">✕</button>`;
+    banner.innerHTML = `<span style="font-size:18px;">⚠️</span><span><strong style="color:#e05252;">Системное сообщение FunPay</strong> - это предупреждение от администрации, не от покупателя.</span><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#e05252;cursor:pointer;font-size:16px;margin-left:auto;padding:0 0 0 8px;">✕</button>`;
     document.body.appendChild(banner);
     setTimeout(() => banner?.remove(), 8000);
 }
@@ -88,9 +150,13 @@ function initQuickPriceEdit() {
         const offerMatch = row.getAttribute('href')?.match(/id=(\d+)/);
         if (!priceEl || !offerMatch) return;
         const offerId = offerMatch[1];
+        // node id of the current lots page - needed so the background can load the full
+        // offer form and merge the price change without wiping other fields.
+        const nodeMatch = window.location.pathname.match(/\/lots\/(\d+)/);
+        const nodeId = nodeMatch ? nodeMatch[1] : null;
 
         const editBtn = document.createElement('span');
-        editBtn.style.cssText = 'display:none;font-size:11px;color:#6B66FF;cursor:pointer;margin-left:4px;vertical-align:middle;user-select:none;';
+        editBtn.style.cssText = 'display:none;font-size:11px;color:#C026D3;cursor:pointer;margin-left:4px;vertical-align:middle;user-select:none;';
         editBtn.textContent = '✎';
         editBtn.title = 'Быстро изменить цену';
         priceEl.appendChild(editBtn);
@@ -102,7 +168,7 @@ function initQuickPriceEdit() {
             e.preventDefault();
             e.stopPropagation();
             row.setAttribute('data-fp-pe-editing', '1');
-            openPricePopup(offerId, priceEl.textContent.replace(/[^\d.,]/g,'').trim(), row);
+            openPricePopup(offerId, priceEl.textContent.replace(/[^\d.,]/g,'').trim(), row, nodeId);
         });
         row.addEventListener('click', (e) => {
             if (row.getAttribute('data-fp-pe-editing')) {
@@ -114,13 +180,13 @@ function initQuickPriceEdit() {
     });
 }
 
-function openPricePopup(offerId, currentPrice, anchor) {
+function openPricePopup(offerId, currentPrice, anchor, nodeId) {
     document.getElementById('fp-price-popup')?.remove();
     const popup = document.createElement('div');
     popup.id = 'fp-price-popup';
     const rect = anchor.getBoundingClientRect();
     popup.style.cssText = `position:fixed;left:${Math.min(rect.right+8, window.innerWidth-200)}px;top:${rect.top}px;background:#13141a;border:1px solid #22253a;border-radius:8px;padding:12px;z-index:10000;box-shadow:0 8px 24px rgba(0,0,0,0.5);font-family:Inter,sans-serif;width:176px;`;
-    popup.innerHTML = `<div style="font-size:10px;color:#5a5f7a;margin-bottom:6px;font-weight:700;text-transform:uppercase;">Цена</div><input id="fp-pe-input" type="number" step="0.01" value="${parseFloat(currentPrice)||''}" style="width:100%;background:#0e0f16;border:1px solid #22253a;border-radius:5px;padding:6px;color:#d8dae8;font-size:13px;outline:none;font-family:inherit;margin-bottom:8px;"><div style="display:flex;gap:6px;"><button id="fp-pe-save" style="flex:1;background:#6B66FF;border:none;color:#fff;border-radius:5px;padding:6px;font-size:12px;cursor:pointer;font-weight:600;">Сохранить</button><button id="fp-pe-cancel" style="background:#1e2030;border:1px solid #2a2d44;color:#9099b8;border-radius:5px;padding:6px 8px;font-size:12px;cursor:pointer;">✕</button></div><div id="fp-pe-status" style="font-size:11px;margin-top:6px;min-height:14px;color:#5a5f7a;"></div>`;
+    popup.innerHTML = `<div style="font-size:10px;color:#5a5f7a;margin-bottom:6px;font-weight:700;text-transform:uppercase;">Цена</div><input id="fp-pe-input" type="number" step="0.01" value="${parseFloat(currentPrice)||''}" style="width:100%;background:#0e0f16;border:1px solid #22253a;border-radius:5px;padding:6px;color:#d8dae8;font-size:13px;outline:none;font-family:inherit;margin-bottom:8px;"><div style="display:flex;gap:6px;"><button id="fp-pe-save" style="flex:1;background:#C026D3;border:none;color:#fff;border-radius:5px;padding:6px;font-size:12px;cursor:pointer;font-weight:600;">Сохранить</button><button id="fp-pe-cancel" style="background:#1e2030;border:1px solid #2a2d44;color:#9099b8;border-radius:5px;padding:6px 8px;font-size:12px;cursor:pointer;">✕</button></div><div id="fp-pe-status" style="font-size:11px;margin-top:6px;min-height:14px;color:#5a5f7a;"></div>`;
     document.body.appendChild(popup);
 
     const input = popup.querySelector('#fp-pe-input');
@@ -137,7 +203,7 @@ function openPricePopup(offerId, currentPrice, anchor) {
         saveBtn.textContent = '...'; saveBtn.disabled = true;
         popup.querySelector('#fp-pe-status').textContent = 'Сохраняем...';
         try {
-            const res = await chrome.runtime.sendMessage({ action: 'saveSingleLot', data: { offer_id: offerId, price: String(price) } });
+            const res = await chrome.runtime.sendMessage({ action: 'saveSingleLot', nodeId, data: { offer_id: offerId, price: String(price) } });
             if (res?.success) {
                 popup.querySelector('#fp-pe-status').style.color = '#4caf82';
                 popup.querySelector('#fp-pe-status').textContent = '✓ Сохранено';
@@ -177,10 +243,10 @@ function initOfferListFilter() {
         btn.className = 'btn btn-default';
         btn.style.cssText = 'padding:4px 10px;font-size:11px;font-weight:700;';
         btn.textContent = label;
-        if (i === 0) { btn.style.background = '#252847'; btn.style.color = '#a09ef8'; }
+        if (i === 0) { btn.style.background = '#2A1830'; btn.style.color = '#E9A8FF'; }
         btn.addEventListener('click', () => {
             bar.querySelectorAll('button').forEach(b => { b.style.background=''; b.style.color=''; });
-            btn.style.background = '#252847'; btn.style.color = '#a09ef8';
+            btn.style.background = '#2A1830'; btn.style.color = '#E9A8FF';
             active = i;
             offerBlocks.forEach(b => { b.style.display = fn(b) ? '' : 'none'; });
         });
@@ -195,6 +261,9 @@ function initAllOrderEnhancements() {
     if (window.location.pathname.startsWith('/chat/') || window.location.pathname.includes('/orders/')) {
         addOrderStatusBadge();
         initChatListColorCoding();
+    }
+    if (window.location.pathname.includes('/orders/')) {
+        makeOrderNumberCopyable();
     }
     if (window.location.pathname.match(/\/users\/\d+/) || window.location.pathname.startsWith('/lots/')) {
         initQuickPriceEdit();
@@ -213,4 +282,5 @@ new MutationObserver(_throttle(() => {
     initChatListColorCoding();
     initQuickPriceEdit();
     initOfferListFilter();
+    if (window.location.pathname.includes('/orders/')) makeOrderNumberCopyable();
 }, 800)).observe(_oeContent, { childList: true, subtree: false });

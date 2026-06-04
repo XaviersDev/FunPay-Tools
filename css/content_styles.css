@@ -4,7 +4,7 @@
     font-weight: bold; 
     cursor: pointer; 
     user-select: none; 
-    color: #6B66FF; 
+    color: #C026D3; 
     padding: 15px 8px;
     position: relative; 
     transition: all 0.3s ease, transform 0.3s ease; 
@@ -26,11 +26,11 @@
     left: 15%;
     width: 70%;
     height: 2px;
-    background: #6B66FF;
+    background: #C026D3;
     transform: scaleX(0);
     transform-origin: right;
     transition: transform 0.3s ease;
-    box-shadow: 0 0 2px rgba(107, 102, 255, 0.3);
+    box-shadow: 0 0 2px rgba(192, 38, 211, 0.3);
     border-radius: 5px;
 }
 
@@ -203,14 +203,14 @@
 }
 
 #fpToolsButton:hover {
-    text-shadow: 0 0 12px rgba(107, 102, 255, 0.5);
+    text-shadow: 0 0 12px rgba(192, 38, 211, 0.5);
     transform: translateY(0);
 }
 
 #fpToolsButton:hover::before {
     transform: scaleX(1);
     transform-origin: left;
-    box-shadow: 0 0 10px rgba(107, 102, 255, 0.5), 0 0 20px rgba(255, 107, 107, 0.3);
+    box-shadow: 0 0 10px rgba(192, 38, 211, 0.5), 0 0 20px rgba(255, 107, 107, 0.3);
 }
 
 #fpToolsButton:hover::after {
@@ -224,15 +224,15 @@
 
 @keyframes fpToolsPulse {
     0% {
-        text-shadow: 0 0 12px rgba(107, 102, 255, 0.5);
+        text-shadow: 0 0 12px rgba(192, 38, 211, 0.5);
     }
 
     50% {
-        text-shadow: 0 0 15px rgba(107, 102, 255, 0.6), 0 0 25px rgba(255, 107, 107, 0.4);
+        text-shadow: 0 0 15px rgba(192, 38, 211, 0.6), 0 0 25px rgba(255, 107, 107, 0.4);
     }
 
     100% {
-        text-shadow: 0 0 12px rgba(107, 102, 255, 0.5);
+        text-shadow: 0 0 12px rgba(192, 38, 211, 0.5);
     }
 }
 
@@ -270,6 +270,95 @@
     visibility: visible;
     opacity: 1;
     animation: popIn 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Прозрачное меню FunPay Tools (управляется из «Кастомизация»).
+   Прозрачным делаем ВСЕ слои окна (рамка, шапка, навигация, контент), иначе
+   непрозрачная шапка/панели перекрывают эффект. Размытие - на самом окне
+   (backdrop-filter), как в блоке статистики, чтобы фон за меню был размыт
+   и элементы внутри не сливались. */
+.fp-tools-popup.fpt-menu-transparent {
+    /* скрим (контрастная подложка) + пользовательский оттенок поверх.
+       Скрим обеспечивает читаемость при любой теме, оттенок сохраняет цвет. */
+    background:
+        linear-gradient(var(--fpt-menu-bg, rgba(19,20,26,0.8)), var(--fpt-menu-bg, rgba(19,20,26,0.8))),
+        var(--fpt-menu-scrim, rgba(15,16,22,0.62)) !important;
+}
+/* Текст меню под фон: на светлом фоне - тёмный, на тёмном - светлый */
+.fp-tools-popup.fpt-menu-transparent.fpt-menu-on-dark,
+.fp-tools-popup.fpt-menu-transparent.fpt-menu-on-dark .fp-tools-content,
+.fp-tools-popup.fpt-menu-transparent.fpt-menu-on-dark .fp-tools-nav li a,
+.fp-tools-popup.fpt-menu-transparent.fpt-menu-on-dark label,
+.fp-tools-popup.fpt-menu-transparent.fpt-menu-on-dark .fp-tools-content p,
+.fp-tools-popup.fpt-menu-transparent.fpt-menu-on-dark .range-label {
+    color: #e8eaf2 !important;
+}
+.fp-tools-popup.fpt-menu-transparent.fpt-menu-on-light,
+.fp-tools-popup.fpt-menu-transparent.fpt-menu-on-light .fp-tools-content,
+.fp-tools-popup.fpt-menu-transparent.fpt-menu-on-light .fp-tools-nav li a,
+.fp-tools-popup.fpt-menu-transparent.fpt-menu-on-light label,
+.fp-tools-popup.fpt-menu-transparent.fpt-menu-on-light .fp-tools-content p,
+.fp-tools-popup.fpt-menu-transparent.fpt-menu-on-light .range-label,
+.fp-tools-popup.fpt-menu-transparent.fpt-menu-on-light h2,
+.fp-tools-popup.fpt-menu-transparent.fpt-menu-on-light h3,
+.fp-tools-popup.fpt-menu-transparent.fpt-menu-on-light h4 {
+    color: #16181f !important;
+}
+.fp-tools-popup.fpt-menu-transparent.fpt-menu-on-light .fp-nav-divider {
+    color: #4a4f68 !important;
+}
+.fp-tools-popup.fpt-menu-transparent .fp-tools-header,
+.fp-tools-popup.fpt-menu-transparent .fp-tools-nav,
+.fp-tools-popup.fpt-menu-transparent .fp-tools-content {
+    background: transparent !important;
+}
+/* Кнопки боковой панели - на 2% плотнее меню, чтобы выделялись, но тоже прозрачные */
+.fp-tools-popup.fpt-menu-transparent .fp-tools-nav li a {
+    background: var(--fpt-menu-navbtn, rgba(42,16,51,0.05)) !important;
+}
+.fp-tools-popup.fpt-menu-transparent .fp-tools-nav li a:hover {
+    background: var(--fpt-menu-navactive, rgba(42,16,51,0.11)) !important;
+}
+.fp-tools-popup.fpt-menu-transparent .fp-tools-nav li.active a {
+    background: var(--fpt-menu-navactive, rgba(42,16,51,0.11)) !important;
+}
+/* Элементы внутри вкладок - такая же стеклянная подложка, как у кнопок боковой панели */
+.fp-tools-popup.fpt-menu-transparent .fp-tools-content .setting-group,
+.fp-tools-popup.fpt-menu-transparent .fp-tools-content .template-container,
+.fp-tools-popup.fpt-menu-transparent .fp-tools-content .fpt-smart-bump-card,
+.fp-tools-popup.fpt-menu-transparent .fp-tools-content .fp-tools-console,
+.fp-tools-popup.fpt-menu-transparent .fp-tools-content .template-input,
+.fp-tools-popup.fpt-menu-transparent .fp-tools-content select,
+.fp-tools-popup.fpt-menu-transparent .fp-tools-content input[type="text"],
+.fp-tools-popup.fpt-menu-transparent .fp-tools-content input[type="number"],
+.fp-tools-popup.fpt-menu-transparent .fp-tools-content input[type="range"],
+.fp-tools-popup.fpt-menu-transparent .fp-tools-content input[type="search"],
+.fp-tools-popup.fpt-menu-transparent .fp-tools-content textarea,
+.fp-tools-popup.fpt-menu-transparent .fp-tools-content .checkbox-label-inline {
+    background: var(--fpt-menu-navbtn, rgba(42,16,51,0.05)) !important;
+    border-radius: 10px;
+    border: none !important;
+    box-shadow: none !important;
+}
+.fp-tools-popup.fpt-menu-transparent .fp-tools-content .setting-group,
+.fp-tools-popup.fpt-menu-transparent .fp-tools-content .template-container,
+.fp-tools-popup.fpt-menu-transparent .fp-tools-content .checkbox-label-inline {
+    padding: 12px 14px;
+}
+/* убираем двойной фон у инпутов внутри уже застеклённого контейнера, чтобы не было «плашки в плашке» */
+.fp-tools-popup.fpt-menu-transparent .fp-tools-content .template-container input[type="range"],
+.fp-tools-popup.fpt-menu-transparent .fp-tools-content .template-container .template-input,
+.fp-tools-popup.fpt-menu-transparent .fp-tools-content .template-container select,
+.fp-tools-popup.fpt-menu-transparent .fp-tools-content .template-container input[type="text"],
+.fp-tools-popup.fpt-menu-transparent .fp-tools-content .template-container input[type="number"] {
+    background: transparent !important;
+}
+.fp-tools-popup.fpt-menu-transparent .fp-tools-content .template-container input[type="range"] {
+    background: rgba(255,255,255,0.08) !important;
+}
+.fp-tools-popup.fpt-menu-transparent.fpt-menu-blur {
+    backdrop-filter: blur(var(--fpt-menu-blur, 8px));
+    -webkit-backdrop-filter: blur(var(--fpt-menu-blur, 8px));
 }
 
 @keyframes popIn {
@@ -377,8 +466,8 @@
 }
 
 .fp-tools-nav li.active a {
-    background: #252847;
-    color: #a09ef8;
+    background: #2A1830;
+    color: #E9A8FF;
     font-weight: 600;
 }
 
@@ -448,6 +537,13 @@
     margin-top: 0;
 }
 
+/* Калькулятор: компактный заголовок, чтобы вкладка влезала без скролла */
+.fp-tools-page-content[data-page="calculator"] h3 {
+    margin-top: 0;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+}
+
 .fp-tools-page-content h4 {
     margin-top: 25px;
     margin-bottom: 15px;
@@ -484,7 +580,7 @@
 }
 
 .fp-tools-popup input[type="checkbox"]:checked {
-    background: linear-gradient(45deg, #00C9FF, #92FE9D);
+    background: linear-gradient(45deg, #E879F9, #92FE9D);
 }
 
 .fp-tools-popup input[type="checkbox"]::after {
@@ -546,7 +642,7 @@
 
 .fp-tools-popup button,
 .fp-tools-popup .btn {
-    background: #6B66FF;
+    background: #C026D3;
     color: white;
     border: none;
     padding: 12px 25px;
@@ -634,7 +730,7 @@
 }
 
 .chat-template-btn {
-    background: #6B66FF;
+    background: #C026D3;
 }
 
 .chat-template-btn:hover,
@@ -652,15 +748,38 @@
 
 .chat-buttons-container {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;            /* no line-breaks - scroll instead */
     align-items: center;
     gap: 4px;
     padding: 6px 8px;
-    background: rgba(107, 102, 255, 0.05);
+    background: rgba(192, 38, 211, 0.05);
     border-radius: 8px;
     margin-bottom: 6px;
-    border: 1px solid rgba(107, 102, 255, 0.12);
+    border: 1px solid rgba(192, 38, 211, 0.12);
+    overflow-x: auto;             /* mouse-wheel / drag scrolls horizontally */
+    overflow-y: hidden;
+    scrollbar-width: thin;        /* Firefox: thin but present */
+    scrollbar-color: rgba(192,38,211,.5) transparent;
 }
+.chat-buttons-container[data-fpt-pos="above"] { margin-bottom: 0; margin-top: 0; }
+
+/* Поле «Написать» оставляем как в оригинале FunPay - расширение его раскладку
+   больше не трогает (никаких transform/width/left override'ов, которые
+   создавали пустой отступ слева). */
+
+/* keep the template strips aligned with the composer's inner padding */
+.chat-buttons-container[data-fpt-pos="above"],
+.chat-buttons-container[data-fpt-pos="bottom"] { margin-left: 0; margin-right: 0; }
+/* thin-yet-noticeable scrollbar so users know it scrolls */
+.chat-buttons-container::-webkit-scrollbar { height: 6px; }
+.chat-buttons-container::-webkit-scrollbar-track { background: transparent; }
+.chat-buttons-container::-webkit-scrollbar-thumb {
+    background: rgba(192,38,211,.45); border-radius: 4px;
+}
+.chat-buttons-container::-webkit-scrollbar-thumb:hover { background: rgba(192,38,211,.7); }
+/* keep buttons from shrinking so they stay readable and scroll instead */
+.chat-buttons-container:not([data-fpt-fullwidth="1"]) .chat-template-btn,
+.chat-buttons-container:not([data-fpt-fullwidth="1"]) .custom-chat-template-btn { flex: 0 0 auto; }
 
 #customTemplatesListContainer .custom-template-item {
     background: rgba(255, 255, 255, 0.05);
@@ -716,12 +835,12 @@
 }
 
 #aiModeToggleBtn:hover {
-    background: rgba(107,102,255,0.12);
+    background: rgba(192,38,211,0.12);
 }
 
 #aiModeToggleBtn.active {
-    background: rgba(107,102,255,0.15);
-    box-shadow: 0 0 8px rgba(107,102,255,0.35);
+    background: rgba(192,38,211,0.15);
+    box-shadow: 0 0 8px rgba(192,38,211,0.35);
 }
 
 /* Magic wand icon: black PNG tinted via filter */
@@ -887,7 +1006,7 @@
 }
 
 .fp-tools-popup .info-content a {
-    color: #00C9FF;
+    color: #E879F9;
     text-decoration: none;
     transition: color 0.3s, text-decoration 0.3s;
 }
@@ -932,7 +1051,7 @@
 }
 
 .fp-clone-popup button {
-    background: #6B66FF;
+    background: #C026D3;
     color: white;
     border: none;
     padding: 10px 20px;
@@ -1027,8 +1146,8 @@
 }
 
 .fp-category-clone-popup label input[type="checkbox"].category-select-all:checked {
-    background-color: #6B66FF;
-    border-color: #6B66FF;
+    background-color: #C026D3;
+    border-color: #C026D3;
 }
 
 .fp-category-clone-popup label input[type="checkbox"].category-select-all:checked::after {
@@ -1084,7 +1203,7 @@
 }
 
 .fp-category-clone-popup .actions-bar button {
-    background: linear-gradient(45deg, #00C9FF, #92FE9D);
+    background: linear-gradient(45deg, #E879F9, #92FE9D);
     color: white;
     border: none;
     padding: 12px 25px;
@@ -1485,7 +1604,7 @@
 }
 
 .fp-tools-ad-popup .btn {
-    background: #6B66FF;
+    background: #C026D3;
     color: white;
 }
 
@@ -1704,19 +1823,8 @@ body.funpay-redesigned .chat-msg-date {
     opacity: 0.7;
 }
 
-body.funpay-redesigned .chat-form {
-    background-color: transparent !important;
-    border-top: 1px solid var(--fp-border-color) !important;
-    border-bottom-left-radius: var(--fp-radius) !important;
-    border-bottom-right-radius: var(--fp-radius) !important;
-}
-
-body.funpay-redesigned .chat-form-input .form-control {
-    background-color: #2a2a2a !important;
-    color: var(--fp-text-primary) !important;
-    border-radius: 20px !important;
-    padding: 10px 15px !important;
-}
+/* Поле ввода сообщения НЕ переделываем - оставляем нативный вид FunPay
+   (без закругления, без отдельного фона и рамки, без отрыва от сайта). */
 
 body.funpay-redesigned .chat-form-btn .btn-round {
     background-color: var(--fp-accent) !important;
@@ -1900,43 +2008,119 @@ body.funpay-redesigned .promo-games {
 
 .calculator-container {
     max-width: 380px;
-    margin: 20px auto;
+    margin: 12px auto 0;
     background-color: #1c1c1c;
-    padding: 20px;
-    border-radius: 25px;
+    padding: 16px;
+    border-radius: 22px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 
 .calculator-display {
     color: white;
-    font-size: 72px;
+    font-size: 64px;
     font-weight: 300;
     text-align: right;
-    margin-bottom: 20px;
-    padding: 0 10px;
+    margin-bottom: 16px;
+    padding: 0 8px;
+    overflow: hidden;            /* без скролла - размер подгоняется скриптом */
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-height: 80px;
+    line-height: 1.1;
+    height: 78px;
     display: flex;
     align-items: flex-end;
     justify-content: flex-end;
 }
+.calculator-display #calcDisplay { display: inline-block; max-width: 100%; }
+
+/* Calculator subtabs (math / time) - тонкие */
+.calc-subtabs {
+    display: flex;
+    gap: 6px;
+    max-width: 380px;
+    margin: 0 auto;
+}
+.calc-subtab {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 8px;
+    border: none;
+    border-radius: 9px;
+    background-color: rgba(255,255,255,0.06);
+    color: #b0b0b0;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color .18s ease, color .18s ease;
+}
+.calc-subtab .material-symbols-rounded { font-size: 16px; }
+.calc-subtab:hover { background-color: rgba(255,255,255,0.1); color: #fff; }
+.calc-subtab.is-active { background-color: #FF9500; color: #1c1c1c; }
+.calc-pane { animation: fpCalcFade .2s ease; }
+@keyframes fpCalcFade { from { opacity: 0; } to { opacity: 1; } }
+
+/* Временной калькулятор - результат как полноценная панель, без скролла */
+.calc-time-result {
+    max-width: 380px;
+    margin: 14px auto 0;
+    padding: 16px 18px;
+    background: linear-gradient(180deg, rgba(255,149,0,0.10), rgba(255,149,0,0.05));
+    border: 1px solid rgba(255,149,0,0.28);
+    border-radius: 14px;
+    color: #f3f3f3;
+    font-size: 15px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+}
+.calc-time-result .calc-time-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .4px;
+    text-transform: uppercase;
+    color: #FF9500;
+    margin-bottom: 10px;
+}
+.calc-time-result .calc-time-head .material-symbols-rounded { font-size: 18px; }
+.calc-time-result .calc-time-body { color: #f3f3f3; }
+.calc-time-result.is-error {
+    background: rgba(224,82,82,0.08);
+    border-color: rgba(224,82,82,0.3);
+}
+.calc-time-result.is-error .calc-time-head { color: #e05252; }
+.calc-time-loader {
+    display: inline-block;
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,0.25);
+    border-top-color: #FF9500;
+    border-radius: 50%;
+    animation: fpCalcSpin .7s linear infinite;
+    vertical-align: middle;
+}
+@keyframes fpCalcSpin { to { transform: rotate(360deg); } }
 
 .calculator-buttons {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
+    gap: 10px;
 }
 
 .calc-btn {
     border: none;
-    font-size: 28px;
+    font-size: 26px;
     font-weight: 500;
     color: white;
     background-color: #505050;
-    height: 70px;
-    border-radius: 35px;
+    height: 60px;
+    border-radius: 30px;
     cursor: pointer;
     transition: background-color 0.2s ease, transform 0.1s ease;
     display: flex;
@@ -1973,7 +2157,7 @@ body.funpay-redesigned .promo-games {
 .calc-btn.calc-btn-zero {
     grid-column: span 2;
     justify-content: flex-start;
-    padding-left: 28px;
+    padding-left: 24px;
 }
 
 .set-exact-price {
@@ -2075,10 +2259,18 @@ body.funpay-redesigned .promo-games {
 .fp-tools-stats-container {
     background: rgba(20, 20, 20, 0.4);
     border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #fff;
     border-radius: 16px;
     padding: 25px;
     margin-bottom: 30px;
     backdrop-filter: blur(10px);
+}
+/* Кастомная тема выключена → подстраиваемся под страницу (непрозрачно, без гласса) */
+.fpt-custom-theme-off .fp-tools-stats-container {
+    background: var(--fpt-surface, #f0f0f0);
+    border: 1px solid var(--fpt-border, #ddd);
+    color: var(--fpt-text, #111);
+    backdrop-filter: none;
 }
 
 .fp-stats-header {
@@ -2087,7 +2279,7 @@ body.funpay-redesigned .promo-games {
     align-items: center;
     margin-bottom: 25px;
     padding-bottom: 20px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid var(--fpt-border, rgba(255, 255, 255, 0.1));
 }
 
 .fp-stats-header h1 {
@@ -2171,8 +2363,27 @@ body.funpay-redesigned .promo-games {
 }
 
 .stat-card-revenue {
-    background: linear-gradient(45deg, rgba(0, 201, 255, 0.1), rgba(146, 254, 157, 0.1));
+    background: linear-gradient(45deg, rgba(232, 121, 249, 0.1), rgba(146, 254, 157, 0.1));
 }
+
+/* ── Кастомная тема ВЫКЛючена: подстраиваемся под страницу (непрозрачно) ── */
+.fpt-custom-theme-off .fp-stats-header { border-bottom-color: var(--fpt-border, #ddd); }
+.fpt-custom-theme-off .fp-stats-header h1 { color: var(--fpt-text, #111); }
+.fpt-custom-theme-off .fp-stats-controls .form-control {
+    background: var(--fpt-surface-2, #fff);
+    color: var(--fpt-text, #111);
+    border-color: var(--fpt-border, #ccc);
+}
+.fpt-custom-theme-off .fp-stat-card {
+    background: var(--fpt-surface-2, #f5f5f5);
+    border-color: var(--fpt-border, #e0e0e0);
+}
+.fpt-custom-theme-off .fp-stat-card:hover {
+    box-shadow: 0 10px 20px var(--fpt-shadow, rgba(0,0,0,0.15));
+}
+.fpt-custom-theme-off .stat-card-label { color: var(--fpt-text-muted, #666); }
+.fpt-custom-theme-off .stat-card-value { color: var(--fpt-text, #111); }
+.fpt-custom-theme-off .stat-card-revenue { background: var(--fpt-accent-soft, rgba(193,38,211,0.10)); }
 
 .stat-card-success {
     border-left: 4px solid #4CAF50;
@@ -2203,8 +2414,8 @@ body.funpay-redesigned .promo-games {
     transition: opacity .15s;
 }
 .fp-stats-expand-row:hover { opacity: .75; }
-.fp-stats-expand-label { font-size: 11px; color: #a09ef8; }
-.fp-stats-expand-arrow { font-size: 10px; color: #a09ef8; }
+.fp-stats-expand-label { font-size: 11px; color: #E9A8FF; }
+.fp-stats-expand-arrow { font-size: 10px; color: #E9A8FF; }
 .fp-stats-extra { padding-top: 6px; }
 
 .fp-stats-details {
@@ -2232,6 +2443,11 @@ body.funpay-redesigned .promo-games {
     font-weight: 600;
     cursor: pointer;
 }
+
+/* Кастомная тема выключена */
+.fpt-custom-theme-off .fp-stats-details { border-top-color: var(--fpt-border, #e0e0e0); }
+.fpt-custom-theme-off .detail-label { color: var(--fpt-text-muted, #666); }
+.fpt-custom-theme-off .detail-value { color: var(--fpt-text, #111); }
 
 .detail-value:hover {
     text-decoration: underline;
@@ -2300,7 +2516,7 @@ body.funpay-redesigned .promo-games {
 }
 
 .fp-tools-radio-option input[type="radio"]:checked {
-    border-color: #00c9ff;
+    border-color: #E879F9;
 }
 
 .fp-tools-radio-option input[type="radio"]:checked::after {
@@ -2312,7 +2528,7 @@ body.funpay-redesigned .promo-games {
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    background: #00c9ff;
+    background: #E879F9;
 }
 
 .fp-tools-radio-option span {
@@ -2386,7 +2602,7 @@ body.funpay-redesigned .promo-games {
 }
 
 .action-lot {
-    background: #6B66FF;
+    background: #C026D3;
     border: none;
     padding: 10px 18px;
     border-radius: 20px;
@@ -2537,7 +2753,7 @@ body.funpay-redesigned .promo-games {
 }
 .star-rating-config label {
     font-weight: bold;
-    color: #00c9ff;
+    color: #E879F9;
     font-size: 15px;
 }
 .random-reply-list {
@@ -2582,7 +2798,7 @@ body.funpay-redesigned .promo-games {
     max-width: 350px;
     height: 200px;
     margin: 20px auto;
-    background: linear-gradient(45deg, rgba(107, 102, 255, 0.2), rgba(255, 107, 107, 0.2)),
+    background: linear-gradient(45deg, rgba(192, 38, 211, 0.2), rgba(255, 107, 107, 0.2)),
                 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cg fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath opacity='.5' d='M96 95h4v1h-4v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9zm-1 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10-10h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm-9-10v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10-10h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9z'/%3E%3Cpath d='M6 5V0h1v5h4v1H6v4H5V6H0V5h5V0h1v5h95v1H6v95h1v-95h94v-1H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
     border-radius: 12px;
     border: 1px solid rgba(255,255,255,0.1);
@@ -2599,7 +2815,7 @@ body.funpay-redesigned .promo-games {
 .tour-close-btn { position: fixed; top: 20px; right: 20px; background: rgba(255,255,255,0.1); border: none; color: #fff; font-size: 24px; width: 38px; height: 38px; border-radius: 50%; cursor: pointer; z-index: 10; transition: all 0.2s ease; }
 .tour-close-btn:hover { background: rgba(255,255,255,0.2); transform: scale(1.1); }
 .tour-progress-bar { position: fixed; bottom: 0; left: 0; width: 100%; height: 5px; background: rgba(255,255,255,0.1); z-index: 10; }
-.tour-progress-fill { width: 0%; height: 100%; background: linear-gradient(90deg, #00C9FF, #92FE9D); transition: width 0.5s ease-in-out; }
+.tour-progress-fill { width: 0%; height: 100%; background: linear-gradient(90deg, #E879F9, #92FE9D); transition: width 0.5s ease-in-out; }
 
 .tour-perspective-container { width: 100%; height: 100%; perspective: 1500px; position: relative; }
 .tour-scene { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; opacity: 0; transform: translateX(100%) rotateY(-30deg) scale(0.9); transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1); }
@@ -2608,13 +2824,13 @@ body.funpay-redesigned .promo-games {
 
 .tour-content-wrapper { padding: 50px 60px; max-width: 900px; text-align: left; }
 .tour-header { display: flex; align-items: center; gap: 15px; margin-bottom: 10px; }
-.tour-icon { font-size: 32px; color: #00c9ff; }
+.tour-icon { font-size: 32px; color: #E879F9; }
 .tour-title { margin: 0; font-size: 32px; font-weight: 700; color: #fff; }
 .tour-description { font-size: 18px; color: #b0b0b0; line-height: 1.6; margin: 0 0 30px 0; max-width: 80%; }
 .tour-visualization { min-height: 300px; display: flex; justify-content: center; align-items: center; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 20px; }
 
-.tour-logo { font-size: 80px; font-weight: bold; background: #6B66FF; -webkit-background-clip: text; background-clip: text; color: transparent; animation: tour-logo-pulse 3s infinite; }
-@keyframes tour-logo-pulse { 0%, 100% { transform: scale(1); text-shadow: 0 0 20px rgba(107, 102, 255, 0.5); } 50% { transform: scale(1.05); text-shadow: 0 0 30px rgba(255, 107, 107, 0.5); } }
+.tour-logo { font-size: 80px; font-weight: bold; background: #C026D3; -webkit-background-clip: text; background-clip: text; color: transparent; animation: tour-logo-pulse 3s infinite; }
+@keyframes tour-logo-pulse { 0%, 100% { transform: scale(1); text-shadow: 0 0 20px rgba(192, 38, 211, 0.5); } 50% { transform: scale(1.05); text-shadow: 0 0 30px rgba(255, 107, 107, 0.5); } }
 
 .tour-chat-mockup-3d { width: 100%; max-width: 500px; position: relative; height: 150px; }
 .tour-chat-bubble { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #333; padding: 12px 18px; border-radius: 8px; font-family: monospace; font-size: 16px; transition: all 0.5s ease-in-out; }
@@ -2626,7 +2842,7 @@ body.funpay-redesigned .promo-games {
 .tour-template-final-bubble { padding: 12px 18px; border-radius: 8px; background: #2a3a2a; color: #92FE9D; margin-bottom: 20px; opacity: 0; animation: tour-fade-in-up 0.5s 1s forwards; }
 .tour-template-buttons-3d { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; opacity: 0; animation: tour-fade-in-up 0.5s 1.5s forwards; }
 .tour-mock-btn-3d { background: #555; border: none; color: #fff; padding: 8px 15px; border-radius: 20px; }
-.tour-mock-btn-active-3d { background: #6B66FF; transform: scale(1.1); box-shadow: 0 0 15px #FF6B6B; }
+.tour-mock-btn-active-3d { background: #C026D3; transform: scale(1.1); box-shadow: 0 0 15px #FF6B6B; }
 .tour-code-snippet-3d { background: #000; padding: 10px; border-radius: 5px; font-family: monospace; color: #aaa; text-align: center; opacity: 0; animation: tour-fade-in-up 0.5s 2s forwards; }
 .tour-code-snippet-3d span { background: rgba(255,255,255,0.1); padding: 3px 6px; border-radius: 3px; }
 
@@ -2640,7 +2856,7 @@ body.funpay-redesigned .promo-games {
 .after-theme .tour-theme-header { background: rgba(0,0,0,0.3); }
 .after-theme .tour-theme-body { background: rgba(20,20,20,0.5); }
 .tour-scene.active .before-theme { opacity: 0; transform: scale(1.2); transition-delay: 1.5s; }
-.tour-magic-sparkles { position: absolute; width: 100%; height: 100%; background: radial-gradient(circle at 50% 50%, transparent, #00c9ff); opacity: 0; transform: scale(0); animation: tour-sparkle-burst 1s 1.2s forwards; }
+.tour-magic-sparkles { position: absolute; width: 100%; height: 100%; background: radial-gradient(circle at 50% 50%, transparent, #E879F9); opacity: 0; transform: scale(0); animation: tour-sparkle-burst 1s 1.2s forwards; }
 @keyframes tour-sparkle-burst { from { opacity: 0.7; transform: scale(0); } to { opacity: 0; transform: scale(3); } }
 
 .tour-fonts-mockup { text-align: center; }
@@ -2668,7 +2884,7 @@ body.funpay-redesigned .promo-games {
 
 .tour-adv-cloning-mockup { display: flex; align-items: center; gap: 20px; }
 .tour-adv-lot-card { width: 150px; height: 90px; background: #333; border-radius: 8px; display: flex; align-items: center; justify-content: center; border: 2px solid #555; position: relative; }
-.tour-adv-lot-card.original { border-color: #00c9ff; }
+.tour-adv-lot-card.original { border-color: #E879F9; }
 .tour-category-selector { display: flex; flex-direction: column; gap: 10px; opacity: 0; animation: tour-fade-in-up 0.5s 1s forwards; }
 .tour-category-selector div { background: #222; padding: 8px 12px; border-radius: 5px; display: flex; align-items: center; gap: 8px; }
 .tour-check { width: 16px; height: 16px; border: 2px solid #555; border-radius: 3px; }
@@ -2688,14 +2904,14 @@ body.funpay-redesigned .promo-games {
 .tour-scene.active .tour-manage-lot:nth-child(1) .tour-checkbox { animation: tour-check-it 0.5s 1s forwards; }
 .tour-scene.active .tour-manage-lot:nth-child(2) .tour-checkbox { animation: tour-check-it 0.5s 1.3s forwards; }
 .tour-scene.active .tour-manage-lot:nth-child(3) .tour-checkbox { animation: tour-check-it 0.5s 1.6s forwards; }
-@keyframes tour-check-it { 50% { transform: scale(1.2); } 100% { background: #00c9ff; border-color: #00c9ff; transform: scale(1); } }
+@keyframes tour-check-it { 50% { transform: scale(1.2); } 100% { background: #E879F9; border-color: #E879F9; transform: scale(1); } }
 .tour-manage-actions { margin-top: 20px; display: flex; justify-content: center; gap: 15px; opacity: 0; animation: tour-fade-in-up 0.5s 2s forwards; }
 .tour-manage-actions button { background: #444; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; display: flex; align-items: center; gap: 8px; }
 .tour-manage-actions button.delete { background: #b71c1c; }
 
 .tour-sort-mockup-3d { width: 100%; max-width: 400px; }
 .tour-sort-header-3d { display: inline-flex; align-items: center; gap: 5px; padding: 10px; background: #333; color: #aaa; }
-.tour-sort-header-3d.active { color: #00c9ff; }
+.tour-sort-header-3d.active { color: #E879F9; }
 .tour-sort-row-3d { padding: 10px; background: #222; margin-top: 8px; border-radius: 4px; display: flex; justify-content: space-between; height: 40px; line-height: 20px; transition: transform 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55); }
 .tour-sort-row-3d span { color: #888; }
 .tour-scene.active .tour-sort-row-3d.r-original-1 { transform: translateY(48px); transition-delay: 1.2s; }
@@ -2705,7 +2921,7 @@ body.funpay-redesigned .promo-games {
 .tour-auto-item-3d { text-align: center; opacity: 0; transform: translateY(20px); animation: tour-fade-in-up 0.6s forwards; }
 .tour-scene.active .tour-auto-item-3d:first-child { animation-delay: 1s; }
 .tour-scene.active .tour-auto-item-3d:last-child { animation-delay: 1.5s; }
-.tour-auto-item-3d .material-icons { font-size: 60px; color: #00c9ff; animation: tour-auto-icon-float 3s infinite ease-in-out; }
+.tour-auto-item-3d .material-icons { font-size: 60px; color: #E879F9; animation: tour-auto-icon-float 3s infinite ease-in-out; }
 .tour-auto-item-3d h4 { margin: 10px 0 5px; font-size: 20px; }
 .tour-auto-item-3d p { margin: 0; color: #aaa; }
 @keyframes tour-auto-icon-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
@@ -2730,8 +2946,8 @@ body.funpay-redesigned .promo-games {
 .support-promo {
     margin-top: 30px;
     padding: 15px;
-    background: rgba(0, 201, 255, 0.1);
-    border: 1px solid rgba(0, 201, 255, 0.2);
+    background: rgba(232, 121, 249, 0.1);
+    border: 1px solid rgba(232, 121, 249, 0.2);
     border-radius: 10px;
     display: flex;
     align-items: center;
@@ -2739,10 +2955,10 @@ body.funpay-redesigned .promo-games {
     font-size: 14px;
 }
 .support-promo a {
-    color: #00c9ff;
+    color: #E879F9;
     font-weight: bold;
     text-decoration: none;
-    border-bottom: 1px dashed #00c9ff;
+    border-bottom: 1px dashed #E879F9;
 }
 .support-promo a:hover {
     color: #92FE9D;
@@ -2797,7 +3013,7 @@ body.funpay-redesigned .promo-games {
     margin-bottom: 10px;
 }
 .feature-title .material-icons {
-    color: #00c9ff;
+    color: #E879F9;
 }
 .feature-location {
     font-size: 13px;
@@ -2815,102 +3031,9 @@ body.funpay-redesigned .promo-games {
     margin: 0;
 }
 
-.fp-tools-template-sidebar {
-    padding: 15px;
-    max-height: 400px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
+/* (legacy sidebar block neutralised - see authoritative rules near EOF) */
+.fp-tools-template-sidebar-legacy-placeholder { display:none; }
 
-.fp-tools-template-sidebar::-webkit-scrollbar {
-    width: 5px;
-}
-.fp-tools-template-sidebar::-webkit-scrollbar-track {
-    background: transparent;
-}
-.fp-tools-template-sidebar::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 3px;
-}
-
-.sidebar-template-btn {
-    width: 100%;
-    padding: 8px 12px;
-    border: 1px solid transparent;
-    border-radius: 6px;
-    color: #b0b0b0;
-    background: transparent !important; 
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: normal;
-    transition: all 0.2s ease;
-    text-align: left;
-    box-sizing: border-box;
-    position: relative;
-    overflow: visible;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.sidebar-template-btn::before {
-    content: '';
-    display: block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background-color: var(--template-color, #ccc); 
-    flex-shrink: 0;
-}
-
-.sidebar-template-btn:hover {
-    background-color: rgba(255, 255, 255, 0.1) !important;
-    color: #fff;
-    border-color: rgba(255, 255, 255, 0.2);
-}
-
-
-.fp-tools-template-preview {
-    visibility: hidden;
-    opacity: 0;
-    position: absolute;
-    bottom: 110%; 
-    left: 50%;
-    transform: translateX(-50%);
-    width: max-content;
-    max-width: 300px;
-    background-color: rgba(10, 10, 10, 0.9);
-    backdrop-filter: blur(5px);
-    color: #fff;
-    text-align: left;
-    white-space: pre-wrap;
-    word-break: break-word;
-    border-radius: 8px;
-    padding: 12px;
-    z-index: 1000;
-    font-size: 13px;
-    font-weight: normal;
-    transition: opacity 0.3s ease, visibility 0.3s ease;
-    pointer-events: none;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-    border: 1px solid rgba(255,255,255,0.1);
-}
-
-.sidebar-template-btn:hover .fp-tools-template-preview,
-.chat-template-btn:hover .fp-tools-template-preview,
-.custom-chat-template-btn:hover .fp-tools-template-preview {
-    visibility: visible;
-    opacity: 1;
-    transition-delay: 0.5s;
-}
-
-.chat-template-btn .fp-tools-template-preview,
-.custom-chat-template-btn .fp-tools-template-preview {
-    bottom: 120%;
-    left: 50%;
-}
 
 
 .fp-tools-empty-template-overlay {
@@ -3107,102 +3230,9 @@ body.funpay-redesigned .promo-games {
 .fp-tools-page-content .fp-tools-radio-group {
     margin-bottom: 25px;
 }
-.fp-tools-template-sidebar {
-    padding: 15px;
-    max-height: 400px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
+/* (legacy sidebar block neutralised - see authoritative rules near EOF) */
+.fp-tools-template-sidebar-legacy-placeholder { display:none; }
 
-.fp-tools-template-sidebar::-webkit-scrollbar {
-    width: 5px;
-}
-.fp-tools-template-sidebar::-webkit-scrollbar-track {
-    background: transparent;
-}
-.fp-tools-template-sidebar::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 3px;
-}
-
-.sidebar-template-btn {
-    width: 100%;
-    padding: 8px 12px;
-    border: 1px solid transparent;
-    border-radius: 6px;
-    color: #b0b0b0;
-    background: transparent !important; 
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: normal;
-    transition: all 0.2s ease;
-    text-align: left;
-    box-sizing: border-box;
-    position: relative;
-    overflow: visible;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.sidebar-template-btn::before {
-    content: '';
-    display: block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background-color: var(--template-color, #ccc); 
-    flex-shrink: 0;
-}
-
-.sidebar-template-btn:hover {
-    background-color: rgba(255, 255, 255, 0.1) !important;
-    color: #fff;
-    border-color: rgba(255, 255, 255, 0.2);
-}
-
-
-.fp-tools-template-preview {
-    visibility: hidden;
-    opacity: 0;
-    position: absolute;
-    bottom: 110%; 
-    left: 50%;
-    transform: translateX(-50%);
-    width: max-content;
-    max-width: 300px;
-    background-color: rgba(10, 10, 10, 0.9);
-    backdrop-filter: blur(5px);
-    color: #fff;
-    text-align: left;
-    white-space: pre-wrap;
-    word-break: break-word;
-    border-radius: 8px;
-    padding: 12px;
-    z-index: 1000;
-    font-size: 13px;
-    font-weight: normal;
-    transition: opacity 0.3s ease, visibility 0.3s ease;
-    pointer-events: none;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-    border: 1px solid rgba(255,255,255,0.1);
-}
-
-.sidebar-template-btn:hover .fp-tools-template-preview,
-.chat-template-btn:hover .fp-tools-template-preview,
-.custom-chat-template-btn:hover .fp-tools-template-preview {
-    visibility: visible;
-    opacity: 1;
-    transition-delay: 0.5s;
-}
-
-.chat-template-btn .fp-tools-template-preview,
-.custom-chat-template-btn .fp-tools-template-preview {
-    bottom: 120%;
-    left: 50%;
-}
 
 
 .fp-tools-empty-template-overlay {
@@ -4146,7 +4176,7 @@ body.funpay-redesigned .promo-games {
 }
 
 .fp-tools-share-modal-body a {
-    color: #00c9ff;
+    color: #E879F9;
     font-weight: bold;
     text-decoration: none;
 }
@@ -4193,7 +4223,6 @@ i.promo-offer-icon {
     border-left: 3px solid #2d6bb3;
     padding: 12px 15px 12px 20px;
     color: #d0d0d0;
-    backdrop-filter: blur(2px);
     box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 
@@ -4220,6 +4249,22 @@ i.promo-offer-icon {
     border-bottom-color: rgba(138, 191, 255, 0.8);
 }
 
+/* Кастомная тема ВЫКЛючена → нейтральный инфо-блок под цвет страницы,
+   без тёмно-синей плашки, которая «палит в глаза» на белой теме. */
+.fpt-custom-theme-off .chat-msg-item .alert.alert-info {
+    background: var(--fpt-surface, #f5f5f7);
+    border-left: 3px solid var(--fpt-border, #c8c8cc);
+    color: var(--fpt-text, #333);
+    box-shadow: none;
+}
+.fpt-custom-theme-off .chat-msg-item .alert.alert-info .chat-msg-text {
+    color: var(--fpt-text-muted, #555);
+}
+.fpt-custom-theme-off .chat-msg-item .alert.alert-info .chat-msg-text a {
+    color: var(--fpt-text, #1c5fb0);
+    border-bottom-color: var(--fpt-border, rgba(0,0,0,0.2));
+}
+
 @media (min-width: 768px) {
   #header .container {
     width: 75%; 
@@ -4230,41 +4275,30 @@ i.promo-offer-icon {
   }
 }
 
-#fpTools-market-analytics-btn {
-    margin-bottom: 10px;
-    background: linear-gradient(45deg, #16a085, #f4d03f);
-    color: white;
-    border: none;
-}
-#fpTools-market-analytics-btn:hover {
-    opacity: 0.9;
-    color: white;
-}
-
 .fp-tools-analytics-container {
     background: rgba(20, 20, 20, 0.4);
     border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #e0e0e0;
     border-radius: 16px;
     padding: 25px;
     margin-bottom: 30px;
     backdrop-filter: blur(10px);
 }
+.fpt-custom-theme-off .fp-tools-analytics-container {
+    background: var(--fpt-surface, #f0f0f0);
+    border: 1px solid var(--fpt-border, #ddd);
+    color: var(--fpt-text, #111);
+    backdrop-filter: none;
+}
 .stat-card-min-price { border-left: 4px solid #F44336; }
 .stat-card-max-price { border-left: 4px solid #4CAF50; }
+/* «Продавцов онлайн» растягиваем, чтобы не было пустого места в правом нижнем углу */
+.fp-tools-analytics-container .fpt-analytics-online {
+    grid-column: span 2;
+}
 
 #fpTools-market-analytics-btn {
     margin-bottom: 10px;
-    background: #4a4f59;
-    color: #e0e0e0;
-    border: 1px solid #5c6375;
-    transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
-}
-
-#fpTools-market-analytics-btn:hover {
-    background-color: #5c6375;
-    border-color: #7d859c;
-    color: #fff;
-    transform: translateY(-0.7px);
 }
 
 
@@ -4278,16 +4312,16 @@ i.promo-offer-icon {
     bottom: 105%;
     left: 50%;
     transform: translateX(-50%);
-    background-color: #1a1a1a;
-    color: #e0e0e0;
+    background-color: var(--fpt-surface-2, #1a1a1a);
+    color: var(--fpt-text, #e0e0e0);
     padding: 6px 12px;
     border-radius: 6px;
     font-size: 13px;
     font-weight: 500;
     white-space: nowrap;
     z-index: 10010;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-    border: 1px solid #444;
+    box-shadow: 0 4px 12px var(--fpt-shadow, rgba(0,0,0,0.4));
+    border: 1px solid var(--fpt-border, #444);
     
     opacity: 0;
     visibility: hidden;
@@ -4363,7 +4397,7 @@ i.promo-offer-icon {
 .pb-dropdown-percentage {
     font-size: 14px;
     font-weight: bold;
-    color: #00c9ff;
+    color: #E879F9;
 }
 
 .pb-dropdown-progress-bar {
@@ -4377,7 +4411,7 @@ i.promo-offer-icon {
 .pb-dropdown-progress-fill {
     height: 100%;
     border-radius: 4px;
-    background: linear-gradient(90deg, #6B66FF, #FF6B6B);
+    background: linear-gradient(90deg, #C026D3, #FF6B6B);
     transition: width 0.5s ease;
 }
 
@@ -4393,7 +4427,7 @@ i.promo-offer-icon {
     border-top: 1px solid #333;
 }
 .pb-dropdown-footer a {
-    color: #00c9ff;
+    color: #E879F9;
     font-size: 13px;
     text-decoration: none;
 }
@@ -4417,8 +4451,8 @@ i.promo-offer-icon {
     border: 1px solid rgba(255,255,255,0.1);
 }
 .piggy-bank-item.main-piggy-bank {
-    border-color: #00c9ff;
-    box-shadow: 0 0 10px rgba(0, 201, 255, 0.3);
+    border-color: #E879F9;
+    box-shadow: 0 0 10px rgba(232, 121, 249, 0.3);
 }
 
 .piggy-bank-item-header {
@@ -4434,7 +4468,7 @@ i.promo-offer-icon {
 }
 .piggy-bank-item-main-badge {
     font-size: 12px;
-    background: #00c9ff;
+    background: #E879F9;
     color: #111;
     padding: 3px 8px;
     border-radius: 12px;
@@ -4734,10 +4768,28 @@ input:checked + .slider:before {
     margin-right: 0 !important;
 }
 
-/* Специальное правило для селекта типа предложения */
+/* Поля-селекты - фиксированная ширина */
 .showcase-filters .lot-field {
-    min-width: 200px;
-    flex: 0 0 200px;
+    min-width: 180px;
+    flex: 0 1 200px;
+}
+
+/* Радио-бокс (Premier / Competitive / FACEIT / Напарники ...) НЕ фиксируем на 200px -
+   ему нужно много места под кнопки. Иначе кнопки вылезали и «разбрасывались». */
+.showcase-filters .lot-field:has(.lot-field-radio-box) {
+    flex: 1 1 100%;
+    min-width: 100%;
+}
+.showcase-filters .lot-field-radio-box {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    width: 100%;
+}
+.showcase-filters .lot-field-radio-box button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    margin: 0 !important;
 }
 
 /* Поле поиска должно растягиваться, но не ломать иконку */
@@ -5100,27 +5152,28 @@ a.contact-item:hover {
     align-items: center;
 }
 .fp-tools-modal-content {
-    background: #1e1e1e;
+    background: var(--fpt-bg, #1e1e1e);
+    color: var(--fpt-text, #e0e0e0);
     border-radius: 12px;
-    border: 1px solid #333;
+    border: 1px solid var(--fpt-border, #333);
     width: 90%;
     max-width: 500px;
     max-height: 80vh;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+    box-shadow: 0 10px 40px var(--fpt-shadow, rgba(0,0,0,0.4));
 }
 .fp-tools-modal-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 15px 20px;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--fpt-border, #333);
 }
 .fp-tools-modal-header h3 {
     margin: 0;
     font-size: 16px;
-    color: #eee;
+    color: var(--fpt-text, #eee);
     padding: 0;
     border: none;
 }
@@ -5311,7 +5364,7 @@ a.contact-item:hover {
     margin-bottom: 0;
 }
 .price-editor-instructions strong {
-    color: #00c9ff;
+    color: #E879F9;
     display: block;
     font-size: 14px;
 }
@@ -5372,8 +5425,8 @@ a.contact-item:hover {
 }
 
 .fp-tools-header-tab.active {
-    background: #252847;
-    color: #a09ef8;
+    background: #2A1830;
+    color: #E9A8FF;
     font-weight: 600;
 }
 
@@ -5572,7 +5625,7 @@ a.contact-item:hover {
 .progress-bar-fill {
     position: absolute;
     top: 0; left: 0; height: 100%;
-    background: linear-gradient(90deg, #6B66FF, #00C9FF);
+    background: linear-gradient(90deg, #C026D3, #E879F9);
     transition: width 0.3s ease;
 }
 .progress-bar-text {
@@ -5689,9 +5742,9 @@ a.contact-item:hover {
 }
 
 .fp-tools-nav li.active a {
-    background-color: rgba(0, 201, 255, 0.1);
-    color: #00c9ff;
-    border-left-color: #00c9ff;
+    background-color: rgba(232, 121, 249, 0.1);
+    color: #E879F9;
+    border-left-color: #E879F9;
     font-weight: 600;
     box-shadow: none;
 }
@@ -5880,7 +5933,7 @@ a.contact-item:hover {
     margin-top: 0;
     margin-bottom: 12px;
     font-size: 15px;
-    color: #00c9ff;
+    color: #E879F9;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     padding-bottom: 8px;
 }
@@ -6053,8 +6106,8 @@ a.contact-item:hover {
     justify-content: space-between;
     align-items: center;
     gap: 15px;
-    background: linear-gradient(45deg, rgba(107, 102, 255, 0.15), rgba(0, 201, 255, 0.15));
-    border: 1px solid rgba(0, 201, 255, 0.2);
+    background: linear-gradient(45deg, rgba(192, 38, 211, 0.15), rgba(232, 121, 249, 0.15));
+    border: 1px solid rgba(232, 121, 249, 0.2);
     border-radius: 10px;
     padding: 12px 18px;
     margin: 25px 0;
@@ -6213,8 +6266,8 @@ a.contact-item:hover {
 }
 
 .image-upload-warning {
-    background: rgba(0, 201, 255, 0.1);
-    border: 1px solid rgba(0, 201, 255, 0.2);
+    background: rgba(232, 121, 249, 0.1);
+    border: 1px solid rgba(232, 121, 249, 0.2);
     border-radius: 10px;
     display: flex;
     align-items: center;
@@ -6227,29 +6280,51 @@ a.contact-item:hover {
     font-size: 20px;
 }
 .image-upload-warning b {
-    color: #00c9ff;
+    color: #E879F9;
 }
 /* ═══════════════════════════════════════════════════════════════
-   FunPay Tools 2.8 — UI additions & flat redesign overrides
+   FunPay Tools 2.8 - UI additions & flat redesign overrides
    ═══════════════════════════════════════════════════════════════ */
 
 /* ── Header button: flat accent style ──────────────────────────── */
 #fpToolsButton {
-    color: #6B66FF !important;
+    color: var(--fpt-btn-color, #C026D3);
     background: none !important;
     -webkit-background-clip: unset !important;
     background-clip: unset !important;
+    /* keep the transition cheap - only color/opacity, no transforms/filters that repaint */
+    transition: color 0.2s ease, opacity 0.2s ease !important;
+    animation: none !important;
+    transform: none !important;
 }
 
 #fpToolsButton::before {
-    background: #6B66FF !important;
+    background: var(--fpt-btn-color, #C026D3);
     height: 2px;
     border-radius: 2px;
+    box-shadow: none !important;
+}
+
+/* Lightweight hover: just the underline + a subtle brightness, no infinite animations,
+   no text-shadow pulse, no particle/star layers (those were pinning the GPU). */
+#fpToolsButton:hover {
+    filter: brightness(1.15);
+    text-shadow: none !important;
+    animation: none !important;
+    transform: none !important;
+}
+#fpToolsButton:hover::before {
+    box-shadow: none !important;
+}
+#fpToolsButton:hover::after {
+    opacity: 0 !important;
 }
 
 /* Remove all heavy animations from header button to fix GPU usage */
 #fpToolsButton span,
-#fpToolsButton span::before {
+#fpToolsButton span::before,
+#fpToolsButton span::after,
+#fpToolsButton::after {
     display: none !important;
     animation: none !important;
 }
@@ -6297,7 +6372,7 @@ a.contact-item:hover {
 }
 
 .fp-tools-nav li.active a {
-    color: #a09ef8 !important;
+    color: #E9A8FF !important;
     background: #1e1f38 !important;
     font-weight: 600;
     box-shadow: none !important;
@@ -6305,7 +6380,7 @@ a.contact-item:hover {
 
 /* ── Primary button: flat ───────────────────────────────────────── */
 .fp-tools-popup .btn:not(.btn-default) {
-    background: #6B66FF !important;
+    background: #C026D3 !important;
     border: none;
     color: #fff;
     font-weight: 600;
@@ -6334,7 +6409,7 @@ a.contact-item:hover {
 }
 
 .fp-tools-popup .btn.btn-default:hover {
-    background: #252847;
+    background: #2A1830;
     color: #d8dae8;
     border-color: #363a5a;
 }
@@ -6356,9 +6431,9 @@ a.contact-item:hover {
 .fp-tools-popup input[type="text"]:focus,
 .fp-tools-popup input[type="number"]:focus,
 .fp-tools-popup textarea:focus {
-    border-color: #6B66FF !important;
+    border-color: #C026D3 !important;
     outline: none;
-    box-shadow: 0 0 0 2px rgba(107, 102, 255, 0.15) !important;
+    box-shadow: 0 0 0 2px rgba(192, 38, 211, 0.15) !important;
 }
 
 /* ── Checkbox rows ──────────────────────────────────────────────── */
@@ -6372,7 +6447,7 @@ a.contact-item:hover {
 .checkbox-label-inline input[type="checkbox"] {
     width: 15px;
     height: 15px;
-    accent-color: #6B66FF;
+    accent-color: #C026D3;
     flex-shrink: 0;
 }
 
@@ -6393,12 +6468,12 @@ a.contact-item:hover {
 
 .fp-tools-radio-option:has(input:checked) {
     background: #1e1f38;
-    color: #a09ef8;
+    color: #E9A8FF;
     border-color: #363a5a;
 }
 
 .fp-tools-radio-option input[type="radio"] {
-    accent-color: #6B66FF;
+    accent-color: #C026D3;
 }
 
 /* ── Template container sections ────────────────────────────────── */
@@ -6412,8 +6487,8 @@ a.contact-item:hover {
 
 /* ── Info promo boxes ────────────────────────────────────────────── */
 .support-promo {
-    background: rgba(107, 102, 255, 0.07) !important;
-    border: 1px solid rgba(107, 102, 255, 0.18) !important;
+    background: rgba(192, 38, 211, 0.07) !important;
+    border: 1px solid rgba(192, 38, 211, 0.18) !important;
     border-radius: 8px;
     padding: 12px 14px;
     font-size: 13px;
@@ -6425,7 +6500,7 @@ a.contact-item:hover {
 }
 
 .support-promo a {
-    color: #a09ef8;
+    color: #E9A8FF;
 }
 
 /* ── template-info text ─────────────────────────────────────────── */
@@ -6458,7 +6533,7 @@ a.contact-item:hover {
     overflow: hidden;
 }
 
-.keyword-key  { color: #a09ef8; font-weight: 600; }
+.keyword-key  { color: #E9A8FF; font-weight: 600; }
 .keyword-arrow { color: #3a3d52; }
 .keyword-value { color: #7a7f9a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px; }
 
@@ -6510,7 +6585,7 @@ a.contact-item:hover {
     padding: 1px 5px;
     font-family: 'Fira Code', 'Consolas', monospace;
     font-size: 11px;
-    color: #a09ef8;
+    color: #E9A8FF;
     margin-right: 4px;
 }
 
@@ -6570,18 +6645,19 @@ a.contact-item:hover {
 }
 
 .fp-tools-modal-content {
-    background: #13141a !important;
-    border: 1px solid #22253a !important;
+    background: var(--fpt-bg, #13141a) !important;
+    color: var(--fpt-text, #e0e0e0) !important;
+    border: 1px solid var(--fpt-border, #22253a) !important;
     border-radius: 10px !important;
-    box-shadow: 0 16px 40px rgba(0,0,0,0.6) !important;
+    box-shadow: 0 16px 40px var(--fpt-shadow, rgba(0,0,0,0.6)) !important;
 }
 
 .fp-tools-modal-header {
-    border-bottom: 1px solid #1e2030 !important;
+    border-bottom: 1px solid var(--fpt-border, #1e2030) !important;
 }
 
 .fp-tools-modal-footer {
-    border-top: 1px solid #1e2030 !important;
+    border-top: 1px solid var(--fpt-border, #1e2030) !important;
 }
 
 /* ── Notification badge (announcement) ──────────────────────────── */
@@ -6592,7 +6668,7 @@ a.contact-item:hover {
 
 /* ── Tour logo ──────────────────────────────────────────────────── */
 .tour-logo {
-    color: #6B66FF !important;
+    color: #C026D3 !important;
     -webkit-background-clip: unset !important;
     background-clip: unset !important;
     background: none !important;
@@ -6604,9 +6680,9 @@ a.contact-item:hover {
 
 .fp-buyer-hist-btn {
     background: none;
-    border: 1px solid rgba(107, 102, 255, 0.35);
+    border: 1px solid rgba(192, 38, 211, 0.35);
     border-radius: 6px;
-    color: #6B66FF;
+    color: #C026D3;
     cursor: pointer;
     padding: 3px 9px;
     font-size: 11px;
@@ -6620,8 +6696,8 @@ a.contact-item:hover {
 
 .fp-buyer-hist-btn:hover,
 .fp-buyer-hist-btn.hover {
-    background: rgba(107, 102, 255, 0.12);
-    border-color: #6B66FF;
+    background: rgba(192, 38, 211, 0.12);
+    border-color: #C026D3;
 }
 
 .fp-buyer-hist-btn:disabled {
@@ -6657,7 +6733,7 @@ a.contact-item:hover {
     align-items: center;
     padding: 10px 12px 8px;
     border-bottom: 1px solid #1e2030;
-    background: rgba(107,102,255,0.07);
+    background: rgba(192,38,211,0.07);
 }
 
 .fp-bh-title {
@@ -6728,7 +6804,7 @@ a.contact-item:hover {
     margin-top: 2px;
 }
 
-.fp-bh-price { color: #6B66FF; font-weight: 600; }
+.fp-bh-price { color: #C026D3; font-weight: 600; }
 .fp-bh-dot   { color: #2a2d44; }
 
 /* ===================================================
@@ -6742,7 +6818,7 @@ a.contact-item:hover {
     transition: color 0.15s;
 }
 .fp-ipe-trigger:hover {
-    color: #6B66FF;
+    color: #C026D3;
 }
 
 /* Small permanent edit badge on price */
@@ -6757,7 +6833,7 @@ a.contact-item:hover {
 }
 .fp-ipe-trigger:hover::after {
     opacity: 1;
-    color: #6B66FF;
+    color: #C026D3;
 }
 
 /* Popup floats above everything, anchored to body */
@@ -6769,7 +6845,7 @@ a.contact-item:hover {
     gap: 5px;
     padding: 6px 8px;
     background: #0e0f16;
-    border: 1px solid rgba(107,102,255,0.5);
+    border: 1px solid rgba(192,38,211,0.5);
     border-radius: 8px;
     box-shadow: 0 4px 20px rgba(0,0,0,0.5);
     animation: fpIpeFadeIn 0.12s ease;
@@ -6797,7 +6873,7 @@ a.contact-item:hover {
     outline: none;
     transition: border-color 0.15s;
 }
-.fp-ipe-input:focus { border-color: #6B66FF; }
+.fp-ipe-input:focus { border-color: #C026D3; }
 .fp-ipe-input.fp-ipe-error {
     border-color: #ff4d4d;
     animation: fpIpeShake 0.25s;
@@ -6858,8 +6934,8 @@ a.contact-item:hover {
 #fp-lot-search-input::placeholder { color: #3d4260; }
 
 #fp-lot-search-input:focus {
-    border-color: rgba(107,102,255,0.5);
-    box-shadow: 0 0 0 3px rgba(107,102,255,0.1);
+    border-color: rgba(192,38,211,0.5);
+    box-shadow: 0 0 0 3px rgba(192,38,211,0.1);
 }
 
 #fp-lot-search-count {
@@ -6891,29 +6967,1173 @@ a.contact-item:hover {
     z-index: 1;
 }
 
-/* ===================================================
-   ORDER TIMERS
-   =================================================== */
-
-.fp-order-timer {
-    font-size: 10.5px;
-    color: #4a5070;
-    margin-top: 2px;
-    font-family: Inter, 'Segoe UI', sans-serif;
-    font-variant-numeric: tabular-nums;
-}
-
-.fp-order-timer-urgent {
-    color: #ff9800;
-    font-weight: 600;
-}
-
-.fp-order-timer-expired {
-    color: #ff4d4d;
-    font-weight: 600;
-}
-
 /* char counter absolute positioning fix */
 .chat-form-btn {
     position: relative;
 }
+/* ── ИИ-кнопка «Ответить» на отзыв (клон «Опубликовать» со звёздочкой) ── */
+#fp-tools-ai-review-reply-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    position: relative;
+}
+#fp-tools-ai-review-reply-btn .fp-ai-reply-star {
+    font-size: 13px;
+    line-height: 1;
+    color: #ffe69a;
+    text-shadow: 0 0 6px rgba(255, 222, 138, 0.6);
+}
+#fp-tools-ai-review-reply-btn[disabled] {
+    opacity: 0.85;
+    cursor: progress;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   ШАБЛОНЫ - КНОПКИ В ЧАТЕ (отображение по data-fpt-* на контейнере)
+   Применяется и к .chat-buttons-container (низ/верх), и к .fp-tools-template-sidebar
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* базовая структура метки */
+.chat-template-btn .fpt-btn-label,
+.custom-chat-template-btn .fpt-btn-label { display:inline; }
+.fpt-btn-dot{
+    width:8px;height:8px;border-radius:50%;flex-shrink:0;display:inline-block;
+    margin-right:6px;vertical-align:middle;box-shadow:0 0 0 1px rgba(255,255,255,.25);
+}
+.chat-template-btn,.custom-chat-template-btn{ display:inline-flex;align-items:center;justify-content:center; }
+
+/* ── Размер ── */
+[data-fpt-size="s"] .chat-template-btn,[data-fpt-size="s"] .custom-chat-template-btn{ font-size:10.5px;padding:3px 9px; }
+[data-fpt-size="m"] .chat-template-btn,[data-fpt-size="m"] .custom-chat-template-btn{ font-size:11.5px;padding:4px 10px; }
+[data-fpt-size="l"] .chat-template-btn,[data-fpt-size="l"] .custom-chat-template-btn{ font-size:13.5px;padding:7px 14px; }
+[data-fpt-size="s"] .sidebar-template-btn{ font-size:12px;padding:6px 10px; }
+[data-fpt-size="l"] .sidebar-template-btn{ font-size:15px;padding:11px 14px; }
+
+/* ── Форма ── */
+[data-fpt-shape="rounded"] .chat-template-btn,[data-fpt-shape="rounded"] .custom-chat-template-btn,[data-fpt-shape="rounded"] .sidebar-template-btn{ border-radius:6px; }
+[data-fpt-shape="pill"]    .chat-template-btn,[data-fpt-shape="pill"]    .custom-chat-template-btn,[data-fpt-shape="pill"]    .sidebar-template-btn{ border-radius:999px; }
+[data-fpt-shape="square"]  .chat-template-btn,[data-fpt-shape="square"]  .custom-chat-template-btn,[data-fpt-shape="square"]  .sidebar-template-btn{ border-radius:2px; }
+
+/* ── Заливка (для нижних/верхних кнопок; перекрываем инлайновый background) ── */
+[data-fpt-fill="soft"] .chat-template-btn,[data-fpt-fill="soft"] .custom-chat-template-btn{
+    background-color:color-mix(in srgb,var(--btn-color) 24%,transparent)!important;color:#fff;
+    border:1px solid color-mix(in srgb,var(--btn-color) 45%,transparent);
+}
+[data-fpt-fill="outline"] .chat-template-btn,[data-fpt-fill="outline"] .custom-chat-template-btn{
+    background-color:transparent!important;color:var(--btn-color);border:1.5px solid var(--btn-color);
+}
+[data-fpt-fill="ghost"] .chat-template-btn,[data-fpt-fill="ghost"] .custom-chat-template-btn{
+    background-color:transparent!important;color:var(--btn-color);
+    border:1px dashed color-mix(in srgb,var(--btn-color) 60%,transparent);
+}
+[data-fpt-fill="soft"] .chat-template-btn:hover,[data-fpt-fill="outline"] .chat-template-btn:hover,[data-fpt-fill="ghost"] .chat-template-btn:hover,
+[data-fpt-fill="soft"] .custom-chat-template-btn:hover,[data-fpt-fill="outline"] .custom-chat-template-btn:hover,[data-fpt-fill="ghost"] .custom-chat-template-btn:hover{
+    background-color:color-mix(in srgb,var(--btn-color) 34%,transparent)!important;color:#fff;
+}
+
+/* ── Выравнивание текста - реально работает: кнопки тянутся, текст внутри едет ── */
+[data-fpt-align="left"]  .chat-template-btn,[data-fpt-align="left"]  .custom-chat-template-btn{ justify-content:flex-start;text-align:left; }
+[data-fpt-align="center"] .chat-template-btn,[data-fpt-align="center"] .custom-chat-template-btn{ justify-content:center;text-align:center; }
+[data-fpt-align="right"] .chat-template-btn,[data-fpt-align="right"] .custom-chat-template-btn{ justify-content:flex-end;text-align:right; }
+[data-fpt-align="left"]  .sidebar-template-btn{ justify-content:flex-start;text-align:left; }
+[data-fpt-align="center"] .sidebar-template-btn{ justify-content:center;text-align:center; }
+[data-fpt-align="right"] .sidebar-template-btn{ justify-content:flex-end;text-align:right; }
+
+/* ── Полная ширина ── */
+.chat-buttons-container[data-fpt-fullwidth="1"]{ flex-direction:column;align-items:stretch;flex-wrap:nowrap;overflow-x:hidden; }
+.chat-buttons-container[data-fpt-fullwidth="1"] .chat-template-btn,
+.chat-buttons-container[data-fpt-fullwidth="1"] .custom-chat-template-btn{ width:100%;white-space:normal;flex:0 0 auto; }
+
+/* ── Компактно ── */
+.chat-buttons-container[data-fpt-compact="1"]{ gap:3px;padding:4px 6px; }
+.fp-tools-template-sidebar[data-fpt-compact="1"]{ gap:4px; }
+
+/* ── ЗАГЛАВНЫЕ ── */
+[data-fpt-uppercase="1"] .chat-template-btn,[data-fpt-uppercase="1"] .custom-chat-template-btn,[data-fpt-uppercase="1"] .sidebar-template-btn{
+    text-transform:uppercase;letter-spacing:.4px;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   ПРАВАЯ ПАНЕЛЬ - компактные кнопки шаблонов (без точки, без скролла)
+   ════════════════════════════════════════════════════════════════════════ */
+.fp-tools-template-sidebar{
+    padding:10px;margin-bottom:10px;
+    background:rgba(192,38,211,.05);border:1px solid rgba(192,38,211,.14);border-radius:12px;
+    overflow:visible;            /* НЕТ скролла - растём по контенту */
+    max-height:none;
+    box-sizing:border-box;
+}
+.fpt-sidebar-head{
+    font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
+    color:#a98bd0;padding:2px 4px 6px;opacity:.85;
+}
+/* НЕТ точки цвета вообще */
+.sidebar-template-btn::before{ content:none !important; display:none !important; }
+
+.sidebar-template-btn{
+    border:1px solid rgba(255,255,255,.07);border-radius:8px;
+    color:#cfd2e6;background:rgba(255,255,255,.05)!important;cursor:pointer;
+    font-weight:600;transition:background .14s,border-color .14s,transform .1s;
+    box-sizing:border-box;position:relative;overflow:visible;
+    display:inline-flex;align-items:center;justify-content:center;
+    line-height:1.15;
+}
+.sidebar-template-btn:hover{
+    background:color-mix(in srgb,var(--template-color,#C026D3) 22%,rgba(255,255,255,.05))!important;
+    border-color:color-mix(in srgb,var(--template-color,#C026D3) 50%,transparent);
+    color:#fff;
+}
+
+/* ── Раскладка ──────────────────────────────────────────────────────────── */
+/* flow = умная авто-сетка: кнопки по контенту, переносятся и заполняют ширину
+   панели (как на скриншоте: ряды по 1-3 кнопки разной ширины). */
+/* flow = умная авто-сетка (логика как у конкурента: flex-wrap + flex-grow на кнопках,
+   кнопки тянутся и заполняют ряд по ширине панели). */
+.fp-tools-template-sidebar[data-fpt-layout="flow"]{
+    display:flex;flex-wrap:wrap;gap:5px;align-content:flex-start;width:100%;
+}
+.fp-tools-template-sidebar[data-fpt-layout="flow"] .fpt-sidebar-head{ flex-basis:100%; }
+.fp-tools-template-sidebar[data-fpt-layout="flow"] .sidebar-template-btn{
+    flex-grow:1;                 /* ключ: кнопки растягиваются и заполняют ряд */
+    flex-basis:auto;
+    text-align:center;
+    white-space:nowrap;
+}
+/* list = в столбик, на всю ширину */
+.fp-tools-template-sidebar[data-fpt-layout="list"]{
+    display:flex;flex-direction:column;gap:6px;
+}
+.fp-tools-template-sidebar[data-fpt-layout="list"] .sidebar-template-btn{
+    width:100%;white-space:normal;
+}
+.fp-tools-template-sidebar[data-fpt-layout="list"][data-fpt-align="left"] .sidebar-template-btn{ justify-content:flex-start;text-align:left; }
+.fp-tools-template-sidebar[data-fpt-layout="list"][data-fpt-align="right"] .sidebar-template-btn{ justify-content:flex-end;text-align:right; }
+
+/* ── Компактность (density) ─────────────────────────────────────────────── */
+.fp-tools-template-sidebar[data-fpt-density="cozy"]   .sidebar-template-btn{ padding:9px 13px;font-size:13.5px; }
+.fp-tools-template-sidebar[data-fpt-density="normal"] .sidebar-template-btn{ padding:7px 11px;font-size:12.5px; }
+.fp-tools-template-sidebar[data-fpt-density="dense"]  .sidebar-template-btn{ padding:5px 9px; font-size:11.5px; }
+.fp-tools-template-sidebar[data-fpt-density="cozy"]   { gap:8px; }
+.fp-tools-template-sidebar[data-fpt-density="dense"]  { padding:8px; }
+.fp-tools-template-sidebar[data-fpt-density="dense"][data-fpt-layout="flow"]{ gap:4px; }
+
+/* ── «В панели снизу» - приклеено к САМОМУ НИЗУ панели, без фона (как на скрине) ── */
+.chat-detail-list.fpt-has-bottom-binds{ position:relative; }
+.fp-tools-template-sidebar[data-fpt-pin="bottom"]{
+    position:absolute;left:0;bottom:0;
+    width:calc(100% - 20px);margin:0 10px 10px;
+    background:transparent !important;border:none !important;border-radius:0;
+    padding:0;
+}
+.fp-tools-template-sidebar[data-fpt-pin="bottom"] .fpt-sidebar-head{ display:none; }
+/* «сверху» оставляем как обычный блок наверху панели */
+.fp-tools-template-sidebar[data-fpt-pin="top"]{ position:static; }
+
+/* форма наследуется из общих data-fpt-shape правил, заливка - ниже */
+.fp-tools-template-sidebar[data-fpt-fill="solid"] .sidebar-template-btn{
+    background:color-mix(in srgb,var(--template-color) 90%,#000)!important;color:#fff;border-color:transparent;
+}
+.fp-tools-template-sidebar[data-fpt-fill="soft"] .sidebar-template-btn{
+    background:color-mix(in srgb,var(--template-color) 22%,transparent)!important;
+    border-color:color-mix(in srgb,var(--template-color) 40%,transparent);color:#fff;
+}
+.fp-tools-template-sidebar[data-fpt-fill="outline"] .sidebar-template-btn{
+    background:transparent!important;border:1.5px solid var(--template-color);color:var(--template-color);
+}
+.fp-tools-template-sidebar[data-fpt-fill="ghost"] .sidebar-template-btn{
+    background:transparent!important;color:var(--template-color);
+    border:1px dashed color-mix(in srgb,var(--template-color) 60%,transparent);
+}
+.fp-tools-template-sidebar[data-fpt-fill="ghost"] .sidebar-template-btn:hover,
+.fp-tools-template-sidebar[data-fpt-fill="outline"] .sidebar-template-btn:hover,
+.fp-tools-template-sidebar[data-fpt-fill="soft"] .sidebar-template-btn:hover{
+    background:color-mix(in srgb,var(--template-color) 28%,transparent)!important;color:#fff;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   POPOVER ШАБЛОНОВ у кнопки-скрепки
+   ════════════════════════════════════════════════════════════════════════ */
+.fpt-tpl-popover-btn{ position:relative; }
+.fpt-tpl-popover-btn .material-symbols-rounded{ font-size:20px;vertical-align:middle;line-height:1; }
+.fpt-tpl-popover-cell{ display:flex;align-items:center; }
+
+/* ── Унификация кнопок композера: скрепка, шаблоны, ИИ - один размер, по центру ── */
+.chat-form .chat-btn-image,
+#fpt-tpl-popover-btn,
+#aiModeToggleBtn{
+    width:36px !important;height:36px !important;min-width:36px;padding:0 !important;
+    display:inline-flex !important;align-items:center;justify-content:center;
+    border-radius:50% !important;flex-shrink:0;align-self:center;margin:0 2px !important;
+    box-sizing:border-box;
+}
+.chat-form-attach{ display:flex;align-items:center; }
+/* иконка-скрепка по центру кружка */
+.chat-form .chat-btn-image > i,
+.chat-form .chat-btn-image .fa{ margin:0;line-height:1; }
+/* кнопка ИИ ровно в ряд, без наложения */
+#aiModeToggleBtn{ position:relative;z-index:1; }
+#aiModeToggleBtn .ai-magic-icon{ width:20px;height:20px;display:block; }
+.fpt-tpl-popover{
+    position:fixed;z-index:10050;min-width:230px;max-width:300px;
+    background:#15161d;border:1px solid #2a2d44;border-radius:12px;
+    box-shadow:0 12px 36px rgba(0,0,0,.55);overflow:hidden;
+    opacity:0;transform:translateY(6px) scale(.98);transition:opacity .12s ease,transform .12s ease;
+    font-family:Inter,'Segoe UI',sans-serif;
+}
+.fpt-tpl-popover.open{ opacity:1;transform:translateY(0) scale(1); }
+.fpt-tpl-popover-head{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 14px;border-bottom:1px solid #23263a;
+    font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#9aa0c2;
+}
+.fpt-tpl-popover-gear{
+    background:transparent;border:none;color:#8a90b5;cursor:pointer;border-radius:6px;
+    width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;transition:all .15s;
+}
+.fpt-tpl-popover-gear .material-symbols-rounded{ font-size:18px; }
+.fpt-tpl-popover-gear:hover{ background:rgba(192,38,211,.18);color:#e9a8ff; }
+.fpt-tpl-popover-list{ max-height:260px;overflow-y:auto;padding:6px; }
+.fpt-tpl-popover-item{
+    width:100%;display:flex;align-items:center;gap:10px;padding:9px 10px;border:none;border-radius:8px;
+    background:transparent;color:#d8dae8;cursor:pointer;font-size:13px;text-align:left;transition:background .12s;
+}
+.fpt-tpl-popover-item:hover{ background:rgba(192,38,211,.14); }
+.fpt-tpl-popover-dot{ width:9px;height:9px;border-radius:50%;flex-shrink:0;box-shadow:0 0 0 1px rgba(255,255,255,.2); }
+.fpt-tpl-popover-label{ flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.fpt-tpl-popover-empty{ padding:16px;text-align:center;color:#6b7194;font-size:12px; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   ПАНЕЛЬ НАСТРОЕК «Внешний вид кнопок» - крупнее, читаемее, без лагов
+   ════════════════════════════════════════════════════════════════════════ */
+/* выбор расположения карточками */
+.fpt-pos-grid{ display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:6px 0 4px; }
+.fpt-pos-card{
+    display:flex;flex-direction:column;align-items:center;gap:7px;padding:12px 6px;cursor:pointer;
+    background:#0e0f16;border:1.5px solid #22253a;border-radius:10px;transition:border-color .15s,background .15s;margin:0;
+}
+.fpt-pos-card input{ display:none; }
+.fpt-pos-card:hover{ border-color:#3a3f63; }
+.fpt-pos-card:has(input:checked){ border-color:#C026D3;background:rgba(192,38,211,.10); }
+.fpt-pos-name{ font-size:10.5px;color:#9aa0c2;font-weight:600;text-align:center; }
+.fpt-pos-card:has(input:checked) .fpt-pos-name{ color:#e9a8ff; }
+.fpt-pos-ico{ width:46px;height:34px;background:#1b1d2c;border-radius:6px;display:flex;flex-direction:column;justify-content:center;gap:4px;padding:5px; }
+.fpt-pos-row{ height:6px;border-radius:3px;background:#6b6dff; }       /* одна полоса кнопок */
+.fpt-pos-field{ height:10px;border-radius:3px;background:#3a3f63; }    /* поле ввода */
+.fpt-pos-ico-side{ flex-direction:row-reverse;gap:4px;align-items:stretch; }
+/* Панель ВСЕГДА слева: узкая вертикальная колонка. Кнопки прижаты к верху
+   (в панели сверху) или к низу (в панели снизу) этой колонки. */
+.fpt-pos-panel{ display:flex;flex-direction:column;gap:3px;width:15px;background:#23263a;border-radius:3px;padding:3px; }
+.fpt-pos-panel-top{ justify-content:flex-start; }
+.fpt-pos-panel-bottom{ justify-content:flex-end; }
+.fpt-pos-srow{ height:5px;border-radius:2px;background:#6b6dff; }
+.fpt-pos-sfield{ flex:1;background:#3a3f63;border-radius:3px; }
+.fpt-pos-ico-pop{ flex-direction:row;align-items:center;justify-content:flex-start;gap:4px; }
+.fpt-pos-ico-pop .fpt-pos-pop-btn{ position:static;width:9px;height:9px;border-radius:50%;background:#6b6dff;flex-shrink:0; }
+.fpt-pos-ico-pop .fpt-pos-field{ flex:1;height:10px; }
+
+/* контейнер настроек */
+.fpt-appx{ display:flex;flex-direction:column;gap:14px;margin:6px 0 10px; }
+.fpt-appx-grid{ display:grid;grid-template-columns:1fr 1fr;gap:14px; }
+.fpt-appx-block{ display:flex;flex-direction:column;gap:7px; }
+.fpt-appx-cap{ font-size:11px;color:#7a80a6;font-weight:700;letter-spacing:.6px;text-transform:uppercase; }
+
+/* сегментные переключатели - КРУПНЫЕ, с явной галочкой выбора */
+.fpt-seg{ display:flex;background:#0e0f16;border:1.5px solid #22253a;border-radius:10px;padding:3px;gap:3px; }
+.fpt-seg button{
+    flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    min-height:38px;padding:0 6px;background:transparent;border:1.5px solid transparent;border-radius:8px;
+    color:#aeb3d4;cursor:pointer;transition:background .12s,color .12s,border-color .12s;position:relative;
+}
+.fpt-seg button .material-symbols-rounded{ font-size:20px; }
+.fpt-seg button:hover{ background:rgba(192,38,211,.10);color:#fff; }
+.fpt-seg button.active{
+    background:rgba(192,38,211,.16);color:#fff;border-color:#C026D3;
+    box-shadow:0 0 0 1px rgba(192,38,211,.35) inset;
+}
+/* галочка-индикатор выбора - видно ВСЕГДА, не сливается с превью заливки */
+.fpt-seg button.active::after{
+    content:'';position:absolute;top:3px;right:3px;width:14px;height:14px;border-radius:50%;
+    background:#C026D3 url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'><path d='M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z'/></svg>") center/11px no-repeat;
+    box-shadow:0 0 0 2px #15161d;
+}
+.fpt-az{ font-weight:700;line-height:1;color:inherit; }
+.fpt-shape-prev{ display:block;width:24px;height:15px;background:currentColor;opacity:.85; }
+.fpt-fill-prev{ display:block;width:18px;height:14px;border-radius:4px;flex-shrink:0; }
+
+/* заливка: ряд с подписями, активная читается чётко */
+.fpt-seg-fill button{ flex-direction:column;gap:5px;min-height:54px;font-size:10.5px; }
+.fpt-fill-name{ font-size:10px;color:inherit;opacity:.9; }
+
+/* тумблеры-чипы - БОЛЬШИЕ с текстом, активное состояние ярко видно */
+.fpt-appx-toggles{ display:flex;flex-wrap:wrap;gap:8px; }
+.fpt-chip-toggle{
+    position:relative;
+    display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:8px;
+    background:#0e0f16;border:1.5px solid #22253a;color:#9aa0c2;cursor:pointer;
+    font-size:11px;font-weight:600;transition:background .14s,border-color .14s,color .14s;
+}
+.fpt-chip-toggle .material-symbols-rounded{ font-size:16px; }
+.fpt-chip-toggle:hover{ color:#fff;border-color:#3a3f63; }
+.fpt-chip-toggle.active{
+    background:rgba(192,38,211,.16);border-color:#C026D3;color:#f0c8ff;
+    box-shadow:0 0 0 1px rgba(192,38,211,.35) inset;
+}
+.fpt-chip-toggle.active .material-symbols-rounded{ color:#e9a8ff; }
+/* галочка в углу - ТОЛЬКО когда активно (как у сегментов), без пустого кружка */
+.fpt-chip-toggle.active::after{
+    content:'';position:absolute;top:-6px;right:-6px;width:15px;height:15px;border-radius:50%;
+    background:#C026D3 url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'><path d='M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z'/></svg>") center/11px no-repeat;
+    box-shadow:0 0 0 2px #15161d;
+}
+
+/* выравнивание доступно только при «на всю ширину» */
+.fpt-align-block{ transition:opacity .15s; }
+.fpt-align-block.fpt-disabled{ opacity:.4;pointer-events:none; }
+.fpt-align-hint{ font-size:10.5px;color:#6b7194;display:none; }
+.fpt-align-block.fpt-disabled .fpt-align-hint{ display:block; }
+
+/* живой предпросмотр */
+#fpt-appearance-preview{ pointer-events:none;background:rgba(0,0,0,.18);border:1px solid #1e2030;border-radius:10px;padding:10px;flex-direction:column;align-items:stretch;gap:6px; }
+#fpt-appearance-preview .chat-template-btn,
+#fpt-appearance-preview .custom-chat-template-btn{ width:100%; }
+
+/* ── Редактор цен (профиль): режимы/проценты/округление/превью ── */
+#fp-price-editor-popup{ text-align:left; max-width:460px; }
+.fp-pe-head{ display:flex;align-items:center;justify-content:space-between;margin-bottom:4px; }
+.fp-pe-head h3{ margin:0; }
+.fp-pe-x{ background:transparent;border:none;color:#9aa0c2;font-size:24px;cursor:pointer;line-height:1;padding:0 4px; }
+.fp-pe-x:hover{ color:#fff; }
+.fp-pe-sub{ color:#9aa0c2 !important;font-size:13px !important;margin:0 0 14px !important; }
+.fp-pe-label{ font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#7a80a6;display:block;margin-bottom:6px; }
+.fp-pe-modes{ display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px; }
+.fp-pe-mode{
+    flex:1 1 auto;min-width:84px;padding:8px 6px;border-radius:8px;border:1.5px solid #2a2d44;
+    background:#15161d;color:#aeb3d4;font-size:12px;font-weight:600;cursor:pointer;transition:all .14s;
+}
+.fp-pe-mode:hover{ border-color:#3a3f63;color:#fff; }
+.fp-pe-mode.active{ background:rgba(192,38,211,.18);border-color:#C026D3;color:#fff;box-shadow:0 0 0 1px rgba(192,38,211,.35) inset; }
+.fp-pe-row{ display:flex;align-items:center;gap:8px;margin-bottom:12px; }
+.fp-pe-row input{ flex:1; }
+.fp-pe-unit{ color:#9aa0c2;font-weight:700;min-width:16px; }
+.fp-pe-opts{ display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-bottom:14px;font-size:12px;color:#9aa0c2; }
+.fp-pe-check{ display:flex;align-items:center;gap:6px;cursor:pointer; }
+.fp-pe-check input{ accent-color:#C026D3; }
+.fp-pe-minmax{ display:flex;align-items:center;gap:5px; }
+.fp-pe-minmax input{ width:74px;padding:6px;border-radius:6px;border:1px solid #2a2d44;background:#15161d;color:#fff;font-size:12px;box-sizing:border-box; }
+.fp-pe-preview-head{ font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#7a80a6;margin-bottom:6px; }
+.fp-pe-preview-list{ background:rgba(0,0,0,.25);border:1px solid #1e2030;border-radius:8px;max-height:160px;overflow-y:auto;margin-bottom:4px; }
+.fp-pe-preview-empty{ padding:14px 12px;font-size:12px;color:#7a80a6;text-align:center; }
+.fp-pe-preview-row{ display:flex;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid #1a1c28;font-size:12.5px; }
+.fp-pe-preview-row:last-child{ border-bottom:none; }
+.fp-pe-preview-name{ flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#aab0d0;text-align:left; }
+.fp-pe-preview-prices{ display:flex;align-items:center;gap:6px;flex-shrink:0; }
+.fp-pe-old{ color:#7a80a6; }
+.fp-pe-arrow{ color:#5a5f7a; }
+.fp-pe-new{ color:#cfd2e6; }
+.fp-pe-new-changed{ color:#7CFFB2; }
+
+/* кнопка «Применить изменения» в массовом редакторе была белой - делаем фирменной */
+#fp-bulk-apply-btn{ background:#C026D3 !important;color:#fff !important;border:none !important; }
+#fp-bulk-apply-btn:hover{ filter:brightness(1.08); }
+#fp-bulk-apply-btn:disabled{ opacity:.6;cursor:progress; }
+
+/* ── Фиксированное превью шаблона (для правой панели, поверх всего) ── */
+.fp-tools-template-preview.fpt-preview-fixed{
+    position:fixed !important;
+    visibility:visible;opacity:0;transform:none !important;
+    left:0;top:0;margin:0 !important;
+    z-index:10060;max-width:280px;width:max-content !important;
+    height:auto !important;max-height:none !important;min-height:0 !important;
+    pointer-events:none;box-sizing:border-box !important;
+    display:block !important;
+    background:rgba(12,12,16,.96);backdrop-filter:blur(6px);color:#fff;
+    border:1px solid #2a2d44;border-radius:8px;padding:10px 12px !important;
+    font-size:12.5px;line-height:1.45 !important;text-align:left !important;
+    vertical-align:baseline !important;
+    white-space:pre-wrap;word-break:break-word;overflow:visible !important;
+    box-shadow:0 10px 30px rgba(0,0,0,.5);
+    transition:opacity .12s ease;
+}
+.fp-tools-template-preview.fpt-preview-fixed.show{ opacity:1; }
+.fp-tools-template-preview.fpt-preview-fixed::before,
+.fp-tools-template-preview.fpt-preview-fixed::after{ display:none !important;content:none !important; }
+
+/* ── Блок настроек, видимый только для «в панели» ── */
+.fpt-sidebar-only .fpt-seg button{ flex:1;font-size:11px;padding:0 6px;min-height:34px; }
+
+/* ── Bulk-editor checkboxes: self-contained styling so the tick ALWAYS
+      renders, regardless of FunPay's own checkbox CSS (accent-color alone
+      was being overridden, so the checkmark never lit up). ──────────── */
+#fp-bulk-editor-overlay input[type="checkbox"]{
+    -webkit-appearance:none !important;
+    -moz-appearance:none !important;
+    appearance:none !important;
+    width:16px;height:16px;flex-shrink:0;margin:0;
+    border:1.5px solid #3a3f5c;border-radius:4px;
+    background:#0e0f16;cursor:pointer;position:relative;
+    transition:background .12s ease,border-color .12s ease;
+    vertical-align:middle;
+}
+#fp-bulk-editor-overlay input[type="checkbox"]:hover{ border-color:#C026D3; }
+#fp-bulk-editor-overlay input[type="checkbox"]:checked{
+    background:#C026D3;border-color:#C026D3;
+}
+#fp-bulk-editor-overlay input[type="checkbox"]:checked::after{
+    content:'';position:absolute;left:4px;top:1px;
+    width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;
+    transform:rotate(45deg);
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   FPT - ТЕЛЕГРАМ-СТАЙЛ АЛЬБОМЫ В ЧАТЕ + ЛАЙТБОКС (chat_image_album.js)
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* сообщения, чьи картинки слиты в альбом, прячем целиком */
+.chat-msg-item.fpt-album-merged{ display:none !important; }
+
+/* мозаика альбома внутри пузыря сообщения */
+.fpt-album-mosaic{
+    display:grid;
+    grid-template-columns:repeat(var(--cols,2),1fr);
+    gap:3px;
+    width:min(360px,72vw);
+    border-radius:12px;
+    overflow:hidden;
+    background:#0e0e13;
+}
+.fpt-album-tile{
+    position:relative;
+    aspect-ratio:1/1;
+    overflow:hidden;
+    cursor:zoom-in;
+    background:#15151b;
+}
+.fpt-album-tile img{
+    width:100%;height:100%;object-fit:cover;display:block;
+    transition:transform .25s ease,filter .15s ease;
+}
+.fpt-album-tile:hover img{ transform:scale(1.05);filter:brightness(1.05); }
+
+/* для нечётного числа (3, 5…) первая плитка тянется на 2 колонки - мозаичный вид */
+.fpt-album-mosaic[data-count="3"] .fpt-album-tile:first-child{ grid-column:span 2;aspect-ratio:2/1; }
+.fpt-album-mosaic[data-count="5"] .fpt-album-tile:nth-child(1),
+.fpt-album-mosaic[data-count="5"] .fpt-album-tile:nth-child(2){ aspect-ratio:3/2; }
+
+/* ── ЛАЙТБОКС ── */
+.fpt-lb-overlay{
+    position:fixed;inset:0;z-index:10090;
+    display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.9);
+    opacity:0;transition:opacity .15s ease;
+    user-select:none;
+}
+.fpt-lb-overlay.open{ opacity:1; }
+.fpt-lb-stage{
+    position:relative;width:100%;height:100%;
+    display:flex;align-items:center;justify-content:center;
+    overflow:hidden;
+}
+.fpt-lb-img{
+    max-width:90vw;max-height:88vh;
+    border-radius:6px;
+    box-shadow:0 20px 80px rgba(0,0,0,.6);
+    transform-origin:center center;
+    transition:transform .04s linear;
+    cursor:zoom-in;
+    will-change:transform;
+}
+.fpt-lb-img.zoomed{ cursor:grab; }
+.fpt-lb-img.grabbing{ cursor:grabbing;transition:none; }
+
+/* кнопки лайтбокса */
+.fpt-lb-btn{
+    border:none;cursor:pointer;color:#fff;
+    background:rgba(20,20,26,.7);
+    border-radius:50%;
+    width:42px;height:42px;
+    display:inline-flex;align-items:center;justify-content:center;
+    transition:background .15s ease,transform .12s ease;
+    backdrop-filter:blur(4px);
+}
+.fpt-lb-btn:hover{ background:rgba(192,38,211,.55);transform:scale(1.06); }
+.fpt-lb-btn:active{ transform:scale(.94); }
+.fpt-lb-btn .material-symbols-rounded{ font-size:24px;line-height:1; }
+
+.fpt-lb-close{ position:fixed;top:18px;right:18px;z-index:2; }
+.fpt-lb-prev{ position:fixed;left:18px;top:50%;transform:translateY(-50%);z-index:2; }
+.fpt-lb-next{ position:fixed;right:18px;top:50%;transform:translateY(-50%);z-index:2; }
+.fpt-lb-prev:hover,.fpt-lb-next:hover{ transform:translateY(-50%) scale(1.06); }
+
+.fpt-lb-toolbar{
+    position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:2;
+    display:flex;align-items:center;gap:6px;
+    background:rgba(16,16,22,.8);
+    border:1px solid #2a2d44;
+    border-radius:999px;
+    padding:6px 10px;
+    backdrop-filter:blur(8px);
+    box-shadow:0 10px 30px rgba(0,0,0,.5);
+}
+.fpt-lb-toolbar .fpt-lb-btn{ width:38px;height:38px;background:transparent; }
+.fpt-lb-toolbar .fpt-lb-btn:hover{ background:rgba(192,38,211,.3); }
+.fpt-lb-counter{
+    color:#cfd0e0;font-size:13px;font-weight:600;
+    min-width:54px;text-align:center;letter-spacing:.3px;
+    padding:0 4px;
+}
+/* ════════════════════════════════════════════════════════════════════════
+   FPT - КАСТОМНАЯ СКРЕПКА + ТЕЛЕГРАМ-СТАЙЛ МЕНЮ ПРИКРЕПЛЕНИЯ
+   БЕЗ форс-цветов: фон/текст наследуются от страницы (FunPay/кастомная тема).
+   Акценты строятся из currentColor, поэтому подхватывают тему автоматически.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* наша кнопка-скрепка - никаких цветов, только форма; цвет берёт у темы */
+.fpt-attach-btn{
+    width:36px !important;height:36px !important;min-width:36px;padding:0 !important;
+    display:inline-flex !important;align-items:center;justify-content:center;
+    border-radius:50% !important;flex-shrink:0;align-self:center;margin:0 2px !important;
+    box-sizing:border-box;background:transparent;border:none;cursor:pointer;
+    color:inherit;transition:background .15s ease,transform .12s ease;
+}
+.fpt-attach-btn .material-symbols-rounded{ font-size:22px;line-height:1; }
+.fpt-attach-btn:hover{ background:color-mix(in srgb, currentColor 14%, transparent); }
+.fpt-attach-btn:active{ transform:scale(.92); }
+.fpt-native-attach-hidden,
+.chat-form .chat-btn-image.fpt-native-attach-hidden{ display:none !important; }
+
+/* оверлей затемнения - нейтральный, без привязки к теме */
+.fpt-tg-overlay{
+    position:fixed;inset:0;z-index:10070;display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.5);opacity:0;transition:opacity .15s ease;
+}
+.fpt-tg-overlay.open{ opacity:1; }
+
+/* окно: фон и текст наследуем от страницы (body), рамка - из currentColor */
+.fpt-tg-modal{
+    width:min(420px,94vw);max-height:86vh;display:flex;flex-direction:column;
+    background:inherit;color:inherit;
+    border:1px solid color-mix(in srgb, currentColor 16%, transparent);
+    border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4);
+    transform:translateY(10px) scale(.98);transition:transform .17s cubic-bezier(.2,.8,.2,1);
+}
+.fpt-tg-overlay.open .fpt-tg-modal{ transform:translateY(0) scale(1); }
+/* окно берёт фон от <body>, чтобы совпасть с темой сайта */
+.fpt-tg-overlay{ color:inherit; }
+
+.fpt-tg-head{ display:flex;align-items:center;padding:14px 16px 10px; }
+.fpt-tg-title{ flex:1;font-size:15px;font-weight:600; }
+.fpt-tg-x{
+    width:30px;height:30px;border:none;background:transparent;border-radius:50%;
+    color:inherit;opacity:.6;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
+    transition:background .15s,opacity .15s;
+}
+.fpt-tg-x .material-symbols-rounded{ font-size:20px; }
+.fpt-tg-x:hover{ background:color-mix(in srgb, currentColor 12%, transparent);opacity:1; }
+
+.fpt-tg-grid{
+    display:grid;grid-template-columns:repeat(2,1fr);gap:8px;
+    padding:6px 16px 4px;overflow-y:auto;align-content:start;
+    scrollbar-width:thin;scrollbar-color:color-mix(in srgb, currentColor 30%, transparent) transparent;
+}
+.fpt-tg-grid::-webkit-scrollbar{ width:6px; }
+.fpt-tg-grid::-webkit-scrollbar-thumb{ background:color-mix(in srgb, currentColor 30%, transparent);border-radius:4px; }
+.fpt-tg-cell{
+    position:relative;aspect-ratio:1/1;border-radius:10px;overflow:hidden;
+    background:color-mix(in srgb, currentColor 6%, transparent);
+}
+.fpt-tg-cell img{ width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in; }
+
+/* ✕ и ⋮ - прозрачный фон, чуть меньше, рядом друг с другом справа сверху */
+.fpt-tg-cell-x,.fpt-tg-cell-menu{
+    position:absolute;top:5px;width:22px;height:22px;border:none;cursor:pointer;border-radius:50%;
+    background:transparent;color:#fff;display:inline-flex;align-items:center;justify-content:center;
+    text-shadow:0 1px 3px rgba(0,0,0,.7);transition:background .15s,transform .12s;
+}
+.fpt-tg-cell-menu{ right:30px; }
+.fpt-tg-cell-x{ right:5px; }
+.fpt-tg-cell-x .material-symbols-rounded,
+.fpt-tg-cell-menu .material-symbols-rounded{ font-size:16px; }
+.fpt-tg-cell-x:hover,.fpt-tg-cell-menu:hover{ background:rgba(0,0,0,.35);transform:scale(1.1); }
+
+/* мини-меню карточки - фон/текст от страницы */
+.fpt-tg-cellmenu{
+    position:fixed;z-index:10075;min-width:180px;background:inherit;color:inherit;
+    border:1px solid color-mix(in srgb, currentColor 16%, transparent);border-radius:10px;
+    box-shadow:0 12px 34px rgba(0,0,0,.4);padding:5px;overflow:hidden;
+}
+.fpt-tg-cellmenu button{
+    width:100%;display:flex;align-items:center;gap:10px;padding:9px 11px;border:none;cursor:pointer;
+    background:transparent;color:inherit;font-size:13.5px;border-radius:7px;text-align:left;transition:background .14s;
+}
+.fpt-tg-cellmenu button .material-symbols-rounded{ font-size:19px;opacity:.7; }
+.fpt-tg-cellmenu button:hover{ background:color-mix(in srgb, currentColor 12%, transparent); }
+
+.fpt-tg-caption{ padding:8px 16px 4px; }
+.fpt-tg-msg{
+    width:100%;box-sizing:border-box;resize:none;max-height:120px;
+    background:color-mix(in srgb, currentColor 6%, transparent);
+    border:1px solid color-mix(in srgb, currentColor 16%, transparent);border-radius:10px;
+    color:inherit;font-size:14px;line-height:1.4;padding:10px 12px;outline:none;
+    font-family:inherit;transition:border-color .15s;
+}
+.fpt-tg-msg::placeholder{ color:inherit;opacity:.5; }
+.fpt-tg-msg:focus{ border-color:color-mix(in srgb, currentColor 40%, transparent); }
+
+/* кнопки: «Добавить»/«Отмена» нейтральные, «Отправить» - фанпейный btn-gray.
+   Цвета берём из темы (currentColor), отправку красим как родную акцентную. */
+.fpt-tg-foot{ display:flex;gap:8px;padding:12px 16px 16px; }
+.fpt-tg-btn{
+    flex:1;padding:11px 12px;border-radius:10px;cursor:pointer;
+    font-size:13.5px;font-weight:600;transition:background .15s,transform .1s;color:inherit;
+    border:1px solid color-mix(in srgb, currentColor 16%, transparent);
+    background:color-mix(in srgb, currentColor 6%, transparent);
+}
+.fpt-tg-btn:active{ transform:scale(.97); }
+.fpt-tg-add:hover,.fpt-tg-cancel:hover{ background:color-mix(in srgb, currentColor 14%, transparent); }
+.fpt-tg-cancel{ opacity:.8; }
+/* «Отправить» наследует вид родной кнопки FunPay (btn-gray) - добавим класс в JS */
+
+/* ── редактор: окно от темы, инструменты из currentColor ── */
+.fpt-ed-overlay{
+    position:fixed;inset:0;z-index:10085;display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.8);opacity:0;transition:opacity .15s;color:inherit;
+}
+.fpt-ed-overlay.open{ opacity:1; }
+.fpt-ed{
+    width:min(900px,96vw);height:min(86vh,760px);display:flex;flex-direction:column;
+    background:inherit;color:inherit;border-radius:14px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.55);
+    border:1px solid color-mix(in srgb, currentColor 16%, transparent);
+}
+.fpt-ed-toolbar{
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    padding:10px 14px;border-bottom:1px solid color-mix(in srgb, currentColor 14%, transparent);
+}
+.fpt-ed-tools,.fpt-ed-actions{ display:flex;align-items:center;gap:6px; }
+.fpt-ed-actions{ margin-left:auto; }
+.fpt-ed-tool,.fpt-ed-mini{
+    width:38px;height:38px;border:none;border-radius:9px;cursor:pointer;color:inherit;
+    background:color-mix(in srgb, currentColor 8%, transparent);
+    display:inline-flex;align-items:center;justify-content:center;transition:background .15s;
+}
+.fpt-ed-tool .material-symbols-rounded,.fpt-ed-mini .material-symbols-rounded{ font-size:21px; }
+.fpt-ed-tool:hover,.fpt-ed-mini:hover{ background:color-mix(in srgb, currentColor 16%, transparent); }
+.fpt-ed-tool.active{ background:color-mix(in srgb, currentColor 24%, transparent); }
+.fpt-ed-colors{ display:flex;gap:5px;align-items:center; }
+.fpt-ed-color{
+    width:22px;height:22px;border-radius:50%;cursor:pointer;
+    border:2px solid transparent;box-shadow:0 0 0 1px color-mix(in srgb, currentColor 25%, transparent);transition:transform .1s;
+}
+.fpt-ed-color:hover{ transform:scale(1.12); }
+.fpt-ed-color.active{ border-color:currentColor;transform:scale(1.12); }
+.fpt-ed-size{ display:flex;align-items:center;gap:7px;opacity:.8; }
+.fpt-ed-size .material-symbols-rounded{ font-size:20px; }
+.fpt-ed-size input[type=range]{ width:96px;accent-color:currentColor; }
+.fpt-ed-cancel,.fpt-ed-save,.fpt-ed-apply-crop{
+    padding:9px 16px;border:none;border-radius:9px;cursor:pointer;font-size:13.5px;font-weight:600;
+    color:inherit;transition:background .15s;
+    background:color-mix(in srgb, currentColor 8%, transparent);
+}
+.fpt-ed-cancel{ opacity:.8; }
+.fpt-ed-cancel:hover,.fpt-ed-save:hover,.fpt-ed-apply-crop:hover{ background:color-mix(in srgb, currentColor 16%, transparent); }
+.fpt-ed-stage{
+    flex:1;position:relative;display:flex;align-items:center;justify-content:center;
+    overflow:hidden;background:rgba(0,0,0,.35);padding:12px;
+}
+#fptEdCanvas{ display:block;touch-action:none;cursor:crosshair;border-radius:4px; }
+.fpt-ed-crop{
+    position:absolute;border:1px solid rgba(255,255,255,.9);
+    box-shadow:0 0 0 9999px rgba(0,0,0,.5);cursor:move;box-sizing:border-box;
+    /* сетка-«третей» как в мессенджерах */
+    background-image:
+        linear-gradient(rgba(255,255,255,.35) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.35) 1px, transparent 1px);
+    background-size:33.333% 33.333%;
+    background-position:0 0;
+}
+/* угловые ручки */
+.fpt-ed-h{
+    position:absolute;width:14px;height:14px;background:#fff;border-radius:2px;
+    box-shadow:0 0 0 1px rgba(0,0,0,.4);z-index:2;
+}
+.fpt-ed-h-nw{ left:-7px;top:-7px;cursor:nwse-resize; }
+.fpt-ed-h-ne{ right:-7px;top:-7px;cursor:nesw-resize; }
+.fpt-ed-h-sw{ left:-7px;bottom:-7px;cursor:nesw-resize; }
+.fpt-ed-h-se{ right:-7px;bottom:-7px;cursor:nwse-resize; }
+/* боковые ручки (середины сторон) */
+.fpt-ed-e{ position:absolute;background:transparent;z-index:1; }
+.fpt-ed-e-n{ top:-6px;left:14px;right:14px;height:12px;cursor:ns-resize; }
+.fpt-ed-e-s{ bottom:-6px;left:14px;right:14px;height:12px;cursor:ns-resize; }
+.fpt-ed-e-w{ left:-6px;top:14px;bottom:14px;width:12px;cursor:ew-resize; }
+.fpt-ed-e-e{ right:-6px;top:14px;bottom:14px;width:12px;cursor:ew-resize; }
+
+/* ── оптимистичные пузыри отправки (сгруппированы, ширина как у сообщения) ── */
+.fpt-pending-bubble{ opacity:.97; }
+.fpt-pending-mosaic{
+    display:grid;grid-template-columns:repeat(var(--cols,2),1fr);gap:3px;
+    width:min(300px,60vw);border-radius:10px;overflow:hidden;
+}
+.fpt-pending-mosaic[data-count="1"]{ width:min(240px,55vw);grid-template-columns:1fr; }
+.fpt-pending-tile{ position:relative;aspect-ratio:1/1;overflow:hidden;background:rgba(0,0,0,.2); }
+.fpt-pending-mosaic[data-count="1"] .fpt-pending-tile{ aspect-ratio:auto; }
+.fpt-pending-tile img{ width:100%;height:100%;object-fit:cover;display:block;filter:brightness(.78); }
+.fpt-pending-mosaic[data-count="1"] .fpt-pending-tile img{ height:auto;max-height:300px; }
+.fpt-pending-caption{ display:block;margin-top:4px;white-space:pre-wrap;word-break:break-word; }
+.fpt-pending-spinner{
+    position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    width:34px;height:34px;border-radius:50%;background:rgba(0,0,0,.45);
+    display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px);
+    transition:opacity .35s ease;
+}
+.fpt-pending-spinner.fpt-pending-tile-done{ opacity:0; }
+.fpt-pending-tile-done .chat-img,.fpt-pending-tile img{ }
+.fpt-spin{
+    width:18px;height:18px;border-radius:50%;
+    border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;
+    animation:fptSpin .8s linear infinite;
+}
+@keyframes fptSpin{ to{ transform:rotate(360deg); } }
+.fpt-pending-done{ opacity:0;transition:opacity .45s ease; }
+.fpt-pending-err{ color:#ff5b5b;font-size:20px; }
+
+/* подсветка зоны при перетаскивании картинок в чат */
+body.fpt-dnd-active .chat::after{
+    content:'Отпустите, чтобы прикрепить';
+    position:absolute;inset:0;z-index:9000;
+    display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.35);border:2px dashed rgba(255,255,255,.6);border-radius:12px;
+    color:#fff;font-size:15px;font-weight:600;pointer-events:none;
+}
+body.fpt-dnd-active .chat{ position:relative; }
+
+/* ── простой просмотр одной картинки (клик по превью в модалке) ── */
+.fpt-tg-viewer{
+    position:fixed;inset:0;z-index:10095;display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.88);opacity:0;transition:opacity .15s;cursor:zoom-out;
+}
+.fpt-tg-viewer.open{ opacity:1; }
+.fpt-tg-viewer img{ max-width:92vw;max-height:92vh;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.6); }
+
+/* ════════════════════════════════════════════════════════════════════════
+   FPT - ПОИСК СООБЩЕНИЙ (chat_search.js) - без форс-цветов
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* кнопка-лупа в шапке: квадратная, иконка строго по центру, цвет от темы.
+   Переопределяем растяжку родных классов btn-info-* до квадрата. */
+.fpt-search-toggle.btn{
+    width:34px !important;height:34px !important;min-width:34px !important;
+    padding:0 !important;display:inline-flex !important;align-items:center;justify-content:center;
+    line-height:1 !important;box-sizing:border-box;
+}
+.fpt-search-toggle .material-symbols-rounded{
+    font-size:18px;line-height:1;display:block;margin:0;
+}
+.fpt-search-toggle.active{ background:color-mix(in srgb, currentColor 20%, transparent) !important; }
+
+/* строка поиска по чату */
+.fpt-inchat-search{
+    display:flex;align-items:center;gap:6px;padding:0 12px;height:0;overflow:hidden;
+    background:color-mix(in srgb, currentColor 5%, transparent);
+    border-bottom:1px solid color-mix(in srgb, currentColor 12%, transparent);
+    opacity:0;transition:height .16s ease,opacity .16s ease;color:inherit;
+}
+.fpt-inchat-search.open{ height:46px;opacity:1; }
+.fpt-ics-ico{ opacity:.55;font-size:20px; }
+.fpt-ics-input{
+    flex:1;min-width:0;background:transparent;border:none;outline:none;color:inherit;font-size:14px;padding:8px 2px;
+}
+.fpt-ics-input::placeholder{ color:inherit;opacity:.5; }
+.fpt-ics-count{ opacity:.6;font-size:12.5px;min-width:42px;text-align:center; }
+.fpt-ics-nav,.fpt-ics-close{
+    width:30px;height:30px;border:none;background:transparent;border-radius:7px;cursor:pointer;color:inherit;opacity:.65;
+    display:inline-flex;align-items:center;justify-content:center;transition:background .14s,opacity .14s;
+}
+.fpt-ics-nav .material-symbols-rounded,.fpt-ics-close .material-symbols-rounded{ font-size:20px; }
+.fpt-ics-nav:hover,.fpt-ics-close:hover{ background:color-mix(in srgb, currentColor 12%, transparent);opacity:1; }
+
+/* подсветка совпадений в ленте - тинт из currentColor */
+.chat-msg-item.fpt-ics-hit{ background:color-mix(in srgb, currentColor 7%, transparent);border-radius:8px; }
+.chat-msg-item.fpt-ics-current{
+    background:color-mix(in srgb, currentColor 18%, transparent) !important;border-radius:8px;
+    box-shadow:inset 0 0 0 1px color-mix(in srgb, currentColor 40%, transparent);
+    transition:background .3s ease;
+}
+
+/* =============================================================================
+   FPT GLOBAL CHAT - «Общий чат»  (minimal, Telegram-like)
+   ========================================================================== */
+.fp-tools-page-content[data-page="global_chat"]{overflow-x:hidden;}
+.fp-tools-page-content[data-page="global_chat"] *{max-width:100%;}
+/* when active, fill the content area so the composer sits at the bottom */
+.fp-tools-page-content[data-page="global_chat"].active{
+    display:flex;flex-direction:column;height:100%;box-sizing:border-box;
+}
+.fp-tools-page-content[data-page="global_chat"] h3,
+.fp-tools-page-content[data-page="global_chat"] .template-info,
+.fp-tools-page-content[data-page="global_chat"] .fpt-gc-disclaimer,
+.fp-tools-page-content[data-page="global_chat"] .fpt-gc-composer,
+.fp-tools-page-content[data-page="global_chat"] .fpt-gc-status{flex:0 0 auto;}
+
+/* subtle one-line moderation note */
+.fpt-gc-disclaimer{
+    display:flex;align-items:flex-start;gap:6px;box-sizing:border-box;
+    padding:0;margin:0 2px 14px;background:none;border:none;
+    font-size:11px;line-height:1.45;color:#6b6f86;
+}
+.fpt-gc-disclaimer .material-symbols-rounded{font-size:15px;color:#6b6f86;flex:0 0 auto;margin-top:1px;}
+.fpt-gc-disclaimer b{color:#9ea2bd;font-weight:600;}
+
+/* message feed: no box, just a quiet divider top & bottom */
+.fpt-gc-feed{
+    background:none;border:none;border-radius:0;
+    padding:4px 2px;flex:1 1 auto;min-height:120px;overflow-y:auto;overflow-x:hidden;
+    width:100%;box-sizing:border-box;
+    display:flex;flex-direction:column;gap:10px;
+}
+.fpt-gc-feed::-webkit-scrollbar{width:4px;}
+.fpt-gc-feed::-webkit-scrollbar-track{background:transparent;}
+.fpt-gc-feed::-webkit-scrollbar-thumb{background:#2a2d44;border-radius:4px;}
+.fpt-gc-feed::-webkit-scrollbar-thumb:hover{background:#3a3d54;}
+
+.fpt-gc-loading{color:#5a5f7a;font-size:13px;text-align:center;margin:auto;padding:20px;}
+
+/* flat bubbles, no borders */
+.fpt-gc-msg{
+    border:none;border-radius:12px;padding:7px 11px;
+    max-width:80%;align-self:flex-start;box-sizing:border-box;
+    background:#1a1c28;
+}
+.fpt-gc-msg-mine{align-self:flex-end;background:#3a1f52;}
+.fpt-gc-msg-blocked{opacity:.5;font-style:italic;background:transparent;}
+.fpt-gc-head{display:flex;align-items:baseline;gap:8px;margin-bottom:2px;}
+.fpt-gc-author{font-size:11px;font-weight:600;color:#9b8cf0;text-decoration:none;}
+.fpt-gc-author:hover{text-decoration:underline;}
+.fpt-gc-msg-mine .fpt-gc-author{color:#d8acff;}
+.fpt-gc-date{font-size:10px;color:#5a5f7a;}
+.fpt-gc-text{font-size:13px;color:#e2e4f0;line-height:1.45;white-space:pre-wrap;word-break:break-word;}
+
+/* composer: single clean rounded field, button inside */
+.fpt-gc-composer{
+    position:relative;margin-top:14px;
+    width:100%;box-sizing:border-box;
+}
+.fp-tools-popup textarea#fpt-gc-input,
+.fp-tools-popup textarea#fpt-gc-input:focus{
+    display:block;width:100%;box-sizing:border-box;margin:0;
+    resize:none;min-height:40px;max-height:120px;
+    background:#15171f !important;
+    border:1px solid #262a3d !important;border-radius:20px;
+    outline:none !important;box-shadow:none !important;
+    padding:10px 46px 10px 15px;color:#e2e4f0;font-size:13px;line-height:1.4;
+    font-family:inherit;text-transform:none;letter-spacing:normal;
+    overflow-x:hidden;overflow-wrap:anywhere;transition:border-color .15s;
+}
+.fp-tools-popup textarea#fpt-gc-input:focus{border-color:#7a3fb8 !important;}
+.fp-tools-popup textarea#fpt-gc-input::placeholder{color:#5a5f7a;text-transform:none;letter-spacing:normal;}
+
+/* Telegram-style send button: borderless, pinned inside the field */
+.fp-tools-popup button.fpt-gc-send-btn,
+.fp-tools-popup button.fpt-gc-send-btn:hover,
+.fp-tools-popup button.fpt-gc-send-btn:focus,
+.fp-tools-popup button.fpt-gc-send-btn:active,
+.fp-tools-popup button.fpt-gc-send-btn:not(:disabled):hover{
+    position:absolute;right:6px;bottom:6px;
+    width:28px;height:28px;min-width:0;padding:0;margin:0;
+    display:flex;align-items:center;justify-content:center;
+    background:transparent;border:none;box-shadow:none;outline:none;
+    border-radius:50%;cursor:pointer;
+    text-transform:none;letter-spacing:normal;overflow:visible;
+    transform:none;transition:background .15s;
+}
+.fp-tools-popup button.fpt-gc-send-btn::before{content:none;display:none;}
+.fpt-gc-send-btn .material-symbols-rounded{font-size:20px;color:#6b6f86;transition:color .15s;}
+.fp-tools-popup button.fpt-gc-send-btn:not(:disabled):hover{background:rgba(150,110,220,0.16);}
+.fpt-gc-send-btn:not(:disabled):hover .material-symbols-rounded{color:#b08cf0;}
+.fpt-gc-send-btn:disabled{opacity:.4;cursor:default;}
+
+.fpt-gc-status{margin:0;font-size:11px;color:#5a5f7a;text-align:right;padding-right:4px;line-height:1.4;}
+.fpt-gc-status:empty{display:none;}
+.fpt-gc-status:not(:empty){margin-top:6px;}
+.fpt-gc-status-err{color:#ff6b6b;}
+
+/* =============================================================================
+   FPT GLOBAL CHAT - DEV BADGE
+   ========================================================================== */
+.fpt-gc-dev-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);
+    color: #111;
+    padding: 2px 6px;
+    border-radius: 5px;
+    font-size: 9px;
+    font-weight: 800;
+    text-transform: uppercase;
+    margin-left: 8px;
+    box-shadow: 0 0 8px rgba(255, 140, 0, 0.4);
+    vertical-align: middle;
+    letter-spacing: 0.3px;
+    user-select: none;
+    animation: fpt-dev-shine 4s linear infinite;
+    /* Блеск поверх бейджа */
+    position: relative;
+    overflow: hidden;
+}
+
+.fpt-gc-dev-badge .material-symbols-rounded {
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.fpt-gc-dev-badge::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
+    transform: skewX(-20deg);
+    animation: fpt-dev-sweep 4s infinite ease-in-out;
+}
+
+@keyframes fpt-dev-sweep {
+    0%, 70% { left: -100%; }
+    100% { left: 200%; }
+}
+
+@keyframes fpt-dev-shine {
+    0% { filter: hue-rotate(0deg); }
+    100% { filter: hue-rotate(15deg); }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   FPT - МЕТКИ И ЗАКРЕП (user_notes.js) - цвета от темы, без форс-хекса
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Пункт меню заголовка чата: название метки наследует цвет меню */
+.fp-tools-status-name{
+    flex-grow:1;color:inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+
+/* --- Кнопка-троеточие на контакте при наведении (компактная) --- */
+a.contact-item{ position:relative; }
+.fp-tools-chat-dots{
+    position:absolute;top:50%;right:6px;
+    transform:translateY(-50%) scale(.85);
+    width:22px;height:22px;min-width:22px;
+    border:none;border-radius:6px;padding:0;
+    display:inline-flex;align-items:center;justify-content:center;
+    background:color-mix(in srgb, currentColor 14%, transparent);
+    color:inherit;cursor:pointer;line-height:1;
+    opacity:0;pointer-events:none;
+    transition:opacity .12s ease,transform .12s ease,background .14s ease;
+    z-index:5;
+}
+.fp-tools-chat-dots.material-icons{ font-size:16px; }
+a.contact-item:hover .fp-tools-chat-dots{
+    opacity:1;pointer-events:auto;transform:translateY(-50%) scale(1);
+}
+.fp-tools-chat-dots:hover{ background:color-mix(in srgb, currentColor 26%, transparent); }
+
+/* --- Поповер действий чата: повторяет поверхность .dropdown-menu --- */
+.fp-tools-chat-popover{
+    position:fixed;z-index:100000;min-width:200px;
+    border:1px solid color-mix(in srgb, currentColor 14%, transparent);
+    border-radius:10px;padding:5px;
+    box-shadow:0 10px 30px rgba(0,0,0,.45);
+    animation:fpToolsPopIn .12s ease-out;
+}
+@keyframes fpToolsPopIn{
+    from{opacity:0;transform:translateY(-4px);}
+    to{opacity:1;transform:translateY(0);}
+}
+.fp-tools-pop-header{
+    font-size:11px;text-transform:uppercase;letter-spacing:.5px;
+    opacity:.55;padding:6px 10px 4px;
+}
+.fp-tools-pop-item{
+    display:flex;align-items:center;gap:10px;
+    padding:8px 10px;border-radius:7px;
+    color:inherit;font-size:14px;cursor:pointer;user-select:none;
+    transition:background .12s ease;
+}
+.fp-tools-pop-item:hover{ background:color-mix(in srgb, currentColor 14%, transparent); }
+.fp-tools-pop-muted{ opacity:.8; }
+.fp-tools-pop-dot{
+    width:12px;height:12px;border-radius:50%;flex-shrink:0;
+    border:1px solid color-mix(in srgb, currentColor 30%, transparent);
+}
+.fp-tools-pop-icon,.fp-tools-pop-check{
+    font-size:18px;width:18px;text-align:center;flex-shrink:0;opacity:.85;
+}
+.fp-tools-pop-check{ margin-left:auto;opacity:1; }
+.fp-tools-pop-text{ flex-grow:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.fp-tools-pop-divider{
+    height:1px;margin:5px 6px;background:color-mix(in srgb, currentColor 14%, transparent);
+}
+
+/* --- Иконка закрепа на контакте --- */
+.fp-tools-pin-icon{
+    position:absolute;bottom:6px;right:6px;font-size:13px;
+    color:inherit;opacity:.85;transform:rotate(45deg);
+    text-shadow:0 1px 3px rgba(0,0,0,.6);pointer-events:none;z-index:4;
+}
+a.contact-item.fp-tools-pinned:not(.active){
+    background:color-mix(in srgb, currentColor 7%, transparent);
+}
+
+/* --- Модалка управления метками --- */
+.fp-tools-label-overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);
+    z-index:100001;display:flex;align-items:center;justify-content:center;
+    animation:fpToolsPopIn .15s ease-out;
+}
+.fp-tools-label-modal{
+    width:420px;max-width:92vw;max-height:80vh;overflow-y:auto;
+    border:1px solid color-mix(in srgb, currentColor 14%, transparent);
+    border-radius:14px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.55);
+}
+.fp-tools-label-head{
+    display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;
+}
+.fp-tools-label-head h3{ margin:0;color:inherit;font-size:18px; }
+.fp-tools-label-close{
+    background:transparent;border:none;color:inherit;opacity:.6;cursor:pointer;
+    font-size:22px;border-radius:7px;width:32px;height:32px;
+    transition:background .12s ease,opacity .12s ease;
+}
+.fp-tools-label-close:hover{ background:color-mix(in srgb, currentColor 14%, transparent);opacity:1; }
+.fp-tools-label-hint{ opacity:.55;font-size:12.5px;line-height:1.45;margin-bottom:14px; }
+.fp-tools-label-list{ display:flex;flex-direction:column;gap:8px;margin-bottom:14px; }
+.fp-tools-label-empty{ opacity:.55;font-size:13px;text-align:center;padding:14px 0; }
+.fp-tools-label-row{
+    display:flex;align-items:center;gap:10px;
+    background:color-mix(in srgb, currentColor 6%, transparent);
+    border-radius:9px;padding:8px 10px;
+}
+.fp-tools-label-color{
+    -webkit-appearance:none;appearance:none;
+    width:28px;height:28px;border:none;background:transparent;
+    border-radius:7px;cursor:pointer;padding:0;overflow:hidden;flex-shrink:0;
+}
+.fp-tools-label-color::-webkit-color-swatch-wrapper{ padding:0; }
+.fp-tools-label-color::-webkit-color-swatch{ border:none;border-radius:7px; }
+.fp-tools-label-name{
+    flex-grow:1;color:inherit;
+    background:color-mix(in srgb, currentColor 5%, transparent);
+    border:1px solid color-mix(in srgb, currentColor 14%, transparent);
+    border-radius:8px;padding:7px 10px;font-size:14px;outline:none;
+    transition:border-color .12s ease;
+}
+.fp-tools-label-name:focus{ border-color:color-mix(in srgb, currentColor 45%, transparent); }
+.fp-tools-label-del{
+    background:transparent;border:none;color:#ff6b6b;cursor:pointer;
+    font-size:20px;border-radius:7px;width:32px;height:32px;flex-shrink:0;
+    transition:background .12s ease;
+}
+.fp-tools-label-del:hover{ background:color-mix(in srgb, #ff6b6b 22%, transparent); }
+.fp-tools-label-add{
+    width:100%;border:1px solid color-mix(in srgb, currentColor 20%, transparent);
+    background:color-mix(in srgb, currentColor 10%, transparent);
+    color:inherit;border-radius:9px;padding:10px;font-size:14px;cursor:pointer;
+    transition:background .14s ease;
+}
+.fp-tools-label-add:hover{ background:color-mix(in srgb, currentColor 18%, transparent); }
+
+/* ===================================================================================== */
+/* 3.0 МАСТЕР СЕРВЕРНОГО КОПИРОВАНИЯ ЛОТА - цвета берутся из страницы (--cw-* задаются JS) */
+/* ===================================================================================== */
+#fp-clone-wizard-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5); backdrop-filter: blur(3px);
+    z-index: 10010; justify-content: center; align-items: center;
+    font-family: inherit;
+}
+#fp-clone-wizard {
+    --cw-bg: #1e1e1e; --cw-color: #e0e0e0; --cw-accent: #1b75bb;
+    --cw-border: rgba(255,255,255,0.12); --cw-subtle: rgba(255,255,255,0.05);
+    --cw-muted: rgba(255,255,255,0.55); --cw-field-bg: rgba(255,255,255,0.04);
+    width: 92%; max-width: 860px; max-height: 90vh;
+    display: flex; flex-direction: column;
+    background: var(--cw-bg); color: var(--cw-color);
+    border: 1px solid var(--cw-border); border-radius: 14px;
+    box-shadow: 0 12px 48px rgba(0,0,0,0.45);
+    overflow: hidden;
+    animation: fpCwPopIn 0.24s cubic-bezier(0.26,0.53,0.74,1.3);
+}
+@keyframes fpCwPopIn { from { opacity:0; transform: translateY(8px) scale(0.98);} to { opacity:1; transform:none;} }
+.fp-cw-header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 15px 20px; border-bottom: 1px solid var(--cw-border);
+}
+.fp-cw-header h3 { margin:0; font-size:18px; font-weight:600; color: var(--cw-color); }
+.fp-cw-close { background:none; border:none; color: var(--cw-muted); font-size:25px; line-height:1; cursor:pointer; }
+.fp-cw-close:hover { color: var(--cw-color); }
+.fp-cw-body { padding: 18px 20px; overflow-y:auto; }
+.fp-cw-grid { display:grid; grid-template-columns: 1fr 1fr; gap:20px; }
+@media (max-width:700px){ .fp-cw-grid{ grid-template-columns:1fr; } }
+.fp-cw-col { display:flex; flex-direction:column; min-width:0; }
+.fp-cw-section-title { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color: var(--cw-accent); margin-bottom:9px; }
+.fp-cw-mini { font-size:12px; color: var(--cw-muted); display:block; margin:9px 0 4px; }
+.fp-cw-input {
+    width:100%; box-sizing:border-box; background: var(--cw-field-bg);
+    border:1px solid var(--cw-border); border-radius:8px; color: var(--cw-color);
+    padding:8px 10px; font-size:13px; resize:vertical; font-family:inherit;
+}
+.fp-cw-input:focus { outline:none; border-color: var(--cw-accent); }
+textarea.fp-cw-input { line-height:1.4; }
+.fp-cw-row { display:flex; gap:10px; }
+/* вкладки RU/EN */
+.fp-cw-tabs { display:inline-flex; gap:4px; background: var(--cw-subtle); padding:3px; border-radius:8px; margin-bottom:4px; }
+.fp-cw-tab {
+    border:none; background:transparent; color: var(--cw-muted);
+    font-size:12px; font-weight:600; padding:5px 16px; border-radius:6px; cursor:pointer; font-family:inherit;
+}
+.fp-cw-tab.active { background: var(--cw-accent); color:#fff; }
+.fp-cw-attrs { background: var(--cw-subtle); border:1px solid var(--cw-border); border-radius:10px; padding:2px 12px; max-height:220px; overflow-y:auto; }
+.fp-cw-attr { display:flex; justify-content:space-between; gap:12px; padding:8px 0; border-bottom:1px solid var(--cw-border); font-size:13px; }
+.fp-cw-attr:last-child { border-bottom:none; }
+.fp-cw-attr-k { color: var(--cw-muted); }
+.fp-cw-attr-v { color: var(--cw-color); text-align:right; font-weight:500; }
+.fp-cw-apply-replace { margin-top:10px; width:100%; }
+.fp-cw-meta { margin-top:14px; font-size:12px; line-height:1.7; color: var(--cw-color); }
+.fp-cw-muted { color: var(--cw-muted); }
+.fp-cw-warn {
+    background: color-mix(in srgb, var(--cw-accent) 14%, transparent);
+    border:1px solid color-mix(in srgb, var(--cw-accent) 38%, transparent);
+    color: var(--cw-color); border-radius:8px; padding:9px 11px; font-size:12px; margin-bottom:10px;
+}
+.fp-cw-err { color:#e5484d; }
+.fp-cw-ok { color:#30a46c; font-weight:600; }
+.fp-cw-error { text-align:center; padding:20px; color:#e5484d; }
+.fp-cw-footer {
+    display:flex; align-items:center; justify-content:space-between; gap:14px;
+    padding:13px 20px; border-top:1px solid var(--cw-border);
+}
+.fp-cw-status { font-size:13px; flex:1; min-width:0; }
+.fp-cw-status a { color: var(--cw-accent); }
+.fp-cw-actions { display:flex; gap:10px; }
+.fp-cw-btn-primary, .fp-cw-btn-secondary {
+    border:none; border-radius:20px; padding:9px 18px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit;
+    transition: transform .12s, opacity .12s, background .12s;
+}
+.fp-cw-btn-primary { background: var(--cw-accent); color:#fff; }
+.fp-cw-btn-primary:hover:not(:disabled) { transform: translateY(-1px); }
+.fp-cw-btn-primary:disabled { opacity:0.4; cursor:not-allowed; }
+.fp-cw-btn-secondary { background: var(--cw-subtle); color: var(--cw-color); border:1px solid var(--cw-border); }
+.fp-cw-btn-secondary:hover:not(:disabled) { border-color: var(--cw-accent); }
+.fp-cw-btn-secondary:disabled { opacity:0.5; cursor:not-allowed; }
+.fp-cw-loader, .fp-cw-spin {
+    width:26px; height:26px; border:3px solid var(--cw-border); border-top-color: var(--cw-accent);
+    border-radius:50%; animation: fpCwSpin .8s linear infinite; margin:20px auto;
+}
+.fp-cw-spin { width:13px; height:13px; border-width:2px; display:inline-block; margin:0 4px -2px 0; }
+@keyframes fpCwSpin { to { transform: rotate(360deg);} }
+/* картинки */
+.fp-cw-imgtoggle { display:flex; align-items:center; gap:8px; font-size:13px; color: var(--cw-color); margin-bottom:10px; cursor:pointer; }
+.fp-cw-imgtoggle input { width:16px; height:16px; accent-color: var(--cw-accent); cursor:pointer; }
+.fp-cw-thumbs { display:flex; flex-wrap:wrap; gap:8px; }
+.fp-cw-thumb { width:54px; height:54px; border-radius:8px; background-size:cover; background-position:center; border:1px solid var(--cw-border); }

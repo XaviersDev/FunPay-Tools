@@ -1,0 +1,1397 @@
+/* css/fpt_icons_theme.css - FunPay Tools 3.0
+   1) Local Material Symbols Rounded font (bundled, cached forever - no network).
+   2) Nav redesign: icon ABOVE label, centered.
+   3) Full-black menu theme with very subtle pink→purple gradient accents (used sparingly).
+   Loaded LAST in the manifest so it cleanly overrides css/content_styles.css. */
+
+/* ---------- 1. Bundled icon font ---------- */
+@font-face {
+    font-family: 'Material Symbols Rounded';
+    font-style: normal;
+    font-weight: 400;
+    font-display: block; /* avoid flash of letter-text before the glyph loads */
+    src: url('../fonts/material-symbols-rounded.woff2') format('woff2');
+}
+
+.material-symbols-rounded,
+.material-icons {
+    font-family: 'Material Symbols Rounded';
+    font-weight: normal;
+    font-style: normal;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    font-feature-settings: 'liga';
+    -webkit-font-feature-settings: 'liga';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    user-select: none;
+}
+
+/* ---------- 2. Nav redesign: icon above label ---------- */
+.fp-tools-nav {
+    width: 220px;
+    padding: 16px 10px;
+    border-right: 1px solid #1a1a1f;
+    background: #050506;
+}
+
+.fp-tools-nav ul {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* two compact columns of cards */
+    gap: 8px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+/* dividers span the full width of the grid */
+.fp-tools-nav li.fp-nav-divider {
+    grid-column: 1 / -1;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #5a5a66;
+    padding: 10px 4px 2px;
+    margin: 0;
+    border: none;
+    background: none;
+}
+
+.fp-tools-nav li[data-page] a {
+    display: flex;
+    flex-direction: column;   /* icon on top, label under */
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 12px 6px;
+    margin: 0;
+    border-radius: 12px;
+    background: #0c0c10;
+    border: 1px solid #16161c;
+    color: #b8b8c4;
+    text-align: center;
+    height: 72px;             /* fixed height → all cards identical, no vertical gaps */
+    box-sizing: border-box;
+    overflow: hidden;
+    transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.12s ease;
+}
+
+.fp-tools-nav li[data-page] a > span:last-child {
+    font-size: 11.5px;
+    line-height: 1.25;
+    font-weight: 500;
+}
+
+.fp-tools-nav .nav-icon {
+    margin: 0;
+    width: auto;
+    font-size: 26px;          /* Material Symbols sizing is via font-size */
+    opacity: 1;
+    color: #cfcfdb;
+    transition: color 0.18s ease, transform 0.18s ease;
+}
+
+.fp-tools-nav li[data-page] a:hover {
+    background: #111118;
+    border-color: #24242e;
+    color: #ececf4;
+    transform: translateY(-1px);
+}
+.fp-tools-nav li[data-page] a:hover .nav-icon {
+    color: #ffffff;
+    transform: scale(1.06);
+}
+
+/* Active item - this is one of the FEW places the pink→purple gradient appears */
+.fp-tools-nav li[data-page].active a {
+    background:
+        linear-gradient(135deg, rgba(236, 72, 153, 0.10), rgba(139, 92, 246, 0.10)),
+        #0e0e14;
+    border-color: rgba(168, 85, 247, 0.35);
+    color: #ffffff;
+    font-weight: 600;
+}
+.fp-tools-nav li[data-page].active a .nav-icon {
+    color: #e9a8ff;
+}
+
+/* ---------- 3. Full-black theme, minimal heavy effects ---------- */
+.fp-tools-popup {
+    background: #050506;                 /* full black */
+    border: 1px solid #15151b;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.75); /* single soft shadow, nothing heavy */
+    color: #d6d6e0;
+}
+
+.fp-tools-header {
+    background: #050506;
+    border-bottom: 1px solid #15151b;
+    position: relative;
+}
+/* a single hairline of pink→purple under the header - the only "always on" accent */
+.fp-tools-header::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: -1px;
+    height: 1px;
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(236, 72, 153, 0.55) 30%,
+        rgba(139, 92, 246, 0.55) 70%,
+        transparent 100%);
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.fp-tools-content {
+    background: #060608;
+}
+
+/* Header tabs (if used) - match the dark cards, no transforms */
+.fp-tools-header-tab .nav-icon {
+    font-size: 20px;
+    color: #cfcfdb;
+}
+
+/* Scrollbars - keep them black/subtle */
+.fp-tools-nav::-webkit-scrollbar-thumb,
+.fp-tools-content::-webkit-scrollbar-thumb {
+    background: #1c1c24;
+}
+
+/* Star-rating labels that now use the icon font instead of ⭐ */
+.fpt-stars .material-symbols-rounded {
+    font-size: 18px;
+    color: #f4c84a;
+    vertical-align: middle;
+}
+
+/* Generic inline header icon spacing when an icon precedes a heading */
+h2 .material-symbols-rounded,
+h3 .material-symbols-rounded {
+    font-size: 20px;
+    vertical-align: -3px;
+    margin-right: 6px;
+    color: #cfcfdb;
+}
+
+/* ---------- 4. Blue accent → 80% transparent fill ---------- */
+/* The primary accent #C026D3 was an opaque solid fill on buttons/elements. Make the FILL
+   80% transparent (20% opacity) so the black menu shows through, per request. Text/borders
+   stay readable. */
+.fp-tools-popup button,
+.fp-tools-popup .btn {
+    background: rgba(192, 38, 211, 0.20);
+    border: 1px solid rgba(192, 38, 211, 0.45);
+    color: #e9e7ff;
+}
+.fp-tools-popup button:hover,
+.fp-tools-popup .btn:hover {
+    background: rgba(192, 38, 211, 0.32);
+    border-color: rgba(192, 38, 211, 0.6);
+}
+/* keep the "default/secondary" buttons dark, not blue */
+.fp-tools-popup .btn.btn-default {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid #20202a;
+    color: #cfcfdb;
+}
+.fp-tools-popup .btn.btn-default:hover {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: #2c2c38;
+}
+
+/* ---------- 5. Kill hover/transition lag ---------- */
+/* The original rules animated transform + box-shadow + background together, which causes
+   visible jank on hover and tab switches. Restrict transitions to cheap GPU-friendly props
+   (background-color, border-color, color, opacity) and drop transform/box-shadow animations. */
+.fp-tools-popup button,
+.fp-tools-popup .btn,
+.fp-tools-nav li a,
+.fp-tools-nav li[data-page] a {
+    transition: background-color 0.13s linear, border-color 0.13s linear, color 0.13s linear !important;
+    will-change: background-color;
+}
+.fp-tools-nav li[data-page] a:hover {
+    transform: none !important;   /* was translateY(-1px) - caused repaint jank */
+}
+.fp-tools-nav li[data-page] a:hover .nav-icon {
+    transform: none !important;   /* was scale(1.06) */
+}
+/* page switching: avoid animating layout-affecting properties */
+.fp-tools-page-content {
+    transition: opacity 0.12s linear !important;
+}
+
+/* ---------- 6. Nav auto-compaction ---------- */
+/* A button flagged by compactNav() spans both grid columns so sections with an odd number
+   of items (or a single item like "Эксклюзив") fill the width instead of leaving a gap. */
+.fp-tools-nav li[data-page].fpt-nav-wide {
+    grid-column: 1 / -1;
+}
+.fp-tools-nav li[data-page].fpt-nav-wide a {
+    flex-direction: row;
+    gap: 10px;
+    height: 72px;
+    padding: 12px 16px;
+    justify-content: center;   /* center icon+text horizontally */
+    align-items: center;
+}
+.fp-tools-nav li[data-page].fpt-nav-wide a .nav-icon {
+    font-size: 22px;
+}
+
+/* ---------- 7. Compact chat header buttons (read-all / tagged-only) ---------- */
+/* These were overflowing the contacts panel. Shrink to small square icon buttons. */
+#fp-tools-read-all-btn,
+#fp-tools-filter-marked-btn {
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    padding: 0 !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    vertical-align: middle;
+    margin: 0 3px;
+}
+#fp-tools-read-all-btn .material-icons,
+#fp-tools-filter-marked-btn .material-icons {
+    font-size: 18px;
+    line-height: 1;
+}
+#fp-tools-filter-marked-btn .fp-tools-chat-toggle-slider {
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
+}
+/* prevent the chat header controls from forcing the contacts panel wider */
+.chat-full-header {
+    flex-wrap: wrap;
+}
+
+/* ---------- 8. Clean image-upload button (no background) ---------- */
+/* Was the broken 🖼️ button overflowing the UI. Now a flat icon button, no fill. */
+.fpt-img-btn,
+button.add-image-btn {
+    background: none !important;
+    border: none !important;
+    padding: 4px !important;
+    width: 32px;
+    height: 32px;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #b8b8c4;
+    box-shadow: none !important;
+    cursor: pointer;
+    flex: 0 0 auto;
+    transition: color 0.13s linear !important;
+}
+.fpt-img-btn:hover,
+button.add-image-btn:hover {
+    background: none !important;
+    color: #ffffff;
+}
+.fpt-img-btn .material-symbols-rounded,
+button.add-image-btn .material-symbols-rounded {
+    font-size: 20px;
+}
+
+/* ---------- 9. Blue accent fills → 80% transparent (comprehensive) ---------- */
+/* Catches every blue FILL inside the popup that the earlier .btn rule missed:
+   checkboxes, radios, accent-colors, misc backgrounds. Text/borders stay legible. */
+.fp-tools-popup input[type="checkbox"]:checked,
+.fp-tools-popup .category-select-all:checked {
+    background-color: rgba(192, 38, 211, 0.20) !important;
+    border-color: rgba(192, 38, 211, 0.5) !important;
+}
+.fp-tools-popup input[type="checkbox"],
+.fp-tools-popup input[type="radio"] {
+    accent-color: rgba(192, 38, 211, 0.55);
+}
+.fp-tools-popup input:focus,
+.fp-tools-popup textarea:focus,
+.fp-tools-popup .fp-ipe-input:focus {
+    border-color: rgba(192, 38, 211, 0.55) !important;
+}
+/* progress / accent bars that were solid blue */
+.fp-tools-popup [style*="#C026D3"] {
+    /* note: inline styles can't be overridden by class; handled in JS where needed */
+}
+/* toggle slider checked state, switches, etc. */
+.fp-tools-popup .fp-tools-chat-toggle input:checked + .fp-tools-chat-toggle-slider,
+.fp-tools-popup .switch input:checked + .slider {
+    background: rgba(192, 38, 211, 0.22) !important;
+}
+
+/* ---------- 10. Remove the save footer (everything autosaves now) ---------- */
+.fp-tools-popup .fp-tools-footer {
+    display: none !important;
+}
+/* reclaim the space so content reaches the bottom edge */
+.fp-tools-content {
+    padding-bottom: 24px;
+}
+
+/* ---------- 11. Tagged-only toggle width + smart-bump card alignment ---------- */
+/* The "только помеченные" toggle was too narrow and rendered crooked. Give it a stable box. */
+#fp-tools-filter-marked-btn.fp-tools-chat-toggle {
+    width: 30px !important;
+    height: 30px !important;
+    min-width: 30px;
+    flex: 0 0 30px;
+    overflow: visible;
+}
+#fp-tools-filter-marked-btn input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    width: 30px;
+    height: 30px;
+    margin: 0;
+    cursor: pointer;
+}
+
+/* Smart auto-raise card: align contents properly, even box. */
+.fpt-smart-bump-card {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+}
+.fpt-smart-bump-card .checkbox-label-inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.fpt-smart-bump-card .checkbox-label-inline label {
+    display: flex;
+    align-items: center;
+}
+
+/* ---------- 12. Autoreply image-insert buttons ---------- */
+.fpt-autoreply-img-btn,
+.fpt-keyword-img-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    min-width: 0;
+    padding: 0 !important;
+    margin: 6px 0 0 0;
+    background: none !important;
+    border: 1px solid #20202a !important;
+    border-radius: 7px;
+    color: #b8b8c4;
+    box-shadow: none !important;
+    cursor: pointer;
+    transition: color 0.13s linear, border-color 0.13s linear !important;
+}
+.fpt-autoreply-img-btn:hover,
+.fpt-keyword-img-btn:hover {
+    color: #fff;
+    border-color: rgba(192,38,211,0.5) !important;
+    background: none !important;
+}
+.fpt-autoreply-img-btn .material-symbols-rounded,
+.fpt-keyword-img-btn .material-symbols-rounded {
+    font-size: 18px;
+}
+/* in the review grid, keep the small button tucked under each textarea */
+.review-templates-grid .template-container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+/* ---------- 13. Override the OLD absolute-positioned image button (content_styles.css) ---------- */
+/* That rule used !important + absolute positioning + a grey fill, which is why the image
+   button kept its background and overflowed the textarea. Neutralize it completely. */
+.textarea-with-controls .add-image-btn,
+.fp-tools-popup .add-image-btn,
+.fp-tools-popup .fpt-img-btn {
+    position: static !important;
+    background: none !important;
+    border: none !important;
+    color: #b8b8c4 !important;
+    padding: 4px !important;
+    font-size: inherit !important;
+    border-radius: 7px !important;
+    box-shadow: none !important;
+    width: 30px !important;
+    height: 30px !important;
+    min-width: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    z-index: auto !important;
+    bottom: auto !important;
+    right: auto !important;
+}
+.textarea-with-controls .add-image-btn:hover,
+.fp-tools-popup .add-image-btn:hover,
+.fp-tools-popup .fpt-img-btn:hover {
+    background: none !important;
+    color: #fff !important;
+}
+.textarea-with-controls .add-image-btn .material-symbols-rounded,
+.fp-tools-popup .add-image-btn .material-symbols-rounded {
+    font-size: 20px !important;
+}
+/* the old rule reserved 50px of right padding for the absolute button - not needed now */
+.textarea-with-controls textarea {
+    padding-right: 12px !important;
+}
+
+/* ---------- 14. Compact notification volume panel ---------- */
+#notificationVolume {
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: #20202a;
+    border-radius: 3px;
+    outline: none;
+}
+#notificationVolume::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #a09af8;
+    cursor: pointer;
+    border: none;
+}
+#notificationVolumeValue {
+    font-size: 12px;
+    color: #b8b8c4;
+    min-width: 38px;
+    text-align: right;
+}
+#previewNotificationBtn {
+    width: 30px !important;
+    height: 30px !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    background: rgba(192,38,211,0.15) !important;
+    border: 1px solid rgba(192,38,211,0.4) !important;
+    border-radius: 7px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: none !important;
+    flex: 0 0 30px;
+    transition: background-color 0.13s linear !important;
+}
+#previewNotificationBtn:hover {
+    background: rgba(192,38,211,0.28) !important;
+    transform: none !important;
+}
+#previewNotificationBtn .material-symbols-rounded {
+    font-size: 18px;
+    color: #e9e7ff;
+}
+
+/* ---------- 15. Clean template editor rows ---------- */
+.fp-tools-popup .template-item {
+    background: #0c0c10;
+    border: 1px solid #16161c;
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 10px;
+}
+.fp-tools-popup .template-item.disabled-in-settings {
+    opacity: 0.5;
+}
+.fp-tools-popup .template-item-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+.fp-tools-popup .template-item-header .template-label {
+    flex: 1;
+    font-weight: 600;
+    color: #ececf4;
+    outline: none;
+    padding: 2px 4px;
+    border-radius: 4px;
+    min-height: 20px;
+}
+.fp-tools-popup .template-item-header .template-label:focus {
+    background: rgba(255,255,255,0.05);
+}
+.fp-tools-popup .template-color-picker {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid #2a2a36;
+    border-radius: 6px;
+    background: none;
+    cursor: pointer;
+    flex: 0 0 26px;
+}
+.fp-tools-popup .delete-custom-template-btn {
+    background: none !important;
+    border: none !important;
+    color: #8a8a96 !important;
+    padding: 2px !important;
+    min-width: 0 !important;
+    width: 26px; height: 26px;
+    display: inline-flex; align-items: center; justify-content: center;
+    box-shadow: none !important;
+    cursor: pointer;
+    border-radius: 6px;
+}
+.fp-tools-popup .delete-custom-template-btn:hover {
+    color: #ff6b6b !important;
+    background: rgba(255,107,107,0.1) !important;
+}
+.fp-tools-popup .delete-custom-template-btn .material-symbols-rounded { font-size: 18px; }
+.fp-tools-popup .textarea-with-controls {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+}
+.fp-tools-popup .textarea-with-controls textarea {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 60px;
+    resize: vertical;
+}
+
+/* ---------- 16. Image attachment chips (separate from text) ---------- */
+.fpt-attachments {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+.fpt-attachment-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    border-radius: 8px;
+    background: rgba(192, 38, 211, 0.10);
+    border: 1px solid rgba(192, 38, 211, 0.35);
+    color: #e9d5ff;
+    font-size: 12px;
+}
+.fpt-attachment-chip .fpt-att-ic { font-size: 16px; color: #e9a8ff; }
+.fpt-attachment-chip .fpt-att-label { white-space: nowrap; }
+.fpt-attachment-chip button {
+    background: none !important;
+    border: none !important;
+    padding: 0 !important;
+    min-width: 0 !important;
+    width: 20px; height: 20px;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: #b8b8c4 !important;
+    cursor: pointer;
+    box-shadow: none !important;
+}
+.fpt-attachment-chip button:hover { color: #fff !important; background: none !important; }
+.fpt-attachment-chip button .material-symbols-rounded { font-size: 16px; }
+.fpt-attachment-chip .fpt-att-remove:hover { color: #ff6b6b !important; }
+
+/* fullscreen image preview */
+.fpt-img-preview-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 2147483647;
+}
+.fpt-img-preview-inner { position: relative; max-width: 90vw; max-height: 90vh; }
+.fpt-img-preview-inner img { max-width: 90vw; max-height: 90vh; border-radius: 8px; display: block; }
+.fpt-img-preview-close {
+    position: absolute; top: -14px; right: -14px;
+    width: 32px; height: 32px; border-radius: 50%;
+    background: #1a1a1f !important; border: 1px solid #333 !important;
+    color: #fff !important; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    box-shadow: none !important;
+}
+
+/* ============================================================================
+   3.0.6.1 - UI FIX PASS (loads last → wins on equal specificity)
+   Fixes: image-button flicker loop, image-button leftover background, ugly
+   template editor, white variable chips, checkbox fill/gradient, send-order
+   picker, attachment chip affordance, smart-bump icon, editable rules.
+   ============================================================================ */
+
+/* ---------- FIX A: kill the image-button hover flicker loop -----------------
+   The image buttons carry the generic `.btn` class, so they inherited
+   `.fp-tools-popup .btn:hover { transform: translateY(-3px) }` plus the white
+   radial `::before` sweep. translateY moved the button out from under the
+   cursor → hover dropped → it snapped back → hover re-fired, an infinite
+   flash loop. Neutralise transform + ::before on ALL icon buttons.            */
+.fp-tools-popup .fpt-img-btn,
+.fp-tools-popup button.add-image-btn,
+.fp-tools-popup .fpt-autoreply-img-btn,
+.fp-tools-popup .fpt-keyword-img-btn,
+.fp-tools-popup .fpt-att-view,
+.fp-tools-popup .fpt-att-remove,
+.fp-tools-popup .delete-custom-template-btn,
+.fp-tools-popup .delete-keyword-btn,
+.fp-tools-popup .fpt-edit-keyword-btn,
+.fp-tools-popup .fpt-send-order-btn {
+    transform: none !important;
+    overflow: visible !important;
+}
+.fp-tools-popup .fpt-img-btn:hover,
+.fp-tools-popup button.add-image-btn:hover,
+.fp-tools-popup .fpt-autoreply-img-btn:hover,
+.fp-tools-popup .fpt-keyword-img-btn:hover,
+.fp-tools-popup .fpt-att-view:hover,
+.fp-tools-popup .fpt-att-remove:hover,
+.fp-tools-popup .delete-custom-template-btn:hover,
+.fp-tools-popup .fpt-send-order-btn:hover {
+    transform: none !important;
+    box-shadow: none !important;
+}
+/* the white radial sweep pseudo-element was the thing actually "flashing" */
+.fp-tools-popup .fpt-img-btn::before,
+.fp-tools-popup button.add-image-btn::before,
+.fp-tools-popup .fpt-autoreply-img-btn::before,
+.fp-tools-popup .fpt-keyword-img-btn::before,
+.fp-tools-popup .fpt-att-view::before,
+.fp-tools-popup .fpt-att-remove::before,
+.fp-tools-popup .delete-custom-template-btn::before,
+.fp-tools-popup .fpt-edit-keyword-btn::before,
+.fp-tools-popup .fpt-send-order-btn::before {
+    display: none !important;
+    content: none !important;
+}
+
+/* ---------- FIX B: image button truly flat, no background, sits in the row --
+   Highest-specificity reset so no earlier `.textarea-with-controls .add-image-btn`
+   (which used !important + absolute + grey fill) can leak through.            */
+.fp-tools-popup .template-item .textarea-with-controls .fpt-img-btn,
+.fp-tools-popup .template-item .textarea-with-controls .add-image-btn,
+.fp-tools-popup .textarea-with-controls .fpt-img-btn,
+.fp-tools-popup .textarea-with-controls .add-image-btn {
+    position: static !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: #b8b8c4 !important;
+    width: 30px !important;
+    height: 30px !important;
+    min-width: 0 !important;
+    padding: 4px !important;
+    margin: 0 !important;
+    border-radius: 7px !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    font-size: inherit !important;
+    bottom: auto !important;
+    right: auto !important;
+    top: auto !important;
+    left: auto !important;
+    align-self: flex-start;
+}
+.fp-tools-popup .textarea-with-controls .fpt-img-btn:hover,
+.fp-tools-popup .textarea-with-controls .add-image-btn:hover {
+    background: rgba(192,38,211,0.12) !important;
+    color: #fff !important;
+}
+/* keep the image button INSIDE the template content box, on its own row under
+   the textarea, left-aligned - "в поле ввода контента шаблона"               */
+.fp-tools-popup .template-item .textarea-with-controls {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    background: #08080b;
+    border: 1px solid #1c1c24;
+    border-radius: 9px;
+    padding: 8px 8px 6px;
+}
+.fp-tools-popup .template-item .textarea-with-controls textarea.template-text {
+    background: transparent !important;
+    border: none !important;
+    padding: 4px 4px 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    min-height: 64px;
+    resize: vertical;
+    width: 100%;
+    box-sizing: border-box;
+}
+.fp-tools-popup .template-item .textarea-with-controls textarea.template-text:focus {
+    box-shadow: none !important;
+    background: transparent !important;
+}
+/* a thin toolbar row holding the image button, inside the content box */
+.fp-tools-popup .template-item .textarea-with-controls .fpt-tpl-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-top: 4px;
+    margin-top: 4px;
+    border-top: 1px solid #16161c;
+}
+
+/* ---------- FIX C: template editor rows - clean, aligned, readable ----------
+   Color swatch was taller than / misaligned with the title; the row looked
+   crooked. Lock a tidy grid header.                                           */
+.fp-tools-popup .template-settings-list .template-item,
+.fp-tools-popup .template-item {
+    background: #0c0c11 !important;
+    border: 1px solid #1c1c24 !important;
+    border-radius: 12px !important;
+    padding: 14px !important;
+    margin-bottom: 12px !important;
+    transition: border-color 0.15s ease !important;
+}
+.fp-tools-popup .template-item:hover {
+    border-color: #2a2a38 !important;
+}
+.fp-tools-popup .template-item-header {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    margin-bottom: 12px !important;
+    min-height: 30px;
+}
+/* color swatch: same height as the title, vertically centered, framed */
+.fp-tools-popup .template-color-picker {
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    appearance: none !important;
+    width: 28px !important;
+    height: 28px !important;
+    flex: 0 0 28px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 1px solid #33333f !important;
+    border-radius: 7px !important;
+    background: transparent !important;
+    cursor: pointer !important;
+    overflow: hidden !important;
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.4) inset;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+    vertical-align: middle;
+}
+.fp-tools-popup .template-color-picker:hover {
+    border-color: rgba(192,38,211,0.6) !important;
+    box-shadow: 0 0 0 2px rgba(192,38,211,0.25) !important;
+}
+.fp-tools-popup .template-color-picker::-webkit-color-swatch-wrapper { padding: 0 !important; }
+.fp-tools-popup .template-color-picker::-webkit-color-swatch { border: none !important; border-radius: 6px !important; }
+.fp-tools-popup .template-color-picker::-moz-color-swatch { border: none !important; border-radius: 6px !important; }
+/* title sits on the same baseline as the swatch */
+.fp-tools-popup .template-item-header .template-label {
+    flex: 1 1 auto !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    line-height: 28px !important;
+    color: #ececf4 !important;
+    padding: 0 6px !important;
+    margin: 0 !important;
+    border-radius: 6px !important;
+    background: transparent !important;
+    transition: background-color 0.15s ease !important;
+}
+.fp-tools-popup .template-item-header .template-label:hover {
+    background: rgba(255,255,255,0.05) !important;
+}
+.fp-tools-popup .template-item-header .template-label:focus {
+    background: rgba(255,255,255,0.07) !important;
+    outline: none !important;
+    box-shadow: 0 0 0 2px rgba(192,38,211,0.4) !important;
+}
+.fp-tools-popup .template-item-header .template-toggle { margin: 0 !important; flex: 0 0 auto; }
+
+/* ---------- FIX D: checkboxes - outline + tick only, no fill, no gradient ---
+   "убери фон и градиент у галочек, пусть будет лишь контур и сама галочка"    */
+.fp-tools-popup input[type="checkbox"] {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    width: 19px !important;
+    height: 19px !important;
+    border-radius: 5px !important;
+    background: transparent !important;
+    background-image: none !important;
+    border: 1.5px solid #4a4a5a !important;
+    box-shadow: none !important;
+    transition: border-color 0.15s ease !important;
+}
+.fp-tools-popup input[type="checkbox"]:hover {
+    border-color: rgba(192,38,211,0.7) !important;
+}
+.fp-tools-popup input[type="checkbox"]:checked {
+    background: transparent !important;
+    background-image: none !important;
+    border-color: #C026D3 !important;
+}
+.fp-tools-popup input[type="checkbox"]::after {
+    content: '' !important;
+    position: absolute !important;
+    top: 46% !important;
+    left: 50% !important;
+    width: 5px !important;
+    height: 9px !important;
+    border: solid #E879F9 !important;
+    border-width: 0 2px 2px 0 !important;
+    border-radius: 1px;
+    transform: translate(-50%, -55%) rotate(45deg) !important;
+    opacity: 0 !important;
+    transition: opacity 0.12s ease !important;
+    background: none !important;
+    color: transparent !important;
+}
+.fp-tools-popup input[type="checkbox"]:checked::after {
+    opacity: 1 !important;
+}
+
+/* ---------- FIX E: variable chips - 85% transparent, easy on the eyes -------
+   "у переменных белый фон ... сделать его 85% прозрачным"                     */
+.fp-tools-popup .variable-code {
+    background: rgba(255, 255, 255, 0.15) !important;   /* 85% transparent */
+    background-color: rgba(255, 255, 255, 0.15) !important;
+    color: #ffd9a0 !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+    border-radius: 5px !important;
+    padding: 1px 6px !important;
+    font-family: 'Fira Code', 'Consolas', monospace !important;
+    font-size: 11.5px !important;
+}
+.fp-tools-popup .variables-list code,
+.fp-tools-popup .template-info code {
+    background: rgba(255,255,255,0.15) !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+    color: #ffd9a0 !important;
+    border-radius: 5px !important;
+    padding: 1px 5px !important;
+}
+
+/* ---------- FIX F: attachment chip - looks clickable, opens order picker ----
+   On hover the chip lifts and hints "click me"; the whole chip is a button.   */
+.fp-tools-popup .fpt-attachment-chip {
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+    position: relative;
+}
+.fp-tools-popup .fpt-attachment-chip:hover {
+    background: rgba(192, 38, 211, 0.18) !important;
+    border-color: rgba(192, 38, 211, 0.6) !important;
+}
+.fp-tools-popup .fpt-attachment-chip:hover .fpt-att-hint {
+    opacity: 1;
+}
+.fp-tools-popup .fpt-att-hint {
+    font-size: 14px;
+    color: #e9a8ff;
+    opacity: 0.55;
+    transition: opacity 0.15s ease;
+    margin-left: 2px;
+}
+
+/* ---------- FIX G: send-order picker popup (icons only, no words) -----------
+   message→image / image→message, chosen purely with icons + arrows.          */
+.fpt-order-popup {
+    position: absolute;
+    z-index: 2147483647;
+    background: #111119;
+    border: 1px solid #2a2a38;
+    border-radius: 12px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    box-shadow: 0 12px 34px rgba(0,0,0,0.55);
+    animation: fptOrderPop 0.13s ease-out;
+}
+@keyframes fptOrderPop {
+    from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.fpt-order-opt {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background 0.13s ease, border-color 0.13s ease;
+}
+.fpt-order-opt:hover {
+    background: rgba(192,38,211,0.14);
+    border-color: rgba(192,38,211,0.45);
+}
+.fpt-order-opt.active {
+    background: rgba(192,38,211,0.20);
+    border-color: rgba(192,38,211,0.65);
+}
+.fpt-order-opt .material-symbols-rounded {
+    font-size: 20px;
+    color: #d8b4fe;
+}
+.fpt-order-opt .fpt-order-arrow {
+    font-size: 16px;
+    color: #6a6a7a;
+}
+.fpt-order-opt .fpt-order-msg { color: #9fe0b0; }
+.fpt-order-opt .fpt-order-img { color: #d8b4fe; }
+.fpt-order-opt .fpt-order-check {
+    margin-left: auto;
+    font-size: 18px;
+    color: #C026D3;
+    opacity: 0;
+}
+.fpt-order-opt.active .fpt-order-check { opacity: 1; }
+
+/* ---------- FIX H: editable keyword rules - show edit btn + image marker ----*/
+.fp-tools-popup .keyword-item {
+    align-items: flex-start;
+}
+.fp-tools-popup .keyword-item .fpt-kw-actions {
+    display: flex;
+    gap: 4px;
+    flex: 0 0 auto;
+    margin-left: auto;
+}
+.fp-tools-popup .fpt-edit-keyword-btn {
+    background: none !important;
+    border: 1px solid #2a2a36 !important;
+    color: #b8b8c4 !important;
+    width: 30px !important; height: 30px !important;
+    min-width: 0 !important; padding: 0 !important;
+    border-radius: 7px !important;
+    display: inline-flex !important; align-items: center !important; justify-content: center !important;
+    box-shadow: none !important; cursor: pointer;
+    text-transform: none !important; letter-spacing: normal !important;
+    transition: border-color 0.13s ease, color 0.13s ease !important;
+}
+.fp-tools-popup .fpt-edit-keyword-btn:hover {
+    color: #fff !important;
+    border-color: rgba(192,38,211,0.55) !important;
+    background: rgba(192,38,211,0.10) !important;
+}
+.fp-tools-popup .fpt-edit-keyword-btn .material-symbols-rounded { font-size: 17px; }
+.fp-tools-popup .fpt-kw-img-marker {
+    font-size: 14px;
+    color: #e9a8ff;
+    vertical-align: -2px;
+    margin-left: 6px;
+    opacity: 0.85;
+}
+.fp-tools-popup .keyword-item.fpt-editing {
+    border-color: rgba(192,38,211,0.5) !important;
+    background: rgba(192,38,211,0.05) !important;
+}
+
+/* ---------- FIX I: send-order summary line under template content ----------*/
+.fp-tools-popup .fpt-send-order-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    font-size: 12px;
+    color: #8a8a96;
+}
+.fp-tools-popup .fpt-send-order-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(192,38,211,0.08) !important;
+    border: 1px solid rgba(192,38,211,0.30) !important;
+    color: #d8b4fe !important;
+    padding: 4px 10px !important;
+    min-width: 0 !important;
+    border-radius: 8px !important;
+    font-size: 12px !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    box-shadow: none !important;
+    cursor: pointer;
+    transition: background 0.13s ease, border-color 0.13s ease !important;
+}
+.fp-tools-popup .fpt-send-order-btn:hover {
+    background: rgba(192,38,211,0.16) !important;
+    border-color: rgba(192,38,211,0.5) !important;
+}
+.fp-tools-popup .fpt-send-order-btn .material-symbols-rounded { font-size: 16px; }
+.fp-tools-popup .fpt-send-order-btn .fpt-order-arrow { color:#6a6a7a; font-size:13px; }
+.fp-tools-popup .fpt-send-order-btn .fpt-order-msg { color:#9fe0b0; }
+.fp-tools-popup .fpt-send-order-btn .fpt-order-img { color:#d8b4fe; }
+
+/* ---------- FIX J: inline order mini-preview shown inside the chip ---------*/
+.fp-tools-popup .fpt-order-mini {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 6px;
+    background: rgba(0,0,0,0.30);
+    border: 1px solid rgba(255,255,255,0.06);
+}
+.fp-tools-popup .fpt-order-mini .material-symbols-rounded { font-size: 14px; }
+.fp-tools-popup .fpt-order-mini .fpt-order-arrow { font-size: 11px; color:#6a6a7a; }
+.fp-tools-popup .fpt-order-mini .fpt-order-msg { color:#9fe0b0; }
+.fp-tools-popup .fpt-order-mini .fpt-order-img { color:#d8b4fe; }
+.fp-tools-popup .fpt-attachment-chip .fpt-att-label { flex: 0 0 auto; }
+
+/* ============================================================================
+   3.0.6.2 - header/close-btn flicker fix
+   Hovering ✕ then sliding onto the title caused a hard flicker + lag. Causes:
+   (1) close-btn `transform: scale(1.05)` + `transition: all` shifted layout and
+       fought the popup's own transform/transition on rapid pointer crossing;
+   (2) the h2 site-link infinite shimmer animation restarted on every re-layout.
+   Fix: no layout-affecting transform on the close button; only color/background
+   transitions; keep the title shimmer contained and stable.
+   ============================================================================ */
+.fp-tools-popup .close-btn {
+    transition: background-color 0.18s ease, color 0.18s ease !important;
+    transform: none !important;
+    will-change: auto !important;
+}
+.fp-tools-popup .close-btn:hover {
+    background: #2a2d44 !important;
+    color: #fff !important;
+    transform: none !important;   /* was scale(1.05) → caused the jitter */
+    box-shadow: none !important;
+}
+.fp-tools-popup .close-btn::before { display: none !important; content: none !important; }
+
+/* Header must not animate or repaint on hover; it is a static bar. */
+.fp-tools-popup .fp-tools-header {
+    transition: none !important;
+    will-change: auto;
+    contain: paint;            /* isolate header repaints from the rest of the popup */
+}
+.fp-tools-popup .fp-tools-header h2 {
+    transition: none !important;
+}
+/* Keep the title link's shimmer self-contained so it can't trigger popup-wide
+   relayout/flicker; the gradient text effect stays, just isolated. */
+.fp-tools-popup .fp-tools-site-link {
+    will-change: background-position;
+    contain: layout style paint;
+}
+/* The popup itself should only transition open/close, never react to inner hover. */
+.fp-tools-popup {
+    will-change: auto;
+}
+
+/* ============================================================================
+   3.0.6.2 - «Что тебе нужно» tab
+   ============================================================================ */
+.fp-tools-popup .fpt-needs-ai-box {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: #0c0c11;
+    border: 1px solid #1c1c24;
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 16px;
+}
+.fp-tools-popup #fptNeedsInput {
+    width: 100%;
+    box-sizing: border-box;
+    background: #08080b !important;
+    border: 1px solid #1c1c24 !important;
+    border-radius: 9px !important;
+    color: #ececf4 !important;
+    padding: 10px 12px !important;
+    font-size: 13px !important;
+    resize: vertical;
+    min-height: 60px;
+}
+.fp-tools-popup #fptNeedsInput:focus {
+    outline: none !important;
+    border-color: rgba(192,38,211,0.5) !important;
+    box-shadow: 0 0 0 2px rgba(192,38,211,0.18) !important;
+}
+.fp-tools-popup #fptNeedsAskBtn { align-self: flex-start; }
+.fp-tools-popup #fptNeedsAskBtn.fpt-needs-loading { opacity: 0.6; pointer-events: none; }
+
+/* AI result block */
+.fp-tools-popup .fpt-needs-ai-result {
+    background: rgba(192,38,211,0.05);
+    border: 1px solid rgba(192,38,211,0.25);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 18px;
+}
+.fp-tools-popup .fpt-needs-ai-head,
+.fp-tools-popup .fpt-needs-ai-loading,
+.fp-tools-popup .fpt-needs-ai-empty,
+.fp-tools-popup .fpt-needs-ai-error {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; color: #d8b4fe; margin-bottom: 12px; line-height: 1.4;
+}
+.fp-tools-popup .fpt-needs-ai-error { color: #ff9b9b; }
+.fp-tools-popup .fpt-needs-ai-empty { color: #9aa0b5; }
+.fp-tools-popup .fpt-needs-ai-head .material-symbols-rounded,
+.fp-tools-popup .fpt-needs-ai-loading .material-symbols-rounded { color: #E879F9; }
+.fp-tools-popup .fpt-spin { animation: fptSpin 0.9s linear infinite; }
+@keyframes fptSpin { to { transform: rotate(360deg); } }
+
+.fp-tools-popup .fpt-needs-ai-cards { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.fp-tools-popup .fpt-needs-ai-card {
+    display: flex; align-items: center; gap: 10px;
+    background: #0c0c11; border: 1px solid #1c1c24; border-radius: 10px; padding: 10px 12px;
+}
+.fp-tools-popup .fpt-needs-ai-card-main { display: flex; align-items: flex-start; gap: 10px; flex: 1 1 auto; cursor: pointer; margin: 0; }
+.fp-tools-popup .fpt-needs-ai-card-label { display: block; font-size: 13px; font-weight: 600; color: #ececf4; }
+.fp-tools-popup .fpt-needs-ai-card-reason { display: block; font-size: 11.5px; color: #8a8a96; margin-top: 2px; line-height: 1.35; }
+.fp-tools-popup .fpt-needs-ai-conf {
+    flex: 0 0 auto; font-size: 11px; font-weight: 700; color: #d8b4fe;
+    background: rgba(192,38,211,0.12); border: 1px solid rgba(192,38,211,0.3);
+    padding: 2px 7px; border-radius: 20px;
+}
+
+/* manual list */
+.fp-tools-popup .fpt-needs-manual-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 6px;
+}
+.fp-tools-popup .fpt-needs-filter {
+    flex: 0 0 220px; max-width: 50%;
+    background: #08080b !important; border: 1px solid #1c1c24 !important;
+    border-radius: 8px !important; color: #ececf4 !important; padding: 6px 10px !important; font-size: 12px !important;
+}
+.fp-tools-popup .fpt-needs-filter:focus { outline: none !important; border-color: rgba(192,38,211,0.5) !important; }
+
+.fp-tools-popup .fpt-needs-list { margin-top: 10px; }
+.fp-tools-popup .fpt-needs-group { margin-bottom: 16px; }
+.fp-tools-popup .fpt-needs-group-title {
+    font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+    color: #6a6a7a; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid #16161c;
+}
+.fp-tools-popup .fpt-needs-item {
+    display: flex; align-items: center; gap: 10px;
+    background: #0c0c11; border: 1px solid #16161c; border-radius: 10px;
+    padding: 10px 12px; margin-bottom: 6px; transition: border-color 0.13s ease;
+}
+.fp-tools-popup .fpt-needs-item:hover { border-color: #2a2a38; }
+.fp-tools-popup .fpt-needs-check { display: flex; align-items: flex-start; gap: 10px; flex: 1 1 auto; cursor: pointer; margin: 0; }
+.fp-tools-popup .fpt-needs-item-text { display: flex; flex-direction: column; }
+.fp-tools-popup .fpt-needs-item-label { font-size: 13px; font-weight: 600; color: #ececf4; }
+.fp-tools-popup .fpt-needs-item-desc { font-size: 11.5px; color: #8a8a96; margin-top: 2px; line-height: 1.35; }
+.fp-tools-popup .fpt-needs-preview-btn {
+    flex: 0 0 auto; background: none !important; border: 1px solid #2a2a36 !important;
+    color: #b8b8c4 !important; width: 32px !important; height: 32px !important; min-width: 0 !important;
+    padding: 0 !important; border-radius: 8px !important; cursor: pointer;
+    display: inline-flex !important; align-items: center !important; justify-content: center !important;
+    box-shadow: none !important; text-transform: none !important; letter-spacing: normal !important;
+    transition: border-color 0.13s ease, color 0.13s ease !important;
+}
+.fp-tools-popup .fpt-needs-preview-btn:hover { color: #E879F9 !important; border-color: rgba(192,38,211,0.55) !important; }
+.fp-tools-popup .fpt-needs-preview-btn .material-symbols-rounded { font-size: 18px; }
+
+.fp-tools-popup .fpt-needs-footer { display: flex; align-items: center; gap: 14px; margin-top: 8px; }
+.fp-tools-popup .fpt-needs-status { font-size: 12px; color: #8a8a96; transition: color 0.2s ease; }
+.fp-tools-popup .fpt-needs-status-ok { color: #9fe0b0; }
+.fp-tools-popup .fpt-needs-status-err { color: #ff8a8a; }
+.fp-tools-popup .fpt-needs-autosave-note {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11.5px; color: #6a6a7a;
+}
+.fp-tools-popup .fpt-needs-autosave-note .material-symbols-rounded { font-size: 14px; color: #E9A8FF; }
+
+/* inline preview row (expands under the item, never covers anything) */
+.fp-tools-popup .fpt-needs-preview-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: -2px 0 8px;
+    padding: 12px 14px;
+    background: #070709;
+    border: 1px dashed #26263200;
+    border-color: rgba(192,38,211,0.30);
+    border-radius: 10px;
+    animation: fptPvIn 0.14s ease-out;
+}
+@keyframes fptPvIn { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+.fp-tools-popup .fpt-needs-preview-caption { font-size: 11px; color: #6a6a7a; flex: 0 0 auto; }
+.fp-tools-popup .fpt-needs-preview-btn.fpt-needs-preview-open {
+    color: #E879F9 !important; border-color: rgba(192,38,211,0.55) !important; background: rgba(192,38,211,0.10) !important;
+}
+
+/* the "stage" holds a small visual replica of the real element */
+.fp-tools-popup .fpt-pv-stage {
+    flex: 1 1 auto;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 52px; padding: 10px;
+    background: #15151c; border-radius: 8px;
+    box-shadow: inset 0 0 0 1px #1f1f29;
+}
+.fp-tools-popup .fpt-pv-none { color: #6a6a7a; font-size: 12px; }
+
+/* ── element replicas - faithful mini-copies of the REAL injected elements ── */
+
+/* stage background neutral; replicas bring their own real colors */
+
+/* RMTHub search - simple chip: "Продавец" + person emoji */
+.fp-tools-popup .fpt-pv-rmthub {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #fff; color: #555; border: 1px solid #ccc; border-radius: 4px;
+    padding: 7px 12px; font-size: 13px;
+}
+.fp-tools-popup .fpt-pv-rmthub-ico { font-size: 14px; line-height: 1; }
+
+/* AI chat button - 36px round transparent, real magic.png icon (gray, like inactive) */
+.fp-tools-popup .fpt-pv-aibtn {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(192,38,211,0.06);
+}
+.fp-tools-popup .fpt-pv-aibtn img {
+    width: 20px; height: 20px; display: block;
+    filter: brightness(0) saturate(100%) invert(55%) sepia(8%) saturate(400%) hue-rotate(200deg) brightness(90%);
+}
+
+/* char counter - small muted number at the corner of the input */
+.fp-tools-popup .fpt-pv-charcount-field {
+    position: relative; background: #fff; color: #999;
+    border: 1px solid #ccc; border-radius: 4px;
+    padding: 8px 12px; font-size: 12px; min-width: 180px;
+}
+.fp-tools-popup .fpt-pv-charcount {
+    position: absolute; right: 8px; bottom: 5px;
+    font-size: 10px; color: #4a5070; font-variant-numeric: tabular-nums;
+}
+
+/* profanity warning - red gradient bar with white bold text */
+.fp-tools-popup .fpt-pv-profanity {
+    background: linear-gradient(45deg, #ff416c, #ff4b2b); color: #fff;
+    border: 1px solid rgba(255,255,255,0.3); border-radius: 8px;
+    padding: 8px 12px; font-size: 12px; font-weight: 700; text-align: center;
+    line-height: 1.3;
+}
+
+/* read-all - 32px round transparent button, gray done_all icon */
+.fp-tools-popup .fpt-pv-readall {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; color: #a0a0a0;
+}
+.fp-tools-popup .fpt-pv-readall .material-icons,
+.fp-tools-popup .fpt-pv-readall .material-symbols-rounded { font-size: 22px; }
+
+/* filter-marked - real 48x28 toggle slider with label icon */
+.fp-tools-popup .fpt-pv-toggle { display: inline-flex; }
+.fp-tools-popup .fpt-pv-toggle-track {
+    position: relative; width: 48px; height: 28px; background: #333;
+    border-radius: 14px; display: flex; align-items: center;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+}
+.fp-tools-popup .fpt-pv-toggle-track .material-icons,
+.fp-tools-popup .fpt-pv-toggle-track .material-symbols-rounded {
+    font-size: 20px; color: #888; position: absolute; left: 4px;
+}
+
+/* FunPay dropdown-menu item (white menu, dark text link) */
+.fp-tools-popup .fpt-pv-menu {
+    background: #fff; border-radius: 6px; padding: 4px 0; min-width: 200px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+}
+.fp-tools-popup .fpt-pv-menu a {
+    display: block; padding: 7px 16px; font-size: 13px; color: #333; cursor: default;
+}
+.fp-tools-popup .fpt-pv-menu a.fpt-pv-menu-danger { color: #ff5c5c; }
+
+/* generic FunPay default button (btn btn-default) */
+.fp-tools-popup .fpt-pv-fpbtn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #fff; color: #333; border: 1px solid #ccc; border-radius: 4px;
+    padding: 6px 12px; font-size: 13px; line-height: 1.4;
+}
+.fp-tools-popup .fpt-pv-fpbtn-block { width: 100%; justify-content: center; }
+.fp-tools-popup .fpt-pv-fpbtn-xs { padding: 2px 8px; font-size: 13px; }
+.fp-tools-popup .fpt-pv-fpbtn-primary {
+    background: #2D6BB3; color: #fff; border-color: #2D6BB3;
+}
+
+/* public lot: "Копировать лот" next to FunPay's green "Купить" */
+.fp-tools-popup .fpt-pv-buyrow { display: flex; align-items: center; gap: 8px; }
+.fp-tools-popup .fpt-pv-buybtn {
+    background: #5cb85c; color: #fff; border: 1px solid #4cae4c;
+    border-radius: 4px; padding: 6px 18px; font-size: 13px;
+}
+
+/* AI-generation button (dark pill with sparkle svg + label) */
+.fp-tools-popup .fpt-pv-aigen {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: #15151c; color: #e3e3e3; border: 1px solid #2a2a3a;
+    border-radius: 8px; padding: 7px 13px; font-size: 13px;
+}
+.fp-tools-popup .fpt-pv-aigen svg { display: block; }
+
+/* font block (label Шрифт + select + Клавиатура button) */
+.fp-tools-popup .fpt-pv-fontblock { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fp-tools-popup .fpt-pv-fontblock label { color: #cfd0da; font-size: 12px; margin: 0; }
+.fp-tools-popup .fpt-pv-fpselect {
+    background: #fff; color: #333; border: 1px solid #ccc; border-radius: 4px;
+    padding: 5px 8px; font-size: 12px;
+}
+
+/* translate button in lot (real style: subtle dark pill) */
+.fp-tools-popup .fpt-pv-translatebtn {
+    background: #2A1830; color: #E9A8FF; border: 1px solid rgba(192,38,211,0.4);
+    border-radius: 6px; padding: 6px 14px; font-size: 13px;
+}
+
+/* exact price - gray dashed-underline link */
+.fp-tools-popup .fpt-pv-exactprice {
+    color: #a0a0a0; font-size: 13px; border-bottom: 1px dashed #a0a0a0;
+    display: inline-block; padding-bottom: 3px;
+}
+
+/* paste bar */
+.fp-tools-popup .fpt-pv-pastebar {
+    display: flex; align-items: center; gap: 8px;
+    background: #1b1b22; border: 1px solid #2a2a3a; border-radius: 8px;
+    padding: 8px 12px; font-size: 12px; color: #d8d8e0;
+}
+.fp-tools-popup .fpt-pv-pastebar-text { flex: 1 1 auto; }
+
+/* lot search bar (white FunPay form-control) */
+.fp-tools-popup .fpt-pv-lotsearch { width: 100%; }
+.fp-tools-popup .fpt-pv-fpinput {
+    width: 100%; max-width: 280px; background: #fff; color: #555;
+    border: 1px solid #ccc; border-radius: 4px; padding: 7px 11px; font-size: 13px;
+    pointer-events: none;
+}
+
+/* pinned lots block header */
+.fp-tools-popup .fpt-pv-pinned { display: flex; align-items: center; gap: 10px; }
+.fp-tools-popup .fpt-pv-pinned-title { color: #ececf4; font-size: 14px; font-weight: 700; }
+
+/* "show more" expand row */
+.fp-tools-popup .fpt-pv-expandrow {
+    display: flex; align-items: center; gap: 8px; color: #9099b8;
+    font-size: 13px; padding: 6px 0;
+}
+
+/* lock indicator for non-disableable features */
+.fp-tools-popup .fpt-needs-locked { opacity: 0.85; }
+.fp-tools-popup .fpt-needs-lock {
+    width: 19px; height: 19px; flex: 0 0 19px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1.5px solid #33333f; border-radius: 5px; color: #6a6a7a;
+    margin-top: 1px;
+}
+.fp-tools-popup .fpt-needs-lock .material-symbols-rounded { font-size: 13px; }

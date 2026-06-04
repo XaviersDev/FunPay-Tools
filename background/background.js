@@ -1,8 +1,10 @@
-// background/background.js — FunPay Tools 2.8
+// background/background.js - FunPay Tools 2.8
 
 import { fetchAIResponse, fetchAILotGeneration, fetchAITranslation, fetchAIImageGeneration } from './ai.js';
 import { BUMP_ALARM_NAME, startAutoBump, stopAutoBump, runBumpCycle } from './autobump.js';
 import { runAutoResponderCycle, resetAutoResponderState } from './autoresponder.js';
+import { startEngine, stopEngine, onHeartbeat, onKeepalivePing, ENGINE_HEARTBEAT_ALARM } from './fpt_engine.js';
+import { startSmartBump, stopSmartBump, runSmartBumpCycle, SMART_BUMP_ALARM } from './smart_bump.js';
 
 const OFFSCREEN_DOCUMENT_PATH = 'offscreen/offscreen.html';
 const DISCORD_LOG_ALARM_NAME = 'fpToolsDiscordCheck';
@@ -33,7 +35,17 @@ async function runSalesUpdateCycle() {
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'Cookie': `golden_key=${auth.golden_key}` },
                 body: body
             };
-            const response = await fetch(url, options);
+            // 3.0: 429-aware retry. FunPay rate-limits stats pagination; on 429/5xx we back off
+            // and retry instead of throwing and killing the whole cycle.
+            let response;
+            for (let attempt = 0; attempt < 4; attempt++) {
+                response = await fetch(url, options);
+                if (response.status === 429 || response.status >= 500) {
+                    await new Promise(r => setTimeout(r, 3000 * (attempt + 1) + Math.random() * 1000));
+                    continue;
+                }
+                break;
+            }
             if (!response.ok) throw new Error(`Ошибка сети: ${response.status}`);
             const html = await response.text();
             return await parseHtmlViaOffscreen(html, 'parseSalesPage');
@@ -70,7 +82,7 @@ async function runSalesUpdateCycle() {
                 if (knownOrderIndex !== -1 || !nextOrderId) break;
                 
                 continueToken = nextOrderId;
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await new Promise(resolve => setTimeout(resolve, 1200)); // 3.0: slower to avoid 429
             }
         }
 
@@ -114,7 +126,7 @@ async function runSalesUpdateCycle() {
             }
 
             continueToken = nextOrderId;
-            await new Promise(resolve => setTimeout(resolve, 500)); 
+            await new Promise(resolve => setTimeout(resolve, 1200)); // 3.0: slower to avoid 429
         }
 
     } catch (e) {
@@ -129,6 +141,50 @@ async function runSalesUpdateCycle() {
 // --- НИЖЕ ИДЕТ ОСТАЛЬНОЙ КОД ФАЙЛА, ОН ОСТАЕТСЯ БЕЗ ИЗМЕНЕНИЙ ---
 
 // --- НАДЁЖНАЯ ФУНКЦИЯ АУТЕНТИФИКАЦИИ ---
+// 3.0: Upload an image to FunPay and send it to a chat via the runner - all in background.
+// Ported from FP Tools (Account.upload_image + Account.send_image).
+async function sendChatImageInBackground(chatId, dataUrl, chatName) {
+    const auth = await getAuthDetailsForBackground();
+    if (!auth.golden_key || !auth.csrf_token) throw new Error('Нет авторизации для отправки изображения.');
+    const cookieStr = auth.phpsessid
+        ? `golden_key=${auth.golden_key}; PHPSESSID=${auth.phpsessid}`
+        : `golden_key=${auth.golden_key}`;
+
+    // 1) dataURL → Blob
+    const blob = await (await fetch(dataUrl)).blob();
+
+    // 2) Upload to FunPay (multipart) → fileId
+    const fd = new FormData();
+    fd.append('file', new File([blob], 'image.png', { type: blob.type || 'image/png' }));
+    fd.append('file_id', '0');
+    const upRes = await fetch('https://funpay.com/file/addChatImage', {
+        method: 'POST',
+        headers: { 'cookie': cookieStr, 'x-requested-with': 'XMLHttpRequest' },
+        body: fd
+    });
+    if (!upRes.ok) throw new Error(`Загрузка изображения: HTTP ${upRes.status}`);
+    const upJson = await upRes.json().catch(() => ({}));
+    const fileId = upJson.fileId;
+    if (!fileId) throw new Error('FunPay не вернул fileId: ' + (upJson.msg || 'неизвестная ошибка'));
+
+    // 3) Send via runner with image_id (content empty), per FP Tools's protocol.
+    const request = { action: 'chat_message', data: { node: chatId, last_message: -1, content: '', image_id: fileId } };
+    const payload = {
+        objects: JSON.stringify([{ type: 'chat_node', id: chatId, tag: '00000000', data: { node: chatId, last_message: -1, content: '' } }]),
+        request: JSON.stringify(request),
+        csrf_token: auth.csrf_token
+    };
+    const sendRes = await fetch('https://funpay.com/runner/', {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest', 'cookie': cookieStr },
+        body: new URLSearchParams(payload)
+    });
+    if (!sendRes.ok) throw new Error(`Отправка изображения: HTTP ${sendRes.status}`);
+    const sendJson = await sendRes.json().catch(() => null);
+    if (sendJson?.error) throw new Error(`FunPay runner: ${sendJson.error}`);
+    return { fileId };
+}
+
 async function getAuthDetailsForBackground() {
     const goldenKeyCookie = await chrome.cookies.get({ url: 'https://funpay.com', name: 'golden_key' });
     if (!goldenKeyCookie || !goldenKeyCookie.value) {
@@ -195,7 +251,7 @@ async function getAuthDetailsForBackground() {
 }
 
 // Функция для парсинга HTML через offscreen документ
-async function parseHtmlViaOffscreen(html, action) {
+async function parseHtmlViaOffscreen(html, action, extra = {}) {
     const existingContexts = await chrome.runtime.getContexts({
         contextTypes: ['OFFSCREEN_DOCUMENT'],
         documentUrls: [chrome.runtime.getURL(OFFSCREEN_DOCUMENT_PATH)]
@@ -213,7 +269,78 @@ async function parseHtmlViaOffscreen(html, action) {
         target: 'offscreen',
         action: action,
         html: html,
+        ...extra
     });
+}
+
+async function cloneBuildFieldsInternal(auth, nodeId, attributes) {
+    if (!nodeId) throw new Error('Неизвестна подкатегория (node) лота.');
+    
+    // ФОРСИРУЕМ английский язык для получения английских options/radios (как в Cardinal)
+    const editUrl = `https://funpay.com/lots/offerEdit?node=${nodeId}&setlocale=en`;
+    const resp = await fetch(editUrl, { headers: { 'Cookie': `golden_key=${auth.golden_key}` } });
+    if (!resp.ok) throw new Error(`Не удалось открыть форму категории: ${resp.status}`);
+    const html = await resp.text();
+    
+    // ВОЗВРАЩАЕМ русский язык вашему аккаунту
+    await fetch(`https://funpay.com/?setlocale=ru`, { headers: { 'Cookie': `golden_key=${auth.golden_key}` } });
+    
+    const fields = await parseHtmlViaOffscreen(html, 'solveCloneForm', { attributes: attributes || [] });
+    if (!fields) throw new Error('Не удалось разобрать форму категории.');
+    fields.node_id = String(nodeId);
+    fields.offer_id = '0';
+    return fields;
+}
+
+// 3.0: «чистая» цена продавца с учётом комиссии - повторяет Account.calc()+commission_coefficient.
+// calc(price=100) возвращает методы оплаты с ценой ПОКУПАТЕЛЯ в разных валютах. Коэффициент =
+// (минимальная цена покупателя в нужной валюте) / 100. Чистая цена = желаемая цена / коэффициент.
+// Валюта берётся из списка лотов продавца (rub/usd/eur), как в get_coefficient(account_currency).
+async function cloneCalcNetPrice(auth, nodeId, buyerPrice, currencyCode) {
+    if (!buyerPrice || buyerPrice <= 0) return null;
+    const headers = {
+        'accept': '*/*',
+        'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'x-requested-with': 'XMLHttpRequest',
+        'Cookie': `golden_key=${auth.golden_key}`
+    };
+    const base = 100; // как в плагине
+    const body = new URLSearchParams({ nodeId: String(nodeId), price: String(base) });
+    const r = await fetch('https://funpay.com/lots/calc', { method: 'POST', headers, body });
+    if (!r.ok) return null;
+    const j = await r.json();
+    if (!j || j.error) return null;
+
+    const want = (currencyCode || '').toLowerCase(); // 'rub' | 'usd' | 'eur' | ''
+    const symFor = (c) => c === 'rub' ? '₽' : c === 'usd' ? '$' : c === 'eur' ? '€' : '';
+
+    // Собираем цены методов с их валютой (по unit или data-cy).
+    let buyerForBase = Infinity;
+    if (Array.isArray(j.methods)) {
+        for (const m of j.methods) {
+            const p = parseFloat(String(m.price).replace(/\s/g, '').replace(',', '.'));
+            if (Number.isNaN(p)) continue;
+            const unit = String(m.unit || '');
+            let mcur = '';
+            if (unit.includes('₽')) mcur = 'rub';
+            else if (unit.includes('$')) mcur = 'usd';
+            else if (unit.includes('€')) mcur = 'eur';
+            // если знаем нужную валюту - берём только методы в ней; иначе минимум по всем
+            if (want && mcur && mcur !== want) continue;
+            buyerForBase = Math.min(buyerForBase, p);
+        }
+    }
+    // если по нужной валюте ничего не нашли - пробуем minPrice
+    if (!Number.isFinite(buyerForBase) && typeof j.minPrice === 'string') {
+        const mp = parseFloat(j.minPrice.replace(/\s/g, '').replace(',', '.'));
+        if (!Number.isNaN(mp)) buyerForBase = mp;
+    }
+    if (!Number.isFinite(buyerForBase) || buyerForBase <= 0) return null;
+
+    const coeff = buyerForBase / base;     // commission_coefficient в нужной валюте
+    if (coeff <= 0) return null;
+    const net = buyerPrice / coeff;
+    return Math.round(net * 100) / 100;
 }
 
 // --- СЕКЦИЯ РАБОТЫ С DISCORD ---
@@ -316,22 +443,36 @@ async function runDiscordCheckCycle() {
         lastDiscordChatTag = chatObject.tag;
 
         const parsedChats = await parseHtmlViaOffscreen(chatObject.data.html, 'parseChatList');
-        
+
+        // 3.0: stop Discord spam. Two fixes:
+        //  (1) First-run seeding - if we've never recorded ids, just record current unread ids
+        //      and DON'T notify (otherwise enabling Discord blasts every existing unread chat).
+        //  (2) Only notify when the chat's last message is genuinely new inbound
+        //      (nodeMsg > userMsg), not merely flagged unread.
+        const { fpToolsDiscordSeeded } = await chrome.storage.local.get('fpToolsDiscordSeeded');
+        const isFirstDiscordRun = !fpToolsDiscordSeeded;
+
         let newMessagesToSend = false;
         for (const chat of parsedChats) {
-            if (chat.isUnread && !processedDiscordMessageIds.has(chat.msgId)) {
+            const genuinelyNew = (chat.nodeMsg != null && chat.userMsg != null)
+                ? (chat.nodeMsg > chat.userMsg)
+                : chat.isUnread;
+            if (!genuinelyNew) continue;
+            if (processedDiscordMessageIds.has(chat.msgId)) continue;
+
+            if (!isFirstDiscordRun) {
                 await sendDiscordNotification(chat, fpToolsDiscord);
-                processedDiscordMessageIds.add(chat.msgId);
-                newMessagesToSend = true;
             }
+            processedDiscordMessageIds.add(chat.msgId);
+            newMessagesToSend = true;
         }
 
-        if (newMessagesToSend) {
+        if (newMessagesToSend || isFirstDiscordRun) {
             let idsToStore = Array.from(processedDiscordMessageIds);
             if (idsToStore.length > 200) {
                 idsToStore = idsToStore.slice(-200);
             }
-            await chrome.storage.local.set({ fpToolsProcessedDiscordIds: idsToStore });
+            await chrome.storage.local.set({ fpToolsProcessedDiscordIds: idsToStore, fpToolsDiscordSeeded: true });
         }
 
     } catch (e) {
@@ -435,6 +576,12 @@ async function processNextLotImport() {
 
 // --- Главный обработчик сообщений ---
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    // 3.0: offscreen keepalive ping - receiving it resets the worker idle timer.
+    if (request && request.target === 'background' && request.action === 'fptEngineKeepalive') {
+        onKeepalivePing();
+        sendResponse({ ok: true });
+        return true;
+    }
     // Relay parse requests from content scripts to the offscreen document
     if (request.target === 'offscreen') {
         parseHtmlViaOffscreen(request.html, request.action)
@@ -443,7 +590,51 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true;
     }
 
-    // RMTHUB PROXY (bypasses CORS — content scripts can't fetch cross-origin)
+    // 3.0: Background image send (ported from FP Tools upload_image + send_image).
+    // Uploads the image to FunPay, then sends it via the runner with image_id - entirely
+    // in the background, so it never touches the visible chat input.
+    if (request.action === 'fptSendImage') {
+        (async () => {
+            try {
+                const result = await sendChatImageInBackground(request.chatId, request.dataUrl, request.chatName);
+                sendResponse({ ok: true, result });
+            } catch (e) {
+                sendResponse({ ok: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    // 3.0: send plain text to a chat in the background (used for ordered template parts).
+    if (request.action === 'fptSendChatText') {
+        (async () => {
+            try {
+                const auth = await getAuthDetailsForBackground();
+                if (!auth.golden_key || !auth.csrf_token) throw new Error('Нет авторизации.');
+                const cookieStr = auth.phpsessid
+                    ? `golden_key=${auth.golden_key}; PHPSESSID=${auth.phpsessid}`
+                    : `golden_key=${auth.golden_key}`;
+                const payload = {
+                    objects: JSON.stringify([{ type: 'chat_node', id: request.chatId, tag: '00000000', data: { node: request.chatId, last_message: -1, content: '' } }]),
+                    request: JSON.stringify({ action: 'chat_message', data: { node: request.chatId, last_message: -1, content: request.text } }),
+                    csrf_token: auth.csrf_token
+                };
+                const res = await fetch('https://funpay.com/runner/', {
+                    method: 'POST',
+                    headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest', 'cookie': cookieStr },
+                    body: new URLSearchParams(payload)
+                });
+                const json = await res.json().catch(() => null);
+                if (json?.error) throw new Error(json.error);
+                sendResponse({ ok: res.ok });
+            } catch (e) {
+                sendResponse({ ok: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    // RMTHUB PROXY (bypasses CORS - content scripts can't fetch cross-origin)
     if (request.action === 'rmthubFetch') {
         (async () => {
             const API = 'https://fptools-ai-server.vercel.app/api';
@@ -475,7 +666,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         (async () => {
             try {
                 // Пытаемся получить через API сайта
-                let res = await fetch('https://funpay.tools/api/donaters/');
+                let res = await fetch('https://cdn.jsdelivr.net/gh/XaviersDev/FunPay-Tools@main/donaters.json');
                 
                 // Если API вдруг недоступно (например, 404/405), берем напрямую из GitHub Raw
                 if (!res.ok) {
@@ -556,6 +747,258 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true;
     }
 
+    // =====================================================================================
+    // 3.0 SERVER-SIDE LOT CLONING - фоновые обработчики
+    // -------------------------------------------------------------------------------------
+    // cloneGetSource:  читает публичную страницу чужого лота и (если найден node) сразу
+    //                  строит черновик полей на основе НАШЕЙ пустой формы offerEdit?node=...
+    // cloneBuildFields: то же построение полей отдельно (если node меняется в UI).
+    // cloneCreateLot:  собирает финальный payload и постит lots/offerSave (offer_id=0).
+    // =====================================================================================
+    if (request.action === 'cloneGetSource') {
+        (async () => {
+            try {
+                const auth = await getAuthDetailsForBackground();
+                if (!auth.golden_key) throw new Error('Не авторизован (нет golden_key).');
+
+                const offerId = request.offerId;
+                if (!offerId) throw new Error('Не передан ID лота.');
+
+                const ck = { 'Cookie': `golden_key=${auth.golden_key}` };
+
+                // 1) ФОРСИРУЕМ РУССКИЙ язык для сбора названий и описаний
+                const ruResp = await fetch(`https://funpay.com/lots/offer?id=${offerId}&setlocale=ru`, { headers: ck });
+                if (!ruResp.ok) throw new Error(`Ошибка загрузки лота: ${ruResp.status}`);
+                const ruHtml = await ruResp.text();
+                const ru = await parseHtmlViaOffscreen(ruHtml, 'parsePublicLotForClone');
+                if (!ru) throw new Error('Не удалось разобрать страницу лота.');
+                if (ru.notFound) throw new Error('Предложение не найдено.');
+
+                let en = null;
+                try {
+                    // ФОРСИРУЕМ АНГЛИЙСКИЙ язык для сбора атрибутов для формы
+                    const enResp = await fetch(`https://funpay.com/lots/offer?id=${offerId}&setlocale=en`, { headers: ck });
+                    if (enResp.ok) {
+                        const enHtml = await enResp.text();
+                        en = await parseHtmlViaOffscreen(enHtml, 'parsePublicLotForClone');
+                        if (en && en.notFound) en = null;
+                    }
+                } catch (_) { /* en необязателен */ }
+
+                // ВОЗВРАЩАЕМ РУССКИЙ ЯЗЫК НА АККАУНТ, чтобы не сломать юзеру сайт
+                await fetch(`https://funpay.com/?setlocale=ru`, { headers: ck });
+
+                // Цена берётся ИЗ СПИСКА ЛОТОВ ПРОДАВЦА...
+                let rawPrice = '';
+                let priceCurrency = '';
+                if (ru.sellerId) {
+                    try {
+                        const upResp = await fetch(`https://funpay.com/users/${ru.sellerId}/`, { headers: ck });
+                        if (upResp.ok) {
+                            const upHtml = await upResp.text();
+                            const pr = await parseHtmlViaOffscreen(upHtml, 'parseSellerLotPrice', { offerId });
+                            if (pr && pr.price) { rawPrice = pr.price; priceCurrency = pr.currency || ''; }
+                        }
+                    } catch (_) {}
+                }
+
+                const source = {
+                    ...ru,
+                    summary_ru: ru.summary || '',
+                    desc_ru: ru.description || '',
+                    summary_en: (en && en.summary) || '',
+                    desc_en: (en && en.description) || '',
+                    enDiffers: !!((en && en.summary && en.summary !== ru.summary) || (en && en.description && en.description !== ru.description)),
+                    rawPrice,
+                    priceCurrency,
+                    matchAttributes: (en && en.attributes && en.attributes.length) ? en.attributes : ru.attributes
+                };
+
+                let fields = null;
+                let formError = null;
+                if (source.nodeId && !source.isChips) {
+                    try {
+                        fields = await cloneBuildFieldsInternal(auth, source.nodeId, source.matchAttributes);
+
+                        if (rawPrice) {
+                            try {
+                                const net = await cloneCalcNetPrice(auth, source.nodeId, parseFloat(rawPrice), priceCurrency);
+                                source.finalPrice = (net != null && !Number.isNaN(net)) ? net : parseFloat(rawPrice);
+                            } catch (_) {
+                                source.finalPrice = parseFloat(rawPrice);
+                            }
+                        }
+                    } catch (e) {
+                        formError = e.message;
+                    }
+                }
+
+                sendResponse({ success: true, source, fields, formError, csrf: auth.csrf_token });
+            } catch (e) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    if (request.action === 'cloneBuildFields') {
+        (async () => {
+            try {
+                const auth = await getAuthDetailsForBackground();
+                if (!auth.golden_key) throw new Error('Не авторизован.');
+                const fields = await cloneBuildFieldsInternal(auth, request.nodeId, request.attributes || []);
+                sendResponse({ success: true, fields });
+            } catch (e) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    if (request.action === 'cloneUploadImages') {
+        (async () => {
+            try {
+                const auth = await getAuthDetailsForBackground();
+                if (!auth.golden_key) throw new Error('Не авторизован.');
+                const urls = Array.isArray(request.urls) ? request.urls : [];
+                if (!urls.length) { sendResponse({ success: true, ids: [] }); return; }
+
+                const ids = [];
+                const errors = [];
+                for (const url of urls) {
+                    try {
+                        // 1) скачиваем картинку (публичный sfunpay.com)
+                        const imgResp = await fetch(url, { headers: { 'Cookie': `golden_key=${auth.golden_key}` } });
+                        if (!imgResp.ok) throw new Error(`download ${imgResp.status}`);
+                        const blob = await imgResp.blob();
+
+                        // 2) перезаливаем на FunPay как изображение лота - file/addOfferImage,
+                        //    поля file + file_id=0, как в Account.upload_image(type_="offer").
+                        const fd = new FormData();
+                        const ext = (blob.type && blob.type.includes('png')) ? 'png' : 'jpg';
+                        fd.append('file', blob, `image.${ext}`);
+                        fd.append('file_id', '0');
+
+                        const upResp = await fetch('https://funpay.com/file/addOfferImage', {
+                            method: 'POST',
+                            headers: {
+                                'Accept': '*/*',
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'Cookie': `golden_key=${auth.golden_key}`
+                            },
+                            body: fd
+                        });
+                        if (!upResp.ok) {
+                            let m = `upload ${upResp.status}`;
+                            try { const j = await upResp.json(); if (j.msg) m = j.msg; } catch (_) {}
+                            throw new Error(m);
+                        }
+                        const j = await upResp.json();
+                        const fileId = j && j.fileId;
+                        if (!fileId) throw new Error('нет fileId в ответе');
+                        ids.push(parseInt(fileId, 10));
+                    } catch (e) {
+                        errors.push(`${url}: ${e.message}`);
+                    }
+                }
+                sendResponse({ success: true, ids, errors });
+            } catch (e) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    if (request.action === 'cloneCreateLot') {
+        (async () => {
+            try {
+                const auth = await getAuthDetailsForBackground();
+                if (!auth.csrf_token) throw new Error('Нет CSRF-токена.');
+
+                const payload = { ...(request.fields || {}) };
+                payload.offer_id = '0';
+                payload.csrf_token = auth.csrf_token;
+                if (request.location) payload.location = request.location;
+
+                const body = new URLSearchParams(payload);
+                // POST в EN-локали - ровно как в плагине: method("post", "lots/offerSave", ..., locale="en")
+                const response = await fetch('https://funpay.com/en/lots/offerSave', {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                        'Accept': 'application/json, text/javascript, */*; q=0.01',
+                        'Cookie': `golden_key=${auth.golden_key}`
+                    },
+                    body
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const rawText = await response.text();
+                let result;
+                try { result = JSON.parse(rawText); }
+                catch { throw new Error('FunPay вернул не-JSON ответ (возможно, требуется повторный вход).'); }
+
+                const hasError = result && (result.error === 1 || result.error === true ||
+                    (result.errors && (Array.isArray(result.errors) ? result.errors.length : Object.keys(result.errors).length)));
+
+                if (result && !hasError) {
+                    // пробуем вытащить ID нового лота
+                    let newId = null;
+                    const txt = JSON.stringify(result);
+                    let m = txt.match(/"offer_id"\s*:\s*"?(\d+)"?/) || txt.match(/id=(\d+)/);
+                    if (m) newId = m[1];
+                    if (!newId && result.url) {
+                        const um = String(result.url).match(/id=(\d+)/);
+                        if (um) newId = um[1];
+                    }
+                    sendResponse({ success: true, newId });
+                } else {
+                    let msg = result.msg || 'Ошибка сохранения лота';
+                    if (result.errors) {
+                        const parts = Array.isArray(result.errors)
+                            ? result.errors.map(e => Array.isArray(e) ? e[1] : e)
+                            : Object.values(result.errors);
+                        if (parts.length) msg = parts.join('; ');
+                    }
+                    throw new Error(msg);
+                }
+            } catch (e) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    if (request.action === 'cloneDeleteLot') {
+        (async () => {
+            try {
+                const auth = await getAuthDetailsForBackground();
+                if (!auth.csrf_token) throw new Error('Нет CSRF-токена.');
+                if (!request.offerId) throw new Error('Не передан ID лота.');
+                // как delete_lot в Cardinal: offerSave с deleted=1
+                const body = new URLSearchParams({
+                    offer_id: String(request.offerId),
+                    deleted: '1',
+                    csrf_token: auth.csrf_token
+                });
+                const response = await fetch('https://funpay.com/lots/offerSave', {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                        'Cookie': `golden_key=${auth.golden_key}`
+                    },
+                    body
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                sendResponse({ success: true });
+            } catch (e) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
     // 2.9: Save/update a single lot (used by bulk editor)
     if (request.action === 'saveSingleLot') {
         (async () => {
@@ -563,7 +1006,35 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 const auth = await getAuthDetailsForBackground();
                 if (!auth.csrf_token) throw new Error('Нет CSRF токена');
 
-                const formData = new URLSearchParams(request.data);
+                let payload = { ...request.data };
+
+                // If the caller only sent a partial payload (e.g. the inline price editor
+                // sends just { offer_id, price }), FunPay's offerSave would blank every
+                // field that isn't present. Detect that and merge onto the full current
+                // form so we only change what was intended.
+                const looksPartial = !Object.keys(payload).some(k => k.startsWith('fields['));
+                if (looksPartial && payload.offer_id && payload.offer_id !== '0') {
+                    try {
+                        let nodeId = request.nodeId || payload.node_id;
+                        // node is needed for offerEdit; try to discover it if absent
+                        const editUrl = nodeId
+                            ? `https://funpay.com/lots/offerEdit?node=${nodeId}&offer=${payload.offer_id}`
+                            : `https://funpay.com/lots/offerEdit?offer=${payload.offer_id}`;
+                        const r = await fetch(editUrl, { headers: { 'Cookie': `golden_key=${auth.golden_key}` } });
+                        if (r.ok) {
+                            const html = await r.text();
+                            const full = await parseHtmlViaOffscreen(html, 'parseLotEditPage');
+                            if (full && typeof full === 'object') {
+                                payload = { ...full, ...payload }; // overrides win
+                            }
+                        }
+                    } catch (mergeErr) {
+                        // fall through with partial payload if the edit page can't be loaded
+                        console.warn('saveSingleLot: could not merge full form:', mergeErr.message);
+                    }
+                }
+
+                const formData = new URLSearchParams(payload);
                 formData.set('csrf_token', auth.csrf_token);
 
                 const response = await fetch('https://funpay.com/lots/offerSave', {
@@ -579,10 +1050,24 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const result = await response.json();
 
-                if (result && (result.error === 0 || result.error === false)) {
+                // FunPay returns { error: 0 } on success, or { error: 1, errors: {...} }
+                // / { msg: "..." } on failure. The old check treated any non-true error as
+                // success in some cases; now we explicitly require error to be falsy AND
+                // surface field-level errors so the bulk editor can show why nothing changed.
+                const hasError = result && (result.error === 1 || result.error === true ||
+                    (result.errors && (Array.isArray(result.errors) ? result.errors.length : Object.keys(result.errors).length)));
+
+                if (result && !hasError && (result.error === 0 || result.error === false || result.error === undefined)) {
                     sendResponse({ success: true });
                 } else {
-                    throw new Error(result.msg || 'Неизвестная ошибка API');
+                    let msg = result.msg || 'Неизвестная ошибка API';
+                    if (result.errors) {
+                        const parts = Array.isArray(result.errors)
+                            ? result.errors.map(e => Array.isArray(e) ? e[1] : e)
+                            : Object.values(result.errors);
+                        if (parts.length) msg = parts.join('; ');
+                    }
+                    throw new Error(msg);
                 }
             } catch (e) {
                 sendResponse({ success: false, error: e.message });
@@ -970,6 +1455,14 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     if (alarm.name === AUTO_RESPONDER_ALARM_NAME) {
         await runAutoResponderCycle();
     }
+    // 3.0: engine heartbeat - resurrects the active polling loop after the worker is killed
+    if (alarm.name === ENGINE_HEARTBEAT_ALARM) {
+        await onHeartbeat();
+    }
+    // 3.0: smart auto-raise - self-schedules its next run based on FunPay's wait times
+    if (alarm.name === SMART_BUMP_ALARM) {
+        await runSmartBumpCycle();
+    }
     if (alarm.name === 'fpToolsAutoRestore') {
         // Notify all FunPay tabs to check and restore/disable lots
         const tabs = await chrome.tabs.query({ url: "https://funpay.com/*" });
@@ -980,8 +1473,12 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 });
 
 function setupInitialAlarms() {
-    chrome.storage.local.get(['autoBumpEnabled', 'autoBumpCooldown', 'fpToolsDiscord', 'fpToolsAutoReplies'], (settings) => {
-        if (settings.autoBumpEnabled && settings.autoBumpCooldown) {
+    chrome.storage.local.get(['autoBumpEnabled', 'autoBumpCooldown', 'fpToolsDiscord', 'fpToolsAutoReplies', 'fpToolsSmartBumpEnabled'], (settings) => {
+        if (settings.fpToolsSmartBumpEnabled) {
+            // 3.0: smart raise takes over; the fixed-interval bump is disabled to avoid double-raising.
+            chrome.alarms.clear(BUMP_ALARM_NAME);
+            startSmartBump();
+        } else if (settings.autoBumpEnabled && settings.autoBumpCooldown) {
             chrome.alarms.create(BUMP_ALARM_NAME, {
                 delayInMinutes: 1,
                 periodInMinutes: parseInt(settings.autoBumpCooldown, 10)
@@ -1011,11 +1508,8 @@ function setupInitialAlarms() {
             autoReplies.newOrderReplyEnabled || autoReplies.orderConfirmReplyEnabled ||
             autoReplies.autoDeliveryEnabled;
         if (arAnyEnabled) {
-            chrome.alarms.create(AUTO_RESPONDER_ALARM_NAME, {
-                delayInMinutes: 1,
-                periodInMinutes: 0.25 // Каждые 15 секунд
-            });
-            runAutoResponderCycle();
+            // 3.0: start the MV3-safe active loop instead of the broken 0.25-min alarm.
+            startEngine();
         }
     });
 }
@@ -1030,6 +1524,7 @@ chrome.runtime.onInstalled.addListener((details) => {
             showSalesStats: true,
             hideBalance: false,
             viewSellersPromo: true,
+            fpToolsDisabledFeatures: [],
             fpToolsDiscord: { enabled: false, webhookUrl: '', pingEveryone: false, pingHere: false }
         });
     }
@@ -1061,15 +1556,30 @@ chrome.storage.onChanged.addListener((changes, area) => {
         const isEnabled = newSettings.greetingEnabled || newSettings.keywordsEnabled || newSettings.autoReviewEnabled || newSettings.bonusForReviewEnabled ||
             newSettings.newOrderReplyEnabled || newSettings.orderConfirmReplyEnabled || newSettings.autoDeliveryEnabled;
 
-        chrome.alarms.get(AUTO_RESPONDER_ALARM_NAME, (alarm) => {
-            if (isEnabled && !alarm) {
-                chrome.alarms.create(AUTO_RESPONDER_ALARM_NAME, { delayInMinutes: 1, periodInMinutes: 0.25 });
-                runAutoResponderCycle();
-            } else if (!isEnabled && alarm) {
-                chrome.alarms.clear(AUTO_RESPONDER_ALARM_NAME);
-                resetAutoResponderState(); // 2.8: clear persisted tag on disable
-            }
-        });
+        // 3.0: drive the engine instead of the broken alarm
+        if (isEnabled) {
+            startEngine();
+        } else {
+            stopEngine();
+            chrome.alarms.clear(AUTO_RESPONDER_ALARM_NAME);
+            resetAutoResponderState();
+        }
+    }
+    // 3.0: smart auto-raise toggle
+    if (changes.fpToolsSmartBumpEnabled) {
+        const enabled = changes.fpToolsSmartBumpEnabled.newValue;
+        if (enabled) {
+            chrome.alarms.clear(BUMP_ALARM_NAME); // stop fixed-interval bump
+            startSmartBump();
+        } else {
+            stopSmartBump();
+            // re-arm the classic bump if it's still enabled
+            chrome.storage.local.get(['autoBumpEnabled', 'autoBumpCooldown'], (s) => {
+                if (s.autoBumpEnabled && s.autoBumpCooldown) {
+                    chrome.alarms.create(BUMP_ALARM_NAME, { delayInMinutes: 1, periodInMinutes: parseInt(s.autoBumpCooldown, 10) });
+                }
+            });
+        }
     }
 });
 

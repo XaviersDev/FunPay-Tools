@@ -1,4 +1,4 @@
-// content/features/order_enhancements.js — FunPay Tools 2.9
+// content/features/order_enhancements.js - FunPay Tools 2.9
 // Unconfirmed balance in stats • "Request review" button • Sales period filter • Order type labels
 
 // ── 1. Unconfirmed balance display ──────────────────────────────────────────
@@ -70,13 +70,13 @@ function initSalesFilter() {
     periods.forEach(p => {
         const btn = document.createElement('button');
         btn.className = 'btn btn-default';
-        btn.style.cssText = `padding:4px 10px;font-size:11px;font-weight:600;${p.default ? 'background:#252847;color:#a09ef8;border-color:#363a5a;' : ''}`;
+        btn.style.cssText = `padding:4px 10px;font-size:11px;font-weight:600;${p.default ? 'background:#2A1830;color:#E9A8FF;border-color:#363a5a;' : ''}`;
         btn.textContent = p.label;
         btn.addEventListener('click', () => {
             bar.querySelectorAll('button').forEach(b => {
                 b.style.background = ''; b.style.color = ''; b.style.borderColor = '';
             });
-            btn.style.background = '#252847'; btn.style.color = '#a09ef8'; btn.style.borderColor = '#363a5a';
+            btn.style.background = '#2A1830'; btn.style.color = '#E9A8FF'; btn.style.borderColor = '#363a5a';
             applySalesPeriodFilter(p.days);
         });
         bar.appendChild(btn);
@@ -132,7 +132,7 @@ function initReviewRequestButtons() {
             const btn = document.createElement('button');
             btn.style.cssText = `
                 background:none;border:1px solid #22253a;border-radius:4px;
-                color:#6B66FF;cursor:pointer;padding:2px 8px;font-size:11px;
+                color:#C026D3;cursor:pointer;padding:2px 8px;font-size:11px;
                 margin-left:6px;font-family:Inter,sans-serif;transition:background .15s;
                 white-space:nowrap;flex-shrink:0;
             `;
@@ -211,7 +211,7 @@ function initReviewRequestButtons() {
     obs.observe(document.getElementById('content') || document.body, { childList: true, subtree: true });
 }
 
-// ── 4. Payment type labels — handled by content_script.js initializePaymentTypeBadges ──
+// ── 4. Payment type labels - handled by content_script.js initializePaymentTypeBadges ──
 
 // ── Init all ─────────────────────────────────────────────────────────────────
 function initOrderEnhancements() {

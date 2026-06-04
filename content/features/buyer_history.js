@@ -246,11 +246,16 @@ function attachChatMenuItems(chatHeader) {
         exportLi.querySelector('a').addEventListener('click', (e) => {
             e.preventDefault();
             const msgs = [];
+            let lastAuthor = '';
             document.querySelectorAll('.chat-msg-item').forEach(item => {
-                const author = item.querySelector('.chat-msg-author-link')?.textContent.trim() || 'System';
+                const authorEl = item.querySelector('.chat-msg-author-link');
+                if (authorEl) lastAuthor = authorEl.textContent.trim();
+                const author = lastAuthor || 'Собеседник';
                 const text   = item.querySelector('.chat-msg-text')?.textContent.trim() || '';
-                const date   = item.querySelector('.chat-msg-date')?.textContent.trim() || '';
-                if (text) msgs.push(`[${date}] ${author}: ${text}`);
+                const dateEl = item.querySelector('.chat-msg-date');
+                // у первого сообщения серии есть видимая дата, у последующих - только в title
+                const date   = dateEl ? (dateEl.textContent.trim() || dateEl.getAttribute('title')?.trim() || '') : '';
+                if (text) msgs.push(date ? `[${date}] ${author}: ${text}` : `${author}: ${text}`);
             });
             if (!msgs.length) { if (typeof showNotification === 'function') showNotification('Нет сообщений для экспорта', true); return; }
             const partner = chatHeader.querySelector('.media-user-name a')?.textContent.trim() || 'chat';
@@ -265,17 +270,44 @@ function attachChatMenuItems(chatHeader) {
         });
         menu.appendChild(exportLi);
 
-        // 4. Добавить в ЧС
+        // 4. Добавить / удалить из ЧС
         const blLi = document.createElement('li');
-        blLi.innerHTML = '<a href="#" id="fp-blacklist-menu-btn" style="color: #ff5c5c;">🚫 Добавить в ЧС</a>';
-        blLi.querySelector('a').addEventListener('click', (e) => {
+        const blA = document.createElement('a');
+        blA.href = '#';
+        blA.id = 'fp-blacklist-menu-btn';
+        blA.style.color = '#ff5c5c';
+        blLi.appendChild(blA);
+
+        const syncBlText = async () => {
+            const inList = (typeof isInBlacklist === 'function') ? await isInBlacklist(buyerName) : false;
+            blA.textContent = inList ? '✅ Удалить из ЧС' : '🚫 Добавить в ЧС';
+            blA.style.color = inList ? '#5cff8f' : '#ff5c5c';
+        };
+        syncBlText();
+
+        blA.addEventListener('click', async (e) => {
             e.preventDefault();
-            if (typeof addToBlacklistFromChat === 'function') {
-                addToBlacklistFromChat(buyerName);
-            } else {
-                if (typeof showNotification === 'function') showNotification('Модуль черного списка загружается...', true);
+            if (typeof isInBlacklist !== 'function' || typeof addToBlacklistFromChat !== 'function') {
+                if (typeof showNotification === 'function') showNotification('Модуль чёрного списка загружается...', true);
+                return;
             }
+            const inList = await isInBlacklist(buyerName);
+            if (inList) {
+                await removeFromBlacklistByName(buyerName);
+            } else {
+                await addToBlacklistFromChat(buyerName);
+            }
+            await syncBlText();
         });
+
+        // Обновляем подпись при каждом открытии меню (чат меняется, состояние ЧС тоже).
+        const blToggleBtn = chatHeader.querySelector('[data-toggle="dropdown"]');
+        if (blToggleBtn && !blToggleBtn.dataset.fpBlSyncBound) {
+            blToggleBtn.dataset.fpBlSyncBound = '1';
+            blToggleBtn.addEventListener('click', () => setTimeout(syncBlText, 0));
+        }
+        document.addEventListener('fpToolsBlacklistUpdated', syncBlText);
+
         menu.appendChild(blLi);
     };
 

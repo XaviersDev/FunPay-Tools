@@ -72,7 +72,7 @@ function renderDeliveryLots(lots, config, container) {
                             ${lotConfig.productCount !== undefined ? `📦 ${lotConfig.productCount} шт.` : ''}
                         </span>
                         <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:#5a5f7a;cursor:pointer;">
-                            <input type="checkbox" class="fp-ad-enabled" data-lot-id="${lot.id}" ${lotConfig.enabled ? 'checked' : ''} style="accent-color:#6B66FF;">
+                            <input type="checkbox" class="fp-ad-enabled" data-lot-id="${lot.id}" ${lotConfig.enabled ? 'checked' : ''} style="accent-color:#C026D3;">
                             Авто-выдача
                         </label>
                     </div>

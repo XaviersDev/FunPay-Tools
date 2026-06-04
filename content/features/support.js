@@ -86,7 +86,7 @@ async function _loadTickets() {
 
             meta.appendChild(metaText);
 
-            // Кнопка закрытия — только для активных
+            // Кнопка закрытия - только для активных
             if (closeable.has(t.status)) {
                 const closeBtn = document.createElement('button');
                 closeBtn.textContent = 'Закрыть';
@@ -253,7 +253,7 @@ function _renderFields(fields, container) {
         let input;
 
         if (f.type === 'select' || f.type === 'radio') {
-            // Точно как в Android: Column с border, каждый option — Row с RadioButton + Text
+            // Точно как в Android: Column с border, каждый option - Row с RadioButton + Text
             const col = document.createElement('div');
             col.style.cssText = 'display:flex;flex-direction:column;border:1px solid rgba(106,112,144,0.3);border-radius:4px;overflow:hidden;';
             col.dataset.fieldId = f.id;
@@ -431,7 +431,7 @@ function _renderBubble(c, myUsername) {
     // Avatar (only for others)
     if (!isMe) {
         const av = document.createElement('div');
-        av.style.cssText = `width:28px;height:28px;border-radius:50%;flex-shrink:0;background:#1a1c2e;font-size:11px;font-weight:600;color:#6B66FF;display:flex;align-items:center;justify-content:center;`;
+        av.style.cssText = `width:28px;height:28px;border-radius:50%;flex-shrink:0;background:#1a1c2e;font-size:11px;font-weight:600;color:#C026D3;display:flex;align-items:center;justify-content:center;`;
         if (c.avatarUrl) {
             av.style.backgroundImage = `url('${c.avatarUrl}')`;
             av.style.backgroundSize = 'cover';
@@ -534,7 +534,7 @@ async function _sendTicketReply() {
     btn.disabled = true; btn.textContent = '...';
     try {
         await _msg('supportAddComment', { ticketId: _currentTicketId, message: text, token: _currentReplyToken });
-        // Append message visually — no reload
+        // Append message visually - no reload
         const msgs = document.getElementById('fp-tdm');
         const username = _getUsername();
         const now = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
@@ -581,10 +581,10 @@ function initTicketsTab() {
     document.getElementById('fp-ticket-reply-btn')?.addEventListener('click', _sendTicketReply);
     const replyInput = document.getElementById('fp-tri');
 
-    // Hover effects via JS — inline onmouseover breaks HTML in template literals
+    // Hover effects via JS - inline onmouseover breaks HTML in template literals
     const replyBtn = document.getElementById('fp-ticket-reply-btn');
     replyBtn?.addEventListener('mouseenter', () => replyBtn.style.background = '#5752e8');
-    replyBtn?.addEventListener('mouseleave', () => replyBtn.style.background = '#6B66FF');
+    replyBtn?.addEventListener('mouseleave', () => replyBtn.style.background = '#C026D3');
     const attachLbl = document.getElementById('fp-attach-lbl');
     attachLbl?.addEventListener('mouseenter', () => attachLbl.style.color = '#9099b8');
     attachLbl?.addEventListener('mouseleave', () => attachLbl.style.color = '#4a4f6a');

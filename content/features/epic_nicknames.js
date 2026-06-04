@@ -1,4 +1,4 @@
-// content/features/epic_nicknames.js — FunPay Tools
+// content/features/epic_nicknames.js - FunPay Tools
 // Epic Nicknames Engine (CSS + Canvas Particles)
 
 (function() {

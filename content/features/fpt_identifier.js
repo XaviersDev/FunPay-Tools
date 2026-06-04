@@ -1,4 +1,4 @@
-// content/features/fpt_identifier.js — FunPay Tools 3.0
+// content/features/fpt_identifier.js - FunPay Tools 3.0
 // FIXED: Now works on /users/, /orders/, /chat/ and chat list pages.
 //        Previously silently exited on /users/ (not in path allowlist).
 //        Fixed selector for textarea and chat container across all page types.
@@ -8,7 +8,7 @@ function initializeFPTIdentifier() {
 
     const path = window.location.pathname;
 
-    // FIX: Added /users/ — previously this returned early on profile pages
+    // FIX: Added /users/ - previously this returned early on profile pages
     // which have an inline chat form (sends messages to seller).
     const ALLOWED = ['/chat/', '/lots/offer', '/orders/', '/users/'];
     if (!ALLOWED.some(p => path.startsWith(p))) return;
@@ -26,7 +26,7 @@ function initializeFPTIdentifier() {
         s.id = 'fpt-identifier-styles';
         s.textContent = `
             .${FPT_LABEL_CLASS} {
-                color: #6B66FF;
+                color: #C026D3;
                 font-size: 11px;
                 font-weight: 600;
                 margin-left: 6px;
@@ -89,6 +89,17 @@ function initializeFPTIdentifier() {
         if (/[A-Za-z]:\\/i.test(text) || /^\/[a-z]/i.test(text)) return false;
         // Already contains zero-width chars (own or foreign signature)
         if (/[\u200B\u200C\u200D\uFEFF]/.test(text)) return false;
+
+        // Skip if the message STARTS with any of these symbols (commands / special syntax).
+        // Checked on the trimmed text so leading spaces don't bypass it.
+        const trimmed = text.trimStart();
+        const blockedFirstChars = ['/', '.', '!', '+', '№', '\\', '"', ':', '(', ')', '?', '#'];
+        if (blockedFirstChars.includes(trimmed.charAt(0))) return false;
+
+        // Skip if the message has more than 24 English (Latin) letters total.
+        const latinCount = (text.match(/[A-Za-z]/g) || []).length;
+        if (latinCount > 24) return false;
+
         return true;
     }
 
@@ -98,7 +109,7 @@ function initializeFPTIdentifier() {
     // FIX: waitForElement('.chat-form form') was broken because form was found
     // but querySelector('button[type="submit"]') on it failed on some pages.
     async function setupFormInjection() {
-        // Wait for the textarea directly — works on ALL page types
+        // Wait for the textarea directly - works on ALL page types
         const textarea = await waitForElement('textarea[name="content"]', 8000);
         if (!textarea) return;
 
@@ -184,7 +195,7 @@ function initializeFPTIdentifier() {
         if (fpToolsIdentifierEnabled === false) return;
 
         addIdentifierStyles();
-        // Run both in parallel — they each wait independently
+        // Run both in parallel - they each wait independently
         await Promise.all([setupFormInjection(), setupMessageObserver()]);
     }
 

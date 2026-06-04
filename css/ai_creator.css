@@ -268,7 +268,7 @@
 #fp-tools-translate-btn:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.2);
     color: #fff;
-    border-color: #00c9ff;
+    border-color: #E879F9;
 }
 
 #fp-tools-translate-btn:disabled {

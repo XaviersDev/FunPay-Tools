@@ -103,7 +103,17 @@ const DEFAULT_THEME = {
     enableCustomScrollbar: false,
     scrollbarThumbColor: '#555555',
     scrollbarTrackColor: '#222222',
-    scrollbarWidth: 8
+    scrollbarWidth: 8,
+    // Прозрачное меню FunPay Tools
+    menuTransparent: false,
+    menuTintColor: '#2a1033',   // тёмно-пурпурный
+    menuOpacity: 3,             // %
+    menuBlurEnabled: true,
+    menuBlur: 8,                // px
+    // Контур тексту
+    textOutlineEnabled: false,
+    textOutlineColor: '#000000',
+    textOutlineWidth: 1         // px
 };
 
 function hexToRgba(hex, alpha) {
@@ -241,7 +251,12 @@ async function applyCustomTheme() {
     let overrideStyleEl = document.getElementById(THEME_OVERRIDE_STYLE_ID);
     const flashFixStyle = document.getElementById('fp-tools-flash-fix');
 
+    // Контур тексту работает независимо от кастомной темы.
+    applyFptTextOutline({ ...DEFAULT_THEME, ...fpToolsTheme });
+
     if (!enableCustomTheme) {
+        document.documentElement.classList.remove('fpt-custom-theme-on');
+        document.documentElement.classList.add('fpt-custom-theme-off');
         if (styleEl) styleEl.remove();
         manageFontImports({font: 'Helvetica Neue'});
         if (!overrideStyleEl) {
@@ -260,6 +275,8 @@ async function applyCustomTheme() {
     if (overrideStyleEl) {
         overrideStyleEl.remove();
     }
+    document.documentElement.classList.add('fpt-custom-theme-on');
+    document.documentElement.classList.remove('fpt-custom-theme-off');
 
     if (!styleEl) {
         styleEl = document.createElement('style');
@@ -788,4 +805,233 @@ function setupThemeCustomizationHandlers() {
     });
     document.getElementById('importThemeInput')?.addEventListener('change', importTheme);
     document.getElementById('generatePaletteBtn')?.addEventListener('click', generatePaletteFromImage);
+
+    setupFptMenuTransparency();
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Прозрачное меню FunPay Tools
+// ════════════════════════════════════════════════════════════════════════════
+
+// Применяет настройки прозрачности к окну .fp-tools-popup.
+// Может принять явные значения (из контролов) - иначе читает из storage.
+async function applyFptMenuTransparency(override) {
+    const popup = document.querySelector('.fp-tools-popup');
+    if (!popup) return;
+
+    let s;
+    if (override) {
+        s = override;
+    } else {
+        const { fpToolsTheme = {} } = await chrome.storage.local.get('fpToolsTheme');
+        s = { ...DEFAULT_THEME, ...fpToolsTheme };
+    }
+
+    if (s.menuTransparent) {
+        const alpha = Math.max(0, Math.min(100, parseFloat(s.menuOpacity))) / 100;
+        const tintC = s.menuTintColor || DEFAULT_THEME.menuTintColor;
+        popup.style.setProperty('--fpt-menu-bg', hexToRgba(tintC, alpha));
+        // кнопки боковой панели - на 2% плотнее самого меню (как просил пользователь)
+        popup.style.setProperty('--fpt-menu-navbtn', hexToRgba(tintC, Math.min(1, alpha + 0.02)));
+        // активный пункт - заметнее, на 8% плотнее
+        popup.style.setProperty('--fpt-menu-navactive', hexToRgba(tintC, Math.min(1, alpha + 0.08)));
+        popup.classList.add('fpt-menu-transparent');
+
+        // ЧИТАЕМОСТЬ: при 3% прозрачности на СВЕТЛОМ фоне (белая/выключенная тема)
+        // светлый текст меню сливается. Определяем яркость фона за меню и:
+        //   - на светлом фоне → тёмный текст меню + светлый скрим;
+        //   - на тёмном фоне → светлый текст + тёмный скрим.
+        // Скрим (var --fpt-menu-scrim) - тонкая контрастная подложка поверх блюра,
+        // чтобы текст читался при любой теме, не делая меню непрозрачным.
+        let lightBg = false;
+        try {
+            if (typeof fptResolveBg === 'function' && typeof fptLuma === 'function') {
+                lightBg = fptLuma(fptResolveBg()) >= 0.5;
+            }
+        } catch (_) {}
+        popup.classList.toggle('fpt-menu-on-light', lightBg);
+        popup.classList.toggle('fpt-menu-on-dark', !lightBg);
+        // скрим: на светлом - белесый, на тёмном - чёрный; даёт контраст тексту
+        popup.style.setProperty('--fpt-menu-scrim', lightBg ? 'rgba(245,245,250,0.80)' : 'rgba(15,16,22,0.45)');
+
+        if (s.menuBlurEnabled) {
+            popup.style.setProperty('--fpt-menu-blur', `${parseInt(s.menuBlur, 10) || 0}px`);
+            popup.classList.add('fpt-menu-blur');
+        } else {
+            popup.classList.remove('fpt-menu-blur');
+        }
+    } else {
+        popup.classList.remove('fpt-menu-transparent', 'fpt-menu-blur', 'fpt-menu-on-light', 'fpt-menu-on-dark');
+        popup.style.removeProperty('--fpt-menu-bg');
+        popup.style.removeProperty('--fpt-menu-navbtn');
+        popup.style.removeProperty('--fpt-menu-navactive');
+        popup.style.removeProperty('--fpt-menu-scrim');
+        popup.style.removeProperty('--fpt-menu-blur');
+    }
+}
+
+// Загружает значения в контролы и навешивает обработчики.
+// Из UI настраивается только ЦВЕТ; прозрачность и размытие фиксированы (дефолты).
+async function setupFptMenuTransparency() {
+    const { fpToolsTheme = {} } = await chrome.storage.local.get('fpToolsTheme');
+    const s = { ...DEFAULT_THEME, ...fpToolsTheme };
+
+    const enabled    = document.getElementById('fptMenuTransparentEnabled');
+    const controls   = document.getElementById('fptMenuTransparentControls');
+    const tint       = document.getElementById('fptMenuTintColor');
+    if (!enabled) return;
+
+    enabled.checked = !!s.menuTransparent;
+    if (controls) controls.style.display = s.menuTransparent ? 'block' : 'none';
+    if (tint) tint.value = s.menuTintColor || DEFAULT_THEME.menuTintColor;
+
+    applyFptMenuTransparency(s);
+
+    const save = async (patch) => {
+        const { fpToolsTheme = {} } = await chrome.storage.local.get('fpToolsTheme');
+        const next = { ...DEFAULT_THEME, ...fpToolsTheme, ...patch };
+        await chrome.storage.local.set({ fpToolsTheme: next });
+    };
+
+    enabled.addEventListener('change', (e) => {
+        if (controls) controls.style.display = e.target.checked ? 'block' : 'none';
+        applyFptMenuTransparency({ ...DEFAULT_THEME, ...s,
+            menuTransparent: e.target.checked,
+            menuTintColor: (tint && tint.value) || DEFAULT_THEME.menuTintColor });
+        save({ menuTransparent: e.target.checked });
+        // контур зависит от прозрачного меню - пересчитываем с актуальным состоянием
+        const oEnabled = document.getElementById('fptTextOutlineEnabled');
+        const oColor = document.getElementById('fptTextOutlineColor');
+        const oWidth = document.getElementById('fptTextOutlineWidth');
+        applyFptTextOutline({ ...DEFAULT_THEME, ...s,
+            menuTransparent: e.target.checked,
+            textOutlineEnabled: !!(oEnabled && oEnabled.checked),
+            textOutlineColor: (oColor && oColor.value) || '#000000',
+            textOutlineWidth: oWidth ? parseFloat(oWidth.value) : 1 });
+    });
+    tint?.addEventListener('input', () => {
+        applyFptMenuTransparency({ ...DEFAULT_THEME, ...s,
+            menuTransparent: enabled.checked, menuTintColor: tint.value });
+    });
+    tint?.addEventListener('change', () => save({ menuTintColor: tint.value }));
+
+    setupFptTextOutline();
+}
+
+// Пере-синхронизирует контролы из storage (вызывается при КАЖДОМ открытии меню),
+// чтобы галочки/цвета всегда отражали сохранённое состояние, даже если что-то
+// перетёрло DOM ранее.
+async function syncFptMenuControls() {
+    const { fpToolsTheme = {} } = await chrome.storage.local.get('fpToolsTheme');
+    const s = { ...DEFAULT_THEME, ...fpToolsTheme };
+
+    const enabled  = document.getElementById('fptMenuTransparentEnabled');
+    const controls = document.getElementById('fptMenuTransparentControls');
+    const tint     = document.getElementById('fptMenuTintColor');
+    if (enabled) enabled.checked = !!s.menuTransparent;
+    if (controls) controls.style.display = s.menuTransparent ? 'block' : 'none';
+    if (tint) tint.value = s.menuTintColor || DEFAULT_THEME.menuTintColor;
+
+    const oEn  = document.getElementById('fptTextOutlineEnabled');
+    const oCtl = document.getElementById('fptTextOutlineControls');
+    const oCol = document.getElementById('fptTextOutlineColor');
+    const oW   = document.getElementById('fptTextOutlineWidth');
+    const oWV  = document.getElementById('fptTextOutlineWidthValue');
+    if (oEn) oEn.checked = !!s.textOutlineEnabled;
+    if (oCtl) oCtl.style.display = s.textOutlineEnabled ? 'block' : 'none';
+    if (oCol) oCol.value = s.textOutlineColor || '#000000';
+    if (oW) oW.value = s.textOutlineWidth;
+    if (oWV) oWV.textContent = `${s.textOutlineWidth}px`;
+
+    applyFptMenuTransparency(s);
+}
+
+// ── Контур тексту ───────────────────────────────────────────────────────────
+// Обводит все буквы на странице контуром заданного цвета/толщины (text-shadow в
+// 4 стороны - надёжнее, чем -webkit-text-stroke, и не «съедает» сам глиф).
+async function applyFptTextOutline(override) {
+    let s = override;
+    if (!s) {
+        const { fpToolsTheme = {} } = await chrome.storage.local.get('fpToolsTheme');
+        s = { ...DEFAULT_THEME, ...fpToolsTheme };
+    }
+    const STYLE_ID = 'fpt-text-outline-style';
+    let styleEl = document.getElementById(STYLE_ID);
+
+    // Контур работает ТОЛЬКО в меню FP Tools и ТОЛЬКО когда включено прозрачное меню.
+    if (!s.textOutlineEnabled || !s.menuTransparent) {
+        if (styleEl) styleEl.remove();
+        return;
+    }
+    if (!styleEl) {
+        styleEl = document.createElement('style');
+        styleEl.id = STYLE_ID;
+        document.head.appendChild(styleEl);
+    }
+    const w = Math.max(0, parseFloat(s.textOutlineWidth) || 0);
+    const c = s.textOutlineColor || '#000000';
+    // Плавный ровный контур: -webkit-text-stroke (без рваных краёв) + лёгкое
+    // дублирование тонкими тенями по диагоналям, чтобы закрыть микро-разрывы.
+    // paint-order: stroke - обводка рисуется ПОД заливкой, поэтому буква не «худеет».
+    const half = (w / 2).toFixed(2);
+    const soft = [
+        `${half}px ${half}px 0 ${c}`, `-${half}px -${half}px 0 ${c}`,
+        `${half}px -${half}px 0 ${c}`, `-${half}px ${half}px 0 ${c}`
+    ].join(', ');
+    styleEl.textContent = `
+        .fp-tools-popup, .fp-tools-popup * {
+            -webkit-text-stroke: ${w}px ${c};
+            paint-order: stroke fill;
+            text-shadow: ${soft} !important;
+        }
+        /* у инпутов/иконок обводка не нужна */
+        .fp-tools-popup input, .fp-tools-popup textarea, .fp-tools-popup select,
+        .fp-tools-popup .material-symbols-rounded, .fp-tools-popup .material-icons,
+        .fp-tools-popup .nav-icon {
+            -webkit-text-stroke: 0 !important;
+            text-shadow: none !important;
+        }
+    `;
+}
+
+async function setupFptTextOutline() {
+    const { fpToolsTheme = {} } = await chrome.storage.local.get('fpToolsTheme');
+    const s = { ...DEFAULT_THEME, ...fpToolsTheme };
+
+    const enabled  = document.getElementById('fptTextOutlineEnabled');
+    const controls = document.getElementById('fptTextOutlineControls');
+    const color    = document.getElementById('fptTextOutlineColor');
+    const width    = document.getElementById('fptTextOutlineWidth');
+    const widthVal = document.getElementById('fptTextOutlineWidthValue');
+    if (!enabled) return;
+
+    enabled.checked = !!s.textOutlineEnabled;
+    if (controls) controls.style.display = s.textOutlineEnabled ? 'block' : 'none';
+    if (color) color.value = s.textOutlineColor || '#000000';
+    if (width) width.value = s.textOutlineWidth;
+    if (widthVal) widthVal.textContent = `${s.textOutlineWidth}px`;
+
+    applyFptTextOutline(s);
+
+    const read = () => ({
+        textOutlineEnabled: !!enabled.checked,
+        textOutlineColor: (color && color.value) || '#000000',
+        textOutlineWidth: width ? parseFloat(width.value) : 1
+    });
+    const save = async () => {
+        const { fpToolsTheme = {} } = await chrome.storage.local.get('fpToolsTheme');
+        await chrome.storage.local.set({ fpToolsTheme: { ...DEFAULT_THEME, ...fpToolsTheme, ...read() } });
+    };
+
+    enabled.addEventListener('change', (e) => {
+        if (controls) controls.style.display = e.target.checked ? 'block' : 'none';
+        applyFptTextOutline({ ...DEFAULT_THEME, ...s, ...read() }); save();
+    });
+    color?.addEventListener('input', () => applyFptTextOutline({ ...DEFAULT_THEME, ...s, ...read() }));
+    color?.addEventListener('change', save);
+    width?.addEventListener('input', (e) => {
+        if (widthVal) widthVal.textContent = `${e.target.value}px`;
+        applyFptTextOutline({ ...DEFAULT_THEME, ...s, ...read() });
+    });
+    width?.addEventListener('change', save);
 }

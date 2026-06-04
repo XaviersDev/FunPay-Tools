@@ -1,13 +1,67 @@
+// FP Tools-style random per-cycle tag. Importing lazily-safe value here keeps this module
+// self-contained even if the engine module isn't loaded.
+function randomTag() {
+    return Math.floor(Math.random() * 0xffffffff).toString(16).padStart(8, '0');
+}
+
+// 3.0 FIX (Cardinal parity): every message the bot sends in the background is prefixed with
+// an invisible marker character. When we later read the chat list, if the last message starts
+// with this marker we KNOW it was sent by us and must NOT react to it. Without this the
+// autoresponder could re-trigger on its own replies (the "spam 1000 times" symptom) whenever
+// the per-chat id bookkeeping had any race. Cardinal uses U+2061; we use the same so messages
+// stay invisible and consistent.
+const BOT_MARKER = '\u2061';
+const OLD_BOT_MARKER = '\u2064';
+function markOutgoing(text) {
+    const t = (text == null) ? '' : String(text);
+    if (!t) return t;
+    // don't double-mark
+    if (t.startsWith(BOT_MARKER) || t.startsWith(OLD_BOT_MARKER)) return t;
+    return BOT_MARKER + t;
+}
+function isBotMarked(text) {
+    return typeof text === 'string' && (text.startsWith(BOT_MARKER) || text.startsWith(OLD_BOT_MARKER));
+}
+
+// 3.0: resilient fetch - retries transient failures (network blips, 429/5xx) with backoff.
+// This is a major source of "send worked on the 3rd-4th try": a single transient failure
+// used to drop the whole action. Now we retry before giving up.
+async function fetchWithRetry(url, options, { retries = 4, baseDelay = 800 } = {}) {
+    let lastErr;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+            const res = await fetch(url, options);
+            // Retry on rate-limit / server errors; return everything else to caller.
+            if (res.status === 429 || res.status >= 500) {
+                lastErr = new Error(`HTTP ${res.status}`);
+            } else {
+                return res;
+            }
+        } catch (e) {
+            lastErr = e;
+        }
+        if (attempt < retries) {
+            const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 400;
+            await new Promise(r => setTimeout(r, delay));
+        }
+    }
+    throw lastErr || new Error('fetchWithRetry: exhausted');
+}
+
 const RX = {
-    ORDER_PURCHASED:    /оплатил заказ #([A-Z0-9]{8})/i,
-    ORDER_CONFIRMED:    /подтвердил успешное выполнение заказа #([A-Z0-9]{8})/i,
-    NEW_FEEDBACK:       /написал отзыв к заказу #([A-Z0-9]{8})/i,
-    FEEDBACK_CHANGED:   /изменил отзыв к заказу #([A-Z0-9]{8})/i,
-    FEEDBACK_DELETED:   /удалил отзыв к заказу/i,
-    ORDER_REOPENED:     /заказ #([A-Z0-9]{8}) открыт повторно/i,
-    REFUND:             /вернул деньги покупателю/i,
-    PARTIAL_REFUND:     /часть средств по заказу .+ возвращена/i,
-    DEAR_VENDORS:       /уважаемые продавцы/i,
+    // 3.0: now match BOTH Russian and English FunPay system messages. Previously only Russian
+    // was matched, so on English-language accounts every system message was misclassified as
+    // NON_SYSTEM and wrongly got a greeting/keyword reply - i.e. "ignore system messages" did
+    // nothing. Patterns mirror FP Tools's RegularExpressions.
+    ORDER_PURCHASED:    /(оплатил заказ|has paid for order) #([A-Z0-9]{8})/i,
+    ORDER_CONFIRMED:    /(подтвердил успешное выполнение заказа|has confirmed that order) #([A-Z0-9]{8})/i,
+    NEW_FEEDBACK:       /(написал отзыв к заказу|has given feedback to the order) #([A-Z0-9]{8})/i,
+    FEEDBACK_CHANGED:   /(изменил отзыв к заказу|has edited their feedback to the order) #([A-Z0-9]{8})/i,
+    FEEDBACK_DELETED:   /(удалил отзыв к заказу|has deleted their feedback to the order)/i,
+    ORDER_REOPENED:     /(заказ #([A-Z0-9]{8}) открыт повторно|order #([A-Z0-9]{8}) reopened)/i,
+    REFUND:             /(вернул деньги покупателю|returned the money to the buyer|refund)/i,
+    PARTIAL_REFUND:     /(часть средств по заказу .+ возвращена|part of the funds for order)/i,
+    DEAR_VENDORS:       /(уважаемые продавцы|dear vendors|dear sellers)/i,
     ORDER_ID:           /#([A-Z0-9]{8})/,
 };
 
@@ -85,12 +139,13 @@ async function sendChatMessage(chatId, text, auth) {
         : `golden_key=${auth.golden_key}`;
 
     // tag '00000000', last_message: -1 в обоих местах (objects.data и request.data)
+    const markedText = markOutgoing(text);
     const payload = {
         objects: JSON.stringify([{ type: 'chat_node', id: chatId, tag: '00000000', data: { node: chatId, last_message: -1, content: '' } }]),
-        request: JSON.stringify({ action: 'chat_message', data: { node: chatId, last_message: -1, content: text } }),
+        request: JSON.stringify({ action: 'chat_message', data: { node: chatId, last_message: -1, content: markedText } }),
         csrf_token: auth.csrf_token
     };
-    const res = await fetch('https://funpay.com/runner/', {
+    const res = await fetchWithRetry('https://funpay.com/runner/', {
         method: 'POST',
         headers: {
             'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
@@ -105,9 +160,82 @@ async function sendChatMessage(chatId, text, auth) {
     console.log(`FP Tools AR: → чат ${chatId}`);
 }
 
-async function sendReviewReply(orderId, text, auth) {
-    const payload = new URLSearchParams({ orderId, text, rating: 5, authorId: auth.userId, csrf_token: auth.csrf_token });
-    const res = await fetch('https://funpay.com/orders/review', {
+// 3.0: upload an image (data URL) to FunPay and send it to a chat, in the background.
+async function sendChatImage(chatId, dataUrl, auth) {
+    const cookieStr = auth.phpsessid
+        ? `golden_key=${auth.golden_key}; PHPSESSID=${auth.phpsessid}`
+        : `golden_key=${auth.golden_key}`;
+
+    const blob = await (await fetch(dataUrl)).blob();
+    const fd = new FormData();
+    fd.append('file', new File([blob], 'image.png', { type: blob.type || 'image/png' }));
+    fd.append('file_id', '0');
+
+    const upRes = await fetchWithRetry('https://funpay.com/file/addChatImage', {
+        method: 'POST',
+        headers: { 'cookie': cookieStr, 'x-requested-with': 'XMLHttpRequest' },
+        body: fd
+    });
+    if (!upRes.ok) throw new Error(`uploadImage HTTP ${upRes.status}`);
+    const upJson = await upRes.json().catch(() => ({}));
+    const fileId = upJson.fileId;
+    if (!fileId) throw new Error('addChatImage: no fileId');
+
+    const payload = {
+        objects: JSON.stringify([{ type: 'chat_node', id: chatId, tag: '00000000', data: { node: chatId, last_message: -1, content: '' } }]),
+        request: JSON.stringify({ action: 'chat_message', data: { node: chatId, last_message: -1, content: '', image_id: fileId } }),
+        csrf_token: auth.csrf_token
+    };
+    const res = await fetchWithRetry('https://funpay.com/runner/', {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest', 'cookie': cookieStr },
+        body: new URLSearchParams(payload)
+    });
+    if (!res.ok) throw new Error(`sendImage HTTP ${res.status}`);
+    const json = await res.json().catch(() => null);
+    if (json?.error) throw new Error(`FunPay runner error: ${json.error}`);
+    console.log(`FP Tools AR: 🖼 → чат ${chatId}`);
+}
+
+// 3.0: send autoreply content that may contain [image:dataURL] tags. Pieces are sent in the
+// SAME ORDER they appear in the text - so "text [image:...]" sends text then image, and
+// "[image:...] text" sends image then text. This is the send-order control (order = position).
+async function sendReplyContent(chatId, content, auth, images, sendOrder) {
+    const imgs = Array.isArray(images) ? images.filter(Boolean) : [];
+    const text = (content || '').trim();
+    const order = (sendOrder === 'image_first') ? 'image_first' : 'text_first';
+
+    const sendText = async () => { if (text) await sendChatMessage(chatId, text, auth); };
+    const sendImages = async (delayFirst) => {
+        for (let i = 0; i < imgs.length; i++) {
+            try {
+                if (delayFirst || i > 0) await new Promise(r => setTimeout(r, 400));
+                await sendChatImage(chatId, imgs[i], auth);
+            } catch (e) {
+                console.error('FP Tools AR: ошибка отправки картинки автоответа', e.message);
+            }
+        }
+    };
+
+    // Send in the chosen order (text→image OR image→text), in the background.
+    if (order === 'image_first') {
+        await sendImages(false);
+        if (text && imgs.length) await new Promise(r => setTimeout(r, 400));
+        await sendText();
+    } else {
+        await sendText();
+        await sendImages(!!text);
+    }
+}
+
+async function sendReviewReply(orderId, text, auth, rating) {
+    // Cardinal parity: pass the ACTUAL star rating (hardcoding 5 caused FunPay to reject
+    // replies to non-5-star reviews → "auto-reviews work через раз"), and append the bot
+    // marker so we never re-trigger on our own reply.
+    const stars = (rating >= 1 && rating <= 5) ? rating : '';
+    const markedText = text ? (text + BOT_MARKER) : text;
+    const payload = new URLSearchParams({ orderId, text: markedText, rating: stars, authorId: auth.userId, csrf_token: auth.csrf_token });
+    const res = await fetchWithRetry('https://funpay.com/orders/review', {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest', cookie: `golden_key=${auth.golden_key}` },
         body: payload
@@ -193,7 +321,7 @@ async function handleGreeting(msg, auth, settings) {
     const text = applyVariables(settings.greetingText, { buyerName: msg.buyerName, chatId: msg.chatId });
 
     try {
-        await sendChatMessage(msg.chatId, text, auth);
+        await sendReplyContent(msg.chatId, text, auth, settings.greetingImages, settings.greetingSendOrder);
         await atomicUpdate(s => {
             const arr = s.greetedUsers || [];
             if (!arr.includes(msg.chatId)) arr.push(msg.chatId);
@@ -213,14 +341,29 @@ async function handleKeywords(msg, auth, settings) {
     if (getMessageType(msg.messageText) !== 'NON_SYSTEM') return;
     if (await isBlacklisted(msg.buyerName, 'response')) return;
 
-    const lower = msg.messageText.toLowerCase().trim();
+    // 3.0: strip zero-width identifier chars and collapse whitespace before matching.
+    // Bug fix: exact-match ("точно") commands failed because incoming messages can carry
+    // invisible zero-width chars (FunPay/identifier signatures) or trailing whitespace, so
+    // `lower === kw` never matched even when the message WAS the command. "contains" survived
+    // by accident. Now both modes compare against a cleaned string.
+    const clean = msg.messageText
+        .replace(/[\u200B\u200C\u200D\uFEFF\u2060]/g, '')  // zero-width chars
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+
     for (const rule of settings.keywords) {
-        const kw = rule.keyword.toLowerCase().trim();
-        const matches = rule.matchMode === 'contains' ? lower.includes(kw) : lower === kw;
+        const kw = rule.keyword
+            .replace(/[\u200B\u200C\u200D\uFEFF\u2060]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .toLowerCase();
+        if (!kw) continue;
+        const matches = rule.matchMode === 'contains' ? clean.includes(kw) : clean === kw;
         if (matches) {
             const text = applyVariables(rule.response, { buyerName: msg.buyerName });
             try {
-                        await sendChatMessage(msg.chatId, text, auth);
+                await sendReplyContent(msg.chatId, text, auth, rule.images, rule.sendOrder);
                 return;
             } catch (e) {
                 console.error('FP Tools AR: ошибка keyword', e.message);
@@ -242,7 +385,7 @@ async function handleReview(msg, auth, settings) {
     if (alreadyReplied && msgType === 'NEW_FEEDBACK') return;
 
     try {
-        const orderRes = await fetch(`https://funpay.com/orders/${orderId}/`, { headers: { cookie: `golden_key=${auth.golden_key}` } });
+        const orderRes = await fetchWithRetry(`https://funpay.com/orders/${orderId}/`, { headers: { cookie: `golden_key=${auth.golden_key}` } });
         if (!orderRes.ok) throw new Error(`HTTP ${orderRes.status}`);
         const orderHtml = await orderRes.text();
         const orderData = await parseViaOffscreen(orderHtml, 'parseOrderPageForReview');
@@ -255,13 +398,21 @@ async function handleReview(msg, auth, settings) {
         if (settings.autoReviewEnabled && settings.reviewTemplates?.[stars]?.trim()) {
             const text = applyVariables(settings.reviewTemplates[stars], vars);
             try {
-                await sendReviewReply(orderId, text, auth);
+                await sendReviewReply(orderId, text, auth, stars);
                 await atomicUpdate(s => {
                     const ids = s.repliedOrderIds || [];
                     if (!ids.includes(orderId)) ids.push(orderId);
                     if (ids.length > 500) ids.splice(0, ids.length - 500);
                     s.repliedOrderIds = ids;
                 });
+                // attached review images go to the chat (the review endpoint can't carry images)
+                const rImgs = settings.reviewTemplateImages && settings.reviewTemplateImages[stars];
+                if (Array.isArray(rImgs) && rImgs.length) {
+                    for (const dataUrl of rImgs) {
+                        try { await sendChatImage(msg.chatId, dataUrl, auth); await new Promise(r => setTimeout(r, 400)); }
+                        catch (e) { console.error('FP Tools AR: review image error', e.message); }
+                    }
+                }
             } catch (e) {
                 console.error(`FP Tools AR: ошибка ответа на отзыв #${orderId}`, e.message);
             }
@@ -273,7 +424,7 @@ async function handleReview(msg, auth, settings) {
             else if (settings.bonusMode === 'random' && settings.randomBonuses?.length)
                 bonusText = settings.randomBonuses[Math.floor(Math.random() * settings.randomBonuses.length)];
             if (bonusText?.trim()) {
-                try { await sendChatMessage(msg.chatId, applyVariables(bonusText, vars), auth); }
+                try { await sendReplyContent(msg.chatId, applyVariables(bonusText, vars), auth); }
                 catch (e) { console.error(`FP Tools AR: ошибка бонуса #${orderId}`, e.message); }
             }
         }
@@ -298,7 +449,7 @@ async function handleOrderPurchased(msg, auth, settings) {
     if (orderId && repliedOrders.includes(orderId)) return;
 
     try {
-        await sendChatMessage(msg.chatId, text, auth);
+        await sendReplyContent(msg.chatId, text, auth, settings.newOrderReplyImages, settings.newOrderReplySendOrder);
         if (orderId) {
             await atomicUpdate(s => {
                 const arr = s.repliedNewOrders || [];
@@ -328,7 +479,7 @@ async function handleOrderConfirmed(msg, auth, settings) {
     if (await isBlacklisted(msg.buyerName, 'response')) return;
 
     try {
-        await sendChatMessage(msg.chatId, text, auth);
+        await sendReplyContent(msg.chatId, text, auth, settings.orderConfirmReplyImages, settings.orderConfirmReplySendOrder);
         if (orderId) {
             await atomicUpdate(s => {
                 const arr = s.repliedConfirmedOrders || [];
@@ -362,7 +513,7 @@ async function handleAutoDelivery(msg, auth, settings) {
 
     try {
         
-        const orderRes = await fetch(`https://funpay.com/orders/${orderId}/`, { headers: { cookie: `golden_key=${auth.golden_key}` } });
+        const orderRes = await fetchWithRetry(`https://funpay.com/orders/${orderId}/`, { headers: { cookie: `golden_key=${auth.golden_key}` } });
         if (!orderRes.ok) return;
         const orderHtml = await orderRes.text();
 
@@ -431,7 +582,24 @@ async function notifyDearVendors(msg) {
 
 const RUNNER_TAG_KEY = 'fpToolsAutoResponderTag';
 
+// 3.0 FIX (Cardinal __is_running parity): a hard reentrancy lock. The engine drives this from
+// THREE layers (active loop, heartbeat alarm, watchdog). Without a lock, if one cycle is still
+// sending replies (awaiting network + inter-message delays) when another layer fires, both read
+// the SAME chat before lastSeenMsgIds is written at the end of the cycle - and both send. That
+// is the root cause of "replied 1000000 times". The lock makes overlapping calls no-op instead.
+let __arCycleRunning = false;
+
 export async function runAutoResponderCycle() {
+    if (__arCycleRunning) return;          // a cycle is already in flight - skip this trigger
+    __arCycleRunning = true;
+    try {
+        await _runAutoResponderCycleInner();
+    } finally {
+        __arCycleRunning = false;
+    }
+}
+
+async function _runAutoResponderCycleInner() {
     const { fpToolsAutoReplies = {} } = await chrome.storage.local.get('fpToolsAutoReplies');
 
     const anyEnabled =
@@ -448,45 +616,104 @@ export async function runAutoResponderCycle() {
     const auth = await getAuth();
     if (!auth.golden_key || !auth.csrf_token || !auth.userId) return;
 
-    const { [RUNNER_TAG_KEY]: savedTag } = await chrome.storage.local.get(RUNNER_TAG_KEY);
-
     try {
+        // FP Tools's approach: use a FRESH RANDOM tag every cycle. A single persisted tag
+        // (the old behaviour) goes stale and FunPay stops returning chat updates - the
+        // classic "autoresponder stops working until reload". We also request
+        // orders_counters alongside chat_bookmarks so order events surface immediately.
+        const msgTag = randomTag();
+        const orderTag = randomTag();
+
         const runnerPayload = {
-            objects: JSON.stringify([{ type: 'chat_bookmarks', id: auth.userId, tag: savedTag || '00000000', data: false }]),
+            objects: JSON.stringify([
+                { type: 'chat_bookmarks',  id: auth.userId, tag: msgTag,   data: false },
+                { type: 'orders_counters', id: auth.userId, tag: orderTag, data: false }
+            ]),
             request: false,
             csrf_token: auth.csrf_token
         };
 
-        
+        // FunPay runner requires BOTH golden_key AND PHPSESSID - without PHPSESSID it
+        // returns 200 but silently drops the request.
         const pollingCookieStr = auth.phpsessid
             ? `golden_key=${auth.golden_key}; PHPSESSID=${auth.phpsessid}`
             : `golden_key=${auth.golden_key}`;
 
-        const res = await fetch('https://funpay.com/runner/', {
+        const res = await fetchWithRetry('https://funpay.com/runner/', {
             method: 'POST',
             headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest', cookie: pollingCookieStr },
             body: new URLSearchParams(runnerPayload)
-        });
+        }, { retries: 2, baseDelay: 600 });
 
         if (!res.ok) throw new Error(`Runner HTTP ${res.status}`);
         const data = await res.json();
         const chatObj = data.objects?.find(o => o.type === 'chat_bookmarks');
-        if (!chatObj) return;
-
-        if (chatObj.tag) await chrome.storage.local.set({ [RUNNER_TAG_KEY]: chatObj.tag });
-        if (!chatObj.data?.html) return;
+        if (!chatObj || !chatObj.data?.html) return;
 
         const chats = await parseViaOffscreen(chatObj.data.html, 'parseChatList');
         const { fpToolsAutoReplies: fresh = {} } = await chrome.storage.local.get('fpToolsAutoReplies');
-        const processedIds = new Set(fresh.processedMessageIds || []);
-        const newIds = [];
+
+        // Cardinal-style per-chat tracking: lastSeenMsgIds[chatId] = highest message id we've
+        // already handled for that chat. We only act when a chat's current last-message id is
+        // STRICTLY GREATER than what we've seen - this prevents re-greeting the same chat every
+        // 3s cycle (which also caused the "all chats get marked read" symptom, because each
+        // bogus reply marked a chat read).
+        const lastSeen = fresh.lastSeenMsgIds || {};
+
+        // FIRST-RUN SEEDING: if we've never tracked anything yet, just record current state and
+        // DO NOT act. Otherwise enabling the autoresponder would instantly greet/reply to every
+        // existing unread chat at once (mass spam + mass read). Cardinal does the same on its
+        // first request.
+        const isFirstRun = !fresh.autoResponderSeeded;
+
+        const updates = {}; // chatId -> newest msgId to persist
+        const textUpdates = {}; // chatId -> last handled message text (Cardinal text guard)
 
         for (const chat of chats) {
-            if (!chat.isUnread) continue;
-            if (processedIds.has(chat.msgId)) continue;
+            const nodeMsg = chat.nodeMsg;            // last message id in the chat
+            const userMsg = chat.userMsg;            // last id the account has read
+            const prevSeen = lastSeen[chat.chatId] || 0;
+
+            // Determine if this chat has a genuinely new inbound message.
+            // Cardinal parity: a message is "new" purely when its node_msg_id is higher than
+            // what we last handled (runner_last_messages: `if node_msg_id <= prev: continue`).
+            // We deliberately do NOT gate on user_msg here: if the seller happened to open/read
+            // the chat before the cycle ran, FunPay bumps user_msg and the old `nodeMsg>userMsg`
+            // check would suppress the reply - that was the real "autoreply works через раз".
+            // Replying to our own message is prevented by the bot-marker (lastByBot) below, not
+            // by user_msg.
+            let hasNew;
+            if (nodeMsg != null) {
+                hasNew = nodeMsg > prevSeen;
+            } else {
+                hasNew = chat.isUnread && !( (fresh.processedMessageIds || []).includes(chat.msgId) );
+            }
+
+            // 3.0 FIX (Cardinal parity): if the chat's LAST message was sent by us (carries the
+            // bot marker), never react - just advance the marker. This is the primary defence
+            // against the autoresponder replying to its own messages / spamming a chat.
+            if (chat.lastByBot) {
+                if (nodeMsg != null) updates[chat.chatId] = Math.max(prevSeen, nodeMsg);
+                continue;
+            }
+
+            if (!hasNew) continue;
+
+            // Always advance our per-chat marker so we never re-handle this id, even on first run.
+            if (nodeMsg != null) updates[chat.chatId] = Math.max(prevSeen, nodeMsg);
+
+            if (isFirstRun) continue; // seed only, do not act on pre-existing messages
+
+            // Cardinal parity (runner_last_messages text guard): defence-in-depth for keyword
+            // replies, which - unlike orders/reviews - have no orderId to dedup on. If the chat's
+            // last message text is IDENTICAL to the last text we already handled for this chat, we
+            // skip. This catches the edge case where the id check or bot-marker fails (e.g. FunPay
+            // strips the marker from the chat-list preview) and would otherwise let a keyword fire
+            // twice on the same message.
+            const lastText = (fresh.lastHandledText || {})[chat.chatId];
+            const isSameText = lastText != null && lastText === chat.messageText;
 
             const msgType = getMessageType(chat.messageText);
-
             const msg = {
                 chatId:      chat.chatId,
                 messageId:   chat.msgId,
@@ -495,7 +722,6 @@ export async function runAutoResponderCycle() {
                 msgType
             };
 
-            
             if (msgType === 'DEAR_VENDORS') {
                 await notifyDearVendors(msg);
             } else if (msgType === 'ORDER_PURCHASED') {
@@ -505,21 +731,40 @@ export async function runAutoResponderCycle() {
                 await handleOrderConfirmed(msg, auth, fresh);
             } else if (msgType === 'NEW_FEEDBACK' || msgType === 'FEEDBACK_CHANGED') {
                 await handleReview(msg, auth, fresh);
-            } else if (msgType === 'NON_SYSTEM') {
+            } else if (msgType === 'NON_SYSTEM' && !isSameText) {
                 await handleGreeting(msg, auth, fresh);
                 await handleKeywords(msg, auth, fresh);
             }
-            
 
-            newIds.push(chat.msgId);
+            // remember the text we just handled for this chat (text guard above)
+            textUpdates[chat.chatId] = chat.messageText;
         }
 
-        if (newIds.length > 0) {
+        if (Object.keys(updates).length > 0 || Object.keys(textUpdates).length > 0 || isFirstRun) {
             await atomicUpdate(s => {
-                let ids = s.processedMessageIds || [];
-                ids = [...new Set([...ids, ...newIds])];
-                if (ids.length > 500) ids = ids.slice(-500);
-                s.processedMessageIds = ids;
+                const m = s.lastSeenMsgIds || {};
+                for (const [cid, id] of Object.entries(updates)) {
+                    m[cid] = Math.max(m[cid] || 0, id);
+                }
+                // cap size
+                const keys = Object.keys(m);
+                if (keys.length > 1000) {
+                    // drop the lowest-id (oldest) entries
+                    keys.sort((a, b) => m[a] - m[b]).slice(0, keys.length - 1000).forEach(k => delete m[k]);
+                }
+                s.lastSeenMsgIds = m;
+
+                // text guard store (Cardinal runner_last_messages parity)
+                const t = s.lastHandledText || {};
+                for (const [cid, txt] of Object.entries(textUpdates)) t[cid] = txt;
+                const tkeys = Object.keys(t);
+                if (tkeys.length > 1000) {
+                    // drop oldest by id ordering if available, else arbitrary
+                    tkeys.slice(0, tkeys.length - 1000).forEach(k => delete t[k]);
+                }
+                s.lastHandledText = t;
+
+                s.autoResponderSeeded = true;
             });
         }
 
@@ -530,4 +775,11 @@ export async function runAutoResponderCycle() {
 
 export async function resetAutoResponderState() {
     await chrome.storage.local.remove(RUNNER_TAG_KEY);
+    // also clear per-chat tracking so re-enabling re-seeds cleanly
+    await chrome.storage.local.get('fpToolsAutoReplies').then(({ fpToolsAutoReplies = {} }) => {
+        delete fpToolsAutoReplies.lastSeenMsgIds;
+        delete fpToolsAutoReplies.lastHandledText;
+        delete fpToolsAutoReplies.autoResponderSeeded;
+        return chrome.storage.local.set({ fpToolsAutoReplies });
+    });
 }

@@ -10,13 +10,6 @@ function getAnalyticsBlockHTML() {
         </div>
         <div class="fp-stats-grid">
             <div class="fp-stat-card">
-                <div class="stat-card-icon">📊</div>
-                <div class="stat-card-content">
-                    <div class="stat-card-label">Всего предложений</div>
-                    <div class="stat-card-value" id="fpTools-analytics-total-lots">0</div>
-                </div>
-            </div>
-            <div class="fp-stat-card">
                 <div class="stat-card-icon">👥</div>
                 <div class="stat-card-content">
                     <div class="stat-card-label">Уникальных продавцов</div>
@@ -28,13 +21,6 @@ function getAnalyticsBlockHTML() {
                 <div class="stat-card-content">
                     <div class="stat-card-label">Продавцов с отзывами</div>
                     <div class="stat-card-value" id="fpTools-analytics-sellers-with-reviews">0</div>
-                </div>
-            </div>
-            <div class="fp-stat-card">
-                <div class="stat-card-icon">🟢</div>
-                <div class="stat-card-content">
-                    <div class="stat-card-label">Продавцов онлайн</div>
-                    <div class="stat-card-value" id="fpTools-analytics-sellers-online">0</div>
                 </div>
             </div>
             <div class="fp-stat-card">
@@ -63,6 +49,13 @@ function getAnalyticsBlockHTML() {
                 <div class="stat-card-content">
                     <div class="stat-card-label">Общая стоимость</div>
                     <div class="stat-card-value" id="fpTools-analytics-total-value">0 ₽</div>
+                </div>
+            </div>
+            <div class="fp-stat-card fpt-analytics-online">
+                <div class="stat-card-icon">🟢</div>
+                <div class="stat-card-content">
+                    <div class="stat-card-label">Продавцов онлайн</div>
+                    <div class="stat-card-value" id="fpTools-analytics-sellers-online">0</div>
                 </div>
             </div>
         </div>
@@ -104,7 +97,7 @@ function runMarketAnalysis() {
     const avg = sum / prices.length;
     const min = Math.min(...prices);
     const max = Math.max(...prices);
-    document.getElementById('fpTools-analytics-total-lots').textContent = lots.length;
+    { const el = document.getElementById('fpTools-analytics-total-lots'); if (el) el.textContent = lots.length; }
     document.getElementById('fpTools-analytics-unique-sellers').textContent = sellers.size;
     document.getElementById('fpTools-analytics-sellers-with-reviews').textContent = sellersWithReviews;
     document.getElementById('fpTools-analytics-sellers-online').textContent = onlineSellers;

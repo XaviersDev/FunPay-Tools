@@ -172,10 +172,12 @@ function setupAIChatFeature() {
                     lastAIProcessedText = null; isAISuggestionActive = false;
                 } else if (currentText) {
                     const processedText = await getAIProcessedText(currentText, "rewrite");
+                    window.__fptProgrammaticInput = true;
                     chatTextarea.value = processedText;
                     chatTextarea.dispatchEvent(new Event('input', { bubbles: true }));
                     chatTextarea.focus();
                     chatTextarea.selectionStart = chatTextarea.selectionEnd = chatTextarea.value.length;
+                    window.__fptProgrammaticInput = false;
                 }
             }
         });

@@ -600,17 +600,21 @@ function setupActionProcessing() {
         toggleActions(false);
     }
     
-    async function processPriceChange(changeValueStr) {
-        changeValueStr = changeValueStr.trim().replace(',', '.');
-        const adjustmentMatch = changeValueStr.match(/^([+-])(\d*\.?\d+)$/);
-        const isExactPrice = !isNaN(parseFloat(changeValueStr)) && isFinite(changeValueStr) && !adjustmentMatch;
-
-        if (!adjustmentMatch && !isExactPrice) {
-            if (typeof showNotification === 'function') showNotification('Неверный формат. Используйте +10, -5.5 или 99', true);
-            return;
+    async function processPriceChange(opts) {
+        // Backward-compat: allow a raw string ("+10"/"-5"/"99") too.
+        let mode, value, round = false, min = NaN, max = NaN;
+        if (typeof opts === 'string') {
+            const s = opts.trim().replace(',', '.');
+            const m = s.match(/^([+-])(\d*\.?\d+)$/);
+            if (m) { mode = m[1] === '+' ? 'add' : 'sub'; value = parseFloat(m[2]); }
+            else if (!isNaN(parseFloat(s)) && isFinite(s)) { mode = 'set'; value = parseFloat(s); }
+            else { if (typeof showNotification === 'function') showNotification('Неверный формат', true); return; }
+        } else {
+            ({ mode, value, round, min, max } = opts);
         }
+        if (isNaN(value)) { if (typeof showNotification === 'function') showNotification('Введите число', true); return; }
 
-        const selectedCheckboxes = $('.tc-item .lot-box input:checked').get(); // [ИСПРАВЛЕНО]
+        const selectedCheckboxes = $('.tc-item .lot-box input:checked').get();
         if (selectedCheckboxes.length === 0) return;
 
         const csrfToken = getCsrfToken();
@@ -630,7 +634,7 @@ function setupActionProcessing() {
 
             const offerIdMatch = offerLink.match(/(?:offer=|id=)(\d+)/);
             const offerId = offerIdMatch ? offerIdMatch[1] : $lotLink.data('offer');
-            
+
             let nodeId;
             if (isProfileSalesPage) {
                 const $offerBlock = $lotLink.closest('.offer');
@@ -658,25 +662,19 @@ function setupActionProcessing() {
                 const currentPrice = parseFloat(formData.get('price'));
                 if (isNaN(currentPrice)) throw new Error("Не удалось получить текущую цену.");
 
-                let newPrice;
-                if (isExactPrice) {
-                    newPrice = parseFloat(changeValueStr);
-                } else if (adjustmentMatch) {
-                    const operation = adjustmentMatch[1];
-                    const value = parseFloat(adjustmentMatch[2]);
-                    newPrice = operation === '+' ? currentPrice + value : currentPrice - value;
-                }
+                const newPrice = computeNewPrice(currentPrice, mode, value, round, min, max);
+                if (isNaN(newPrice)) throw new Error('Не удалось вычислить цену.');
 
-                formData.set('price', Math.max(0, newPrice).toFixed(2));
+                formData.set('price', newPrice.toFixed(2));
                 formData.set('csrf_token', csrfToken);
-                
+
                 const response = await fetch("https://funpay.com/lots/offerSave", {
                     method: "POST", headers: { "X-Requested-With": "XMLHttpRequest", 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' }, body: formData
                 });
-                
+
                 if (!response.ok) throw new Error(`Ошибка сети: ${response.statusText}`);
                 const result = await response.json();
-                
+
                 if (result && (result.error === 0 || result.error === false)) {
                     successCount++;
                     $lotLink.find('.tc-price').text(`${newPrice.toFixed(2)} ₽`);
@@ -689,7 +687,7 @@ function setupActionProcessing() {
             }
             await new Promise(resolve => setTimeout(resolve, 700));
         }
-        
+
         const finalText = `Завершено. Цены изменены: ${successCount}, ошибки: ${errorCount}.`;
         if (typeof showNotification === 'function') showNotification(finalText, errorCount > 0);
         updateLog(finalText, errorCount > 0);
@@ -703,13 +701,19 @@ function setupActionProcessing() {
     $actionsBar.on('click', '.deactivate-lot', () => processSelectedLots('deactivate'));
     
     $(document).on('click', '.actions .price-editor', function() {
-        $('#fp-price-editor-overlay').fadeIn(200);
+        $('#fp-price-editor-overlay').css('display', 'flex').hide().fadeIn(200);
+        if (typeof window.refreshPriceEditorPreviews === 'function') window.refreshPriceEditorPreviews();
     });
     
     $('#fp-price-editor-apply').on('click', function() {
-        const value = $('#fp-price-change-input').val();
+        const mode  = $('.fp-pe-mode.active').data('mode') || 'set';
+        const value = parseFloat($('#fp-price-change-input').val());
+        const round = $('#fp-pe-round').is(':checked');
+        const min   = parseFloat($('#fp-pe-min').val());
+        const max   = parseFloat($('#fp-pe-max').val());
+        if (isNaN(value)) { if (typeof showNotification === 'function') showNotification('Введите число', true); return; }
         $('#fp-price-editor-overlay').fadeOut(200);
-        processPriceChange(value);
+        processPriceChange({ mode, value, round, min, max });
     });
 }
 
@@ -800,21 +804,35 @@ function createPriceEditorPopup() {
     const popupHtml = `
         <div id="fp-price-editor-overlay">
             <div id="fp-price-editor-popup">
-                <h3>Редактор цен</h3>
-                <p>Установите новую цену для всех выбранных лотов двумя способами:</p>
-                <div class="price-editor-instructions">
-                    <div>
-                        <strong>1. Изменить цену:</strong>
-                        <span>Используйте <strong>+</strong> или <strong>-</strong> для увеличения или уменьшения текущей цены.</span>
-                        <em>Пример: <code>+10</code> или <code>-5.5</code></em>
-                    </div>
-                    <div>
-                        <strong>2. Установить точную цену:</strong>
-                        <span>Просто введите число, и оно станет новой ценой для всех лотов.</span>
-                        <em>Пример: <code>99</code> или <code>14.50</code></em>
-                    </div>
+                <div class="fp-pe-head">
+                    <h3>Редактор цен</h3>
+                    <button id="fp-price-editor-close" class="fp-pe-x">&times;</button>
                 </div>
-                <input type="text" id="fp-price-change-input" placeholder="+10 / -5.5 / 99">
+                <p class="fp-pe-sub">Применится ко всем выбранным лотам.</p>
+
+                <label class="fp-pe-label">Что сделать с ценой</label>
+                <div class="fp-pe-modes">
+                    <button class="fp-pe-mode active" data-mode="set">Установить =</button>
+                    <button class="fp-pe-mode" data-mode="add">Прибавить +</button>
+                    <button class="fp-pe-mode" data-mode="sub">Вычесть −</button>
+                    <button class="fp-pe-mode" data-mode="pct_up">Поднять %</button>
+                    <button class="fp-pe-mode" data-mode="pct_down">Снизить %</button>
+                </div>
+
+                <div class="fp-pe-row">
+                    <input type="number" step="0.01" id="fp-price-change-input" placeholder="0">
+                    <span class="fp-pe-unit" id="fp-pe-unit">₽</span>
+                </div>
+
+                <div class="fp-pe-opts">
+                    <label class="fp-pe-check"><input type="checkbox" id="fp-pe-round"> Округлять до целого</label>
+                    <label class="fp-pe-minmax">не ниже <input type="number" step="0.01" id="fp-pe-min" placeholder="-"></label>
+                    <label class="fp-pe-minmax">не выше <input type="number" step="0.01" id="fp-pe-max" placeholder="-"></label>
+                </div>
+
+                <div class="fp-pe-preview-head">Предпросмотр (<span id="fp-pe-sel-count">0</span> выбрано):</div>
+                <div class="fp-pe-preview-list" id="fp-pe-preview-list"></div>
+
                 <div class="price-editor-actions">
                     <button id="fp-price-editor-cancel">Отмена</button>
                     <button id="fp-price-editor-apply">Применить</button>
@@ -823,15 +841,86 @@ function createPriceEditorPopup() {
         </div>
     `;
     $('body').append(popupHtml);
-    
-    $('#fp-price-editor-overlay').on('click', function(e) {
-        if ($(e.target).is('#fp-price-editor-overlay')) {
-            $(this).fadeOut(200);
+
+    const recalcPreview = () => {
+        const mode = $('.fp-pe-mode.active').data('mode') || 'set';
+        const v = parseFloat($('#fp-price-change-input').val());
+        const round = $('#fp-pe-round').is(':checked');
+        const mn = parseFloat($('#fp-pe-min').val());
+        const mx = parseFloat($('#fp-pe-max').val());
+        $('#fp-pe-unit').text((mode === 'pct_up' || mode === 'pct_down') ? '%' : '₽');
+
+        const selected = $('.tc-item .lot-box input:checked').get();
+        $('#fp-pe-sel-count').text(selected.length);
+        const $list = $('#fp-pe-preview-list').empty();
+
+        if (selected.length === 0) {
+            $list.html('<div class="fp-pe-preview-empty">Лоты не выбраны - выберите лоты на странице.</div>');
+            return;
         }
+
+        selected.forEach((checkbox) => {
+            const $lotLink = $(checkbox).closest('a.tc-item');
+            const name = ($lotLink.find('.tc-desc-text').text().trim()) || 'Лот';
+            const priceText = $lotLink.find('.tc-price').first().text().replace(/\s+/g, ' ').trim();
+            const m = priceText.match(/([\d.,]+)/);
+            const current = m ? parseFloat(m[1].replace(',', '.')) : NaN;
+
+            let out = computeNewPrice(current, mode, v, round, mn, mx);
+            const curStr = isNaN(current) ? '-' : current;
+            const outStr = isNaN(out) ? (isNaN(current) ? '-' : current) : out;
+            const changed = !isNaN(current) && !isNaN(out) && out !== current;
+
+            const row = $(`
+                <div class="fp-pe-preview-row">
+                    <span class="fp-pe-preview-name"></span>
+                    <span class="fp-pe-preview-prices">
+                        <span class="fp-pe-old">${curStr} ₽</span>
+                        <span class="fp-pe-arrow">→</span>
+                        <b class="fp-pe-new ${changed ? 'fp-pe-new-changed' : ''}">${outStr} ₽</b>
+                    </span>
+                </div>
+            `);
+            row.find('.fp-pe-preview-name').text(name);
+            $list.append(row);
+        });
+    };
+    // Allow the open handler to refresh previews against the current selection.
+    window.refreshPriceEditorPreviews = recalcPreview;
+
+    $('#fp-price-editor-overlay').on('click', '.fp-pe-mode', function () {
+        $('.fp-pe-mode').removeClass('active');
+        $(this).addClass('active');
+        recalcPreview();
     });
-    $('#fp-price-editor-cancel').on('click', function() {
+    $('#fp-price-editor-overlay').on('input', '#fp-price-change-input, #fp-pe-min, #fp-pe-max', recalcPreview);
+    $('#fp-price-editor-overlay').on('change', '#fp-pe-round', recalcPreview);
+
+    $('#fp-price-editor-overlay').on('click', function(e) {
+        if ($(e.target).is('#fp-price-editor-overlay')) $(this).fadeOut(200);
+    });
+    $('#fp-price-editor-cancel, #fp-price-editor-close').on('click', function() {
         $('#fp-price-editor-overlay').fadeOut(200);
     });
+    recalcPreview();
+}
+
+// Shared price math for editor + preview.
+function computeNewPrice(current, mode, value, round, min, max) {
+    if (isNaN(value)) return NaN;
+    let np;
+    switch (mode) {
+        case 'set':      np = value; break;
+        case 'add':      np = current + value; break;
+        case 'sub':      np = current - value; break;
+        case 'pct_up':   np = current * (1 + value / 100); break;
+        case 'pct_down': np = current * (1 - value / 100); break;
+        default:         np = value;
+    }
+    np = Math.max(0, np);
+    if (!isNaN(min)) np = Math.max(min, np);
+    if (!isNaN(max)) np = Math.min(max, np);
+    return round ? Math.round(np) : Math.round(np * 100) / 100;
 }
 
 async function showReactivationPopup() {

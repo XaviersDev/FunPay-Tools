@@ -3,6 +3,14 @@ const API_SECRET_KEY = 'fptoolsdim';
 
 const SYSTEM_PROMPT = 'You are a text editing model. Follow user instructions precisely.';
 
+// 3.0 FIX: убирает лишние пустые строки, которые ИИ-перевод/генерация любят добавлять
+// между пунктами. Схлопывает 2+ переносов в один и обрезает края.
+function fptNorm(t) {
+    return typeof t === 'string'
+        ? t.replace(/\r\n?/g, '\n').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
+        : t;
+}
+
 async function makeAIRequest(finalPrompt) {
     if (VERCEL_API_URL.includes('YOUR_VERCEL_PROJECT_NAME')) {
         return { success: false, error: "URL сервера не настроен в background/ai.js" };
@@ -15,14 +23,23 @@ async function makeAIRequest(finalPrompt) {
     };
 
     try {
-        const response = await fetch(VERCEL_API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${API_SECRET_KEY}`
-            },
-            body: JSON.stringify(payload),
-        });
+        // 3.0: hard timeout so the UI never waits forever if the server hangs or is unreachable.
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 45000);
+        let response;
+        try {
+            response = await fetch(VERCEL_API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${API_SECRET_KEY}`
+                },
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            });
+        } finally {
+            clearTimeout(timeoutId);
+        }
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
@@ -47,6 +64,10 @@ async function makeAIRequest(finalPrompt) {
         }
 
     } catch (error) {
+        if (error.name === 'AbortError') {
+            console.error('AI request timed out');
+            return { success: false, error: 'ИИ не ответил вовремя (таймаут). Попробуйте ещё раз.' };
+        }
         console.error(`Network error during AI request: ${error.message}`);
         return { success: false, error: `Сетевая ошибка: ${error.message}. Проверьте подключение к интернету.` };
     }
@@ -56,35 +77,62 @@ async function makeAIRequest(finalPrompt) {
 export async function fetchAIResponse(textForAI, context, myUsername, type = "rewrite") {
     let finalPrompt;
 
-    if (type === 'review_reply') {
+    if (type === 'time_calc') {
+        // Token-light: краткий промпт, краткий ответ. Подаётся как «калькулятор».
+        finalPrompt = `Реши задачу на расчёт времени. Сложи/вычти интервалы по описанию и дай короткий понятный ответ на русском (1-3 предложения, без лишних слов, без markdown). Если есть диапазон - укажи диапазон.\n\nЗадача: ${textForAI}`;
+
+    } else if (type === 'review_reply') {
         const lotName = textForAI;
         const reviewText = context;
 
         finalPrompt = `
-Ты — вежливый и дружелюбный продавец "${myUsername}" на игровой бирже FunPay.
-Покупатель оставил отзыв на твой товар "${lotName}".
-Текст отзыва: "${reviewText}"
+Ты - дружелюбный продавец "${myUsername}" на бирже FunPay. Покупатель оставил отзыв на товар.
+Название товара (вставляй ТОЧНО как есть, со всеми эмодзи/символами/буквами, НИЧЕГО не меняя): ${lotName}
+Текст отзыва покупателя: "${reviewText}"
 
-Твоя задача — написать КРАТКИЙ, позитивный и благодарный ответ на этот отзыв.
+Напиши ОЧЕНЬ короткий благодарный ответ на отзыв.
 
---- ПРАВИЛА ---
-1.  ОБЯЗАТЕЛЬНО упомяни название товара ("${lotName}") или его суть (например, "набор ресурс-паков").
-2.  Ответ должен быть ОЧЕНЬ коротким (1-2 предложения).
-3.  Используй дружелюбный тон и уместные эмодзи (например, 😊, 👍, 🎉, ✨).
-4.  Поблагодари покупателя за отзыв и/или покупку.
-5.  Не используй Markdown, жирный текст или курсив.
-6.  Твой ответ — это ТОЛЬКО готовый текст. Без кавычек, заголовков или объяснений.
+ПРАВИЛА (строго):
+1. Длина - 1 предложение, максимум 2 коротких. Это самое важное правило.
+2. Обязательно упомяни название товара, вставив его ДОСЛОВНО (символ в символ) из строки выше.
+3. Поблагодари за отзыв и/или покупку, добавь 1-3 уместных эмодзи.
+4. Без Markdown, без кавычек, без заголовков, без пояснений. Только готовый текст ответа.
+5. Тёплый, искренний тон.
 
-Пример хорошего ответа:
-Спасибо за ваш отзыв! Рад, что вам понравился наш пак с ресурс-паками. Обращайтесь еще! 😊👍
+Пример стиля (НЕ копируй дословно, только тон и длину):
+Спасибо за ваш отзыв и покупку нашего ${lotName}! Рад, что всё понравилось! 😊✨
 
 ГОТОВЫЙ ТЕКСТ ОТВЕТА:`;
+
+    } else if (type === 'feature_match') {
+        // textForAI = freeform user request ("что мне не нужно")
+        // context   = JSON string array of { id, label, desc }
+        finalPrompt = `
+Ты - помощник внутри браузерного расширения FunPay Tools. Пользователь описывает своими словами, какие функции/кнопки расширения ему НЕ нужны и он хочет их отключить.
+
+Вот полный список доступных функций (JSON, поля: id, label, desc):
+${context}
+
+Запрос пользователя: "${textForAI}"
+
+Твоя задача: определить, какие функции из списка пользователь, вероятно, хочет ОТКЛЮЧИТЬ, исходя из его запроса. Сопоставляй по смыслу (label + desc), а не только по точным словам.
+
+Верни СТРОГО валидный JSON-массив объектов, без какого-либо текста вокруг, без Markdown, без \`\`\`. Формат каждого объекта:
+{"id": "<id функции из списка>", "confidence": <число 0..1>, "reason": "<очень короткое пояснение на русском, почему подходит>"}
+
+Правила:
+1. Включай только функции, которые реально соответствуют запросу. Если пользователь явно назвал что-то - confidence ближе к 1. Если только косвенно подразумевается - ниже.
+2. Не выдумывай id, которых нет в списке.
+3. Если ничего не подходит - верни пустой массив [].
+4. Никаких комментариев, только JSON-массив.
+
+JSON:`;
 
     } else if (type === 'translate_to_russian') {
         finalPrompt = `Переведи следующий текст на русский язык. Верни ТОЛЬКО перевод, без пояснений и кавычек:\n\n${textForAI}`;
 
     } else if (type === 'lot_audit_raw') {
-        // Pass the full constructed prompt directly — no wrapping
+        // Pass the full constructed prompt directly - no wrapping
         finalPrompt = textForAI;
 
     } else if (type === 'lot_audit') {
@@ -94,7 +142,7 @@ export async function fetchAIResponse(textForAI, context, myUsername, type = "re
 
     } else { // Логика по умолчанию для переписывания текста в чате
         finalPrompt = `
-Ты — ИИ-ассистент, который помогает продавцу "${myUsername}" на FunPay. Твоя задача — переписать его черновик сообщения, сохранив основной смысл, но сделав его вежливым, профессиональным и четким.
+Ты - ИИ-ассистент, который помогает продавцу "${myUsername}" на FunPay. Твоя задача - переписать его черновик сообщения, сохранив основной смысл, но сделав его вежливым, профессиональным и четким.
 
 --- ОСНОВНЫЕ ПРАВИЛА ---
 1.  СОХРАНЯЙ СМЫСЛ: Твой ответ должен передавать ТОТ ЖЕ САМЫЙ смысл, что и черновик продавца. Не добавляй новые идеи, вопросы или предложения от себя.
@@ -103,7 +151,7 @@ export async function fetchAIResponse(textForAI, context, myUsername, type = "re
 4.  УЧИТЫВАЙ КОНТЕКСТ: Изучи историю переписки, чтобы твой ответ был уместен.
 5.  СТИЛЬ: Используй вежливый, но уверенный тон. Добавляй уместные эмодзи для дружелюбности, но без излишеств, и не всегда.
 6.  НИКАКИХ ЛИШНИХ СЛОВ: Не добавляй стандартные фразы вроде "Здравствуйте", "С уважением" или "Если будут вопросы, обращайтесь", если их не было в исходном черновике.
-7.  ТОЛЬКО ТЕКСТ: Твой итоговый ответ — это ТОЛЬКО готовый текст сообщения. Без кавычек, заголовков или объяснений.
+7.  ТОЛЬКО ТЕКСТ: Твой итоговый ответ - это ТОЛЬКО готовый текст сообщения. Без кавычек, заголовков или объяснений.
 
 
 --- ИСТОРИЯ ПЕРЕПИСКИ ---
@@ -123,10 +171,10 @@ export async function fetchAILotGeneration(data) {
     const { promptTitle, promptDesc, genBuyerMsg, styleExamples, gameCategory } = data;
 
     const finalPrompt = `
-Ты — опытный и успешный продавец на игровой бирже FunPay. Твоя задача — создать убедительное и "живое" описание для лота (объявления), которое выглядит так, будто его написал реальный человек, а не ИИ. Ты должен идеально скопировать уникальный стиль оформления пользователя, который будет дан в примерах.
+Ты - опытный и успешный продавец на игровой бирже FunPay. Твоя задача - создать убедительное и "живое" описание для лота (объявления), которое выглядит так, будто его написал реальный человек, а не ИИ. Ты должен идеально скопировать уникальный стиль оформления пользователя, который будет дан в примерах.
 
 --- ГЛАВНЫЕ ТЕХНИЧЕСКИЕ ПРАВИЛА (ОЧЕНЬ ВАЖНО!) ---
-1.  ЗАПРЕЩЕНО ИСПОЛЬЗОВАТЬ MARKDOWN. FunPay не отображает **жирный текст** или *курсив*. Любое использование символов \`*\` или \`_\` для выделения текста — грубая ошибка, которая выдает в тебе ИИ.
+1.  ЗАПРЕЩЕНО ИСПОЛЬЗОВАТЬ MARKDOWN. FunPay не отображает **жирный текст** или *курсив*. Любое использование символов \`*\` или \`_\` для выделения текста - грубая ошибка, которая выдает в тебе ИИ.
 2.  РАЗРЕШЕНО ИСПОЛЬЗОВАТЬ UNICODE И ЭМОДЗИ. Для выделения и структурирования текста используй ТОЛЬКО приемы из примеров стиля пользователя: эмодзи (✅, 💎, 🔥, 🚀), визуальные разделители (➖➖➖, 💎======💎), и другие Unicode-символы.
 
 --- ПРАВИЛА "ЖИВОГО" СТИЛЯ ПРОДАВЦА ---
@@ -171,15 +219,24 @@ ${styleExamples}
     const result = await makeAIRequest(finalPrompt);
     if (!result.success) return result;
 
+    const _cleanGen = (obj) => {
+        if (obj && typeof obj === 'object') {
+            if (obj.title) obj.title = fptNorm(obj.title);
+            if (obj.description) obj.description = fptNorm(obj.description);
+            if (obj.buyerMessage) obj.buyerMessage = fptNorm(obj.buyerMessage);
+        }
+        return obj;
+    };
+
     try {
         const aiJson = JSON.parse(result.data);
-        return { success: true, data: aiJson };
+        return { success: true, data: _cleanGen(aiJson) };
     } catch (e) {
         const jsonMatch = result.data.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
             try {
                 const cleanedJson = JSON.parse(jsonMatch[0]);
-                return { success: true, data: cleanedJson };
+                return { success: true, data: _cleanGen(cleanedJson) };
             } catch (e2) {
                  return { success: false, error: `AI returned invalid JSON even after cleaning: ${e2.message}` };
             }
@@ -192,7 +249,7 @@ export async function fetchAITranslation(data) {
     const { title, description, buyerMessage } = data;
     
     const prompt = `
-Translate the following Russian texts for a gaming marketplace into natural-sounding English. Preserve emojis, formatting (like line breaks), and any special characters or symbols.
+Translate the following Russian texts for a gaming marketplace into natural-sounding English. Preserve emojis and any special characters or symbols. Keep the exact same line structure as the input - do NOT add extra empty lines or blank lines between items.
 
 Your response MUST be in JSON format only, with no extra text.
 
@@ -209,15 +266,24 @@ Output JSON:
     const result = await makeAIRequest(prompt);
     if (!result.success) return result;
 
+    const _clean = (obj) => {
+        if (obj && typeof obj === 'object') {
+            if (obj.title) obj.title = fptNorm(obj.title);
+            if (obj.description) obj.description = fptNorm(obj.description);
+            if (obj.buyerMessage) obj.buyerMessage = fptNorm(obj.buyerMessage);
+        }
+        return obj;
+    };
+
     try {
         const aiJson = JSON.parse(result.data);
-        return { success: true, data: aiJson };
+        return { success: true, data: _clean(aiJson) };
     } catch (e) {
         const jsonMatch = result.data.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
             try {
                 const cleanedJson = JSON.parse(jsonMatch[0]);
-                return { success: true, data: cleanedJson };
+                return { success: true, data: _clean(cleanedJson) };
             } catch (e2) {
                 return { success: false, error: `AI returned invalid JSON for translation (cleaned): ${e2.message}` };
             }

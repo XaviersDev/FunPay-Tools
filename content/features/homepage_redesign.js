@@ -232,11 +232,15 @@ function initializeRedesign() {
 
 async function handleHomepageRedesign() {
     const {
-        enableRedesignedHomepage = true
-    } = await chrome.storage.local.get('enableRedesignedHomepage');
+        enableRedesignedHomepage = true,
+        enableCustomTheme = true
+    } = await chrome.storage.local.get(['enableRedesignedHomepage', 'enableCustomTheme']);
     const path = window.location.pathname;
     const isHomepage = path === '/' || path === '/en' || path === '/en/';
-    if (enableRedesignedHomepage && isHomepage) {
+    // 3.0: улучшенная главная завязана на цвета кастомной темы. Если кастомная тема
+    // выключена - редизайн даёт белые артефакты на тёмном фоне, поэтому отключаем его
+    // вместе с темой.
+    if (enableRedesignedHomepage && enableCustomTheme && isHomepage) {
         initializeRedesign();
     } else {
         const content = document.querySelector('#content');
