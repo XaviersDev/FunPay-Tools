@@ -1,7 +1,7 @@
 {
   "active": false,
   "display": true,
-  "url": "https://funpay.com/chat/?node=game-307",
-  "node": "game-307",
-  "disabledMessage": "Наш общий чат временно недоступен. Мы ждём официального одобрения FunPay чтобы включить этот чат. Ожидайте."
+  "url": "",
+  "node": "",
+  "disabledMessage": "Общий чат отключён."
 }
