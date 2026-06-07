@@ -9,11 +9,11 @@ const soundMap = {
 };
 
 async function applyNotificationSound() {
-    const { notificationSound, notificationVolume } = await chrome.storage.local.get(['notificationSound', 'notificationVolume']);
+    const { notificationSound, notificationVolume, fpToolsCustomSoundData } = await chrome.storage.local.get(['notificationSound', 'notificationVolume', 'fpToolsCustomSoundData']);
     const selectedSound = notificationSound || 'default';
     const vol = (typeof notificationVolume === 'number') ? Math.max(0, Math.min(1, notificationVolume)) : 1;
 
-    const audioSource = document.querySelector("source[src='/audio/chat_loud.mp3'], source[src^='chrome-extension://']");
+    const audioSource = document.querySelector("source[src='/audio/chat_loud.mp3'], source[src^='chrome-extension://'], source[src^='data:audio'], source[src^='blob:']");
     const audioPlayer = document.querySelector("audio.loud");
 
     if (!audioSource || !audioPlayer) {
@@ -28,6 +28,30 @@ async function applyNotificationSound() {
         if (audioSource.src !== originalSrc) {
             audioSource.src = originalSrc;
             audioPlayer.load();
+        }
+    } else if (selectedSound === 'custom') {
+        // Своя загруженная мелодия (обрезанный отрезок). Преобразуем data URL в
+        // blob: URL — он не попадает под ограничения CSP на data:-медиа.
+        if (fpToolsCustomSoundData) {
+            try {
+                if (!window.__fptCustomSoundBlobUrl || window.__fptCustomSoundBlobSrc !== fpToolsCustomSoundData) {
+                    const resp = await fetch(fpToolsCustomSoundData);
+                    const blob = await resp.blob();
+                    if (window.__fptCustomSoundBlobUrl) { try { URL.revokeObjectURL(window.__fptCustomSoundBlobUrl); } catch (_) {} }
+                    window.__fptCustomSoundBlobUrl = URL.createObjectURL(blob);
+                    window.__fptCustomSoundBlobSrc = fpToolsCustomSoundData;
+                }
+                if (audioSource.src !== window.__fptCustomSoundBlobUrl) {
+                    audioSource.src = window.__fptCustomSoundBlobUrl;
+                    audioPlayer.load();
+                }
+            } catch (_) {
+                // если blob не удался — пробуем напрямую data URL
+                if (audioSource.src !== fpToolsCustomSoundData) { audioSource.src = fpToolsCustomSoundData; audioPlayer.load(); }
+            }
+        } else {
+            const originalSrc = 'https://funpay.com/audio/chat_loud.mp3';
+            if (audioSource.src !== originalSrc) { audioSource.src = originalSrc; audioPlayer.load(); }
         }
     } else {
         const soundFile = soundMap[selectedSound];
@@ -46,6 +70,11 @@ async function previewNotificationSound(soundValue, volume) {
     try {
         let url;
         if (!soundValue || soundValue === 'default') url = 'https://funpay.com/audio/chat_loud.mp3';
+        else if (soundValue === 'custom') {
+            const { fpToolsCustomSoundData } = await chrome.storage.local.get('fpToolsCustomSoundData');
+            if (!fpToolsCustomSoundData) { if (typeof showNotification === 'function') showNotification('Своя мелодия ещё не сохранена.', true); return; }
+            url = fpToolsCustomSoundData;
+        }
         else if (soundMap[soundValue]) url = chrome.runtime.getURL(`sounds/${soundMap[soundValue]}`);
         else return;
         const a = new Audio(url);
@@ -79,7 +108,7 @@ function initializeCustomSound() {
 if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
     chrome.storage.onChanged.addListener((changes, area) => {
         if (area !== 'local') return;
-        if (changes.notificationSound || changes.notificationVolume) {
+        if (changes.notificationSound || changes.notificationVolume || changes.fpToolsCustomSoundData) {
             if (typeof applyNotificationSound === 'function') applyNotificationSound();
         }
     });

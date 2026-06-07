@@ -22,9 +22,11 @@
         "https://funpay.tools/*",
         "https://cdn.jsdelivr.net/*",
         "https://raw.githubusercontent.com/*",
+        "https://*.workers.dev/*",
         "https://fonts.googleapis.com/*",
         "https://fonts.gstatic.com/*",
-        "https://support.funpay.com/*"
+        "https://support.funpay.com/*",
+        "https://api.telegram.org/*"
     ],
     "action": {
         "default_popup": "popup/popup.html",
@@ -85,6 +87,7 @@
                 "content/features/user_notes.js",
                 "content/features/image_generator.js",
                 "content/features/custom_sound.js",
+                "content/features/custom_sound_editor.js",
                 "content/features/misc.js",
                 "content/features/ui_enhancements.js",
                 "content/features/review_sorter.js",
@@ -99,6 +102,7 @@
                 "content/features/auto_review.js",
                 "content/features/fpt_identifier.js",
                 "content/features/needs_tab.js",
+                "content/features/slash_telegram_ui.js",
                 "content/ui/main_popup.js",
                 "content/ui/header_button_styler.js",
                 "content/features/lot_context_menu.js",
@@ -119,7 +123,11 @@
                 "content/content_script.js",
                 "content/features/auto_restore_lots.js",
                 "content/features/order_page_enhancements.js",
-                "content/features/sales_chart.js"
+                "content/features/sales_chart.js",
+                "content/features/sales_modes.js",
+                "content/features/slash_commands.js",
+                "content/features/category_peek_panel.js",
+                "content/features/chat_reply.js"
             ],
             "css": [
                 "css/content_styles.css",

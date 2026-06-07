@@ -1,4 +1,4 @@
-// background/fpt_engine.js - FunPay Tools 3.0
+// background/fpt_engine.js - FunPay Tools 2.8
 // MV3-safe persistent polling engine with multiple redundancy layers.
 //
 // ROOT CAUSE THIS FIXES:

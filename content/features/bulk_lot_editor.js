@@ -49,12 +49,12 @@ async function openBulkEditor() {
     overlay.style.display = 'flex';
 
     overlay.innerHTML = `
-        <div class="fp-tools-modal-content" style="max-width:720px;width:95%;max-height:90vh;display:flex;flex-direction:column;">
-            <div class="fp-tools-modal-header" style="padding:16px 20px;">
-                <h3 style="margin:0;font-size:15px;">Массовое редактирование лотов</h3>
-                <button class="fp-tools-modal-close">×</button>
+        <div class="fp-tools-modal-content" style="max-width:720px;width:95%;max-height:90vh;display:flex;flex-direction:column;background:#13141a;color:#d8dae8;border:1px solid #22253a;border-radius:10px;box-shadow:0 16px 40px rgba(0,0,0,0.6);">
+            <div class="fp-tools-modal-header" style="padding:16px 20px;border-bottom:1px solid #1e2030;background:#13141a;border-radius:10px 10px 0 0;">
+                <h3 style="margin:0;font-size:15px;color:#e8eaf0;">Массовое редактирование лотов</h3>
+                <button class="fp-tools-modal-close" style="background:none;border:none;color:#9099b8;font-size:24px;cursor:pointer;line-height:1;">×</button>
             </div>
-            <div class="fp-tools-modal-body" style="overflow-y:auto;padding:16px 20px;flex:1;">
+            <div class="fp-tools-modal-body" style="overflow-y:auto;padding:16px 20px;flex:1;background:#13141a;">
                 <p class="template-info">Изменяются только заполненные поля. Переменные: <code>{current}</code> - текущее значение поля, <code>{lotname}</code> - название лота. Изменения применяются к русской версии полей.</p>
 
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
@@ -140,7 +140,7 @@ async function openBulkEditor() {
                     <div id="fp-bulk-log" style="font-size:11px;color:#6b7194;margin-top:8px;max-height:90px;overflow-y:auto;font-family:monospace;line-height:1.5;"></div>
                 </div>
             </div>
-            <div class="fp-tools-modal-footer" style="padding:14px 20px;display:flex;gap:10px;">
+            <div class="fp-tools-modal-footer" style="padding:14px 20px;display:flex;gap:10px;background:#13141a;border-top:1px solid #1e2030;border-radius:0 0 10px 10px;">
                 <button id="fp-bulk-apply-btn" class="btn" style="flex:1;">Применить изменения</button>
                 <button class="fp-tools-modal-close btn btn-default">Отмена</button>
             </div>

@@ -237,8 +237,12 @@
         const parent = node.parentNode;
         if (!parent) return;
 
-        // Защита от двойного применения и исключение текста внутри сообщений
-        if (parent.closest('.fpt-epic-wrap') || parent.closest('.chat-msg-text')) return;
+        // Защита от двойного применения и исключение текста внутри сообщений.
+        // .fpt-gc-* — наш собственный Общий чат: там декор-ники не нужны
+        // (узкий контейнер, партиклы торчат и мешают).
+        if (parent.closest('.fpt-epic-wrap') || parent.closest('.chat-msg-text')
+            || parent.closest('#fpt-gc-feed') || parent.closest('.fpt-gc-msg')
+            || parent.closest('.fpt-gc-author')) return;
 
         const cfg = parsedConfigs[nick];
         if (!cfg) return;

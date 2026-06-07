@@ -48,6 +48,14 @@ const FPT_FEATURE_REGISTRY = [
         preview: { kind: 'html', html: '<div class="fpt-pv-aibtn"><img src="{{MAGIC_ICON}}" alt="AI"></div>' }
     },
     {
+        id: 'chat_reply',
+        label: 'Ответы на сообщения',
+        desc: 'При наведении на сообщение появляются иконки «перевести» и «ответить». Ответ показывается над полем ввода (как в Telegram), а у пользователей с расширением цитата отображается красивой кликабельной плашкой с переходом к исходному сообщению.',
+        group: 'Чат: поле ввода',
+        selector: '.fpt-msg-tools, .fpt-reply-bar, .fpt-reply-card',
+        preview: { kind: 'html', html: '<div class="fpt-pv-menu"><a>↩ Ответить · 🌐 Перевести</a></div>' }
+    },
+    {
         id: 'chat_char_counter',
         label: 'Счётчик символов в чате',
         desc: 'Маленькое число в углу поля ввода сообщения - показывает количество введённых символов (становится оранжевым/красным при больших значениях).',
@@ -188,6 +196,14 @@ const FPT_FEATURE_REGISTRY = [
         group: 'Редактор лота',
         selector: '.fp-tools-import-btn',
         preview: { kind: 'html', html: '<div class="fpt-pv-fpbtn">Импорт</div>' }
+    },
+    {
+        id: 'lot_category_peek',
+        label: 'Кнопка «Свежее в категории»',
+        desc: 'Серая кнопка «Свежее в категории» вверху страницы создания/редактирования лота - открывает боковую панель с 10 свежими лотами из той же категории (видно 4, остальное скроллом) и сообщениями из чата категории (если он есть).',
+        group: 'Редактор лота',
+        selector: '#fpt-peek-toggle, .fpt-peek-panel',
+        preview: { kind: 'html', html: '<div class="fpt-pv-fpbtn">Свежее в категории</div>' }
     },
 
     // ───────────── Чужие лоты ─────────────

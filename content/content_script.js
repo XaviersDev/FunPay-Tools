@@ -370,6 +370,7 @@
                 makePopupInteractive(toolsPopup);
                 initializeImageGenerator();
                 initializeCustomSound();
+                if (typeof initializeCustomSoundEditor === 'function') initializeCustomSoundEditor();
                 initializeMagicStickStyler();
                 initializePiggyBank();
                 initializeHeaderButtonStyler();

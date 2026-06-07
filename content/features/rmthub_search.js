@@ -1,7 +1,4 @@
-// content/features/rmthub_search.js - FunPay Tools 3.0
-// RMTHub profile search - cloned exactly from FunPay's game search form.
-// Uses EXACT same classes: navbar-form, navbar-left, form-control, dropdown-menu etc.
-// Works only with EXACT usernames (same as RMTHub API requirement).
+
 
 (function initRMTHubSearch() {
     'use strict';

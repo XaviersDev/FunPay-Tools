@@ -315,12 +315,17 @@
 /* Кнопки боковой панели - на 2% плотнее меню, чтобы выделялись, но тоже прозрачные */
 .fp-tools-popup.fpt-menu-transparent .fp-tools-nav li a {
     background: var(--fpt-menu-navbtn, rgba(42,16,51,0.05)) !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.28) !important;
 }
 .fp-tools-popup.fpt-menu-transparent .fp-tools-nav li a:hover {
     background: var(--fpt-menu-navactive, rgba(42,16,51,0.11)) !important;
+    box-shadow: 0 5px 16px rgba(0,0,0,0.32) !important;
 }
 .fp-tools-popup.fpt-menu-transparent .fp-tools-nav li.active a {
     background: var(--fpt-menu-navactive, rgba(42,16,51,0.11)) !important;
+    box-shadow: 0 5px 16px rgba(0,0,0,0.34) !important;
 }
 /* Элементы внутри вкладок - такая же стеклянная подложка, как у кнопок боковой панели */
 .fp-tools-popup.fpt-menu-transparent .fp-tools-content .setting-group,
@@ -338,7 +343,7 @@
     background: var(--fpt-menu-navbtn, rgba(42,16,51,0.05)) !important;
     border-radius: 10px;
     border: none !important;
-    box-shadow: none !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.16) !important;
 }
 .fp-tools-popup.fpt-menu-transparent .fp-tools-content .setting-group,
 .fp-tools-popup.fpt-menu-transparent .fp-tools-content .template-container,
@@ -2265,12 +2270,14 @@ body.funpay-redesigned .promo-games {
     margin-bottom: 30px;
     backdrop-filter: blur(10px);
 }
-/* Кастомная тема выключена → подстраиваемся под страницу (непрозрачно, без гласса) */
+/* Кастомная тема выключена → фиксированный светлый фон под страницу FunPay.
+   НЕ используем var(--fpt-surface): палитра пересчитывается от фона body и может
+   внезапно стать тёмной (например при перемещении меню), делая окно чёрным. */
 .fpt-custom-theme-off .fp-tools-stats-container {
-    background: var(--fpt-surface, #f0f0f0);
-    border: 1px solid var(--fpt-border, #ddd);
-    color: var(--fpt-text, #111);
-    backdrop-filter: none;
+    background: #ffffff !important;
+    border: 1px solid rgba(0,0,0,0.12) !important;
+    color: #1a1a1a !important;
+    backdrop-filter: none !important;
 }
 
 .fp-stats-header {
@@ -2375,15 +2382,15 @@ body.funpay-redesigned .promo-games {
     border-color: var(--fpt-border, #ccc);
 }
 .fpt-custom-theme-off .fp-stat-card {
-    background: var(--fpt-surface-2, #f5f5f5);
-    border-color: var(--fpt-border, #e0e0e0);
+    background: #f5f5f7 !important;
+    border-color: rgba(0,0,0,0.10) !important;
 }
 .fpt-custom-theme-off .fp-stat-card:hover {
-    box-shadow: 0 10px 20px var(--fpt-shadow, rgba(0,0,0,0.15));
+    box-shadow: 0 10px 20px rgba(0,0,0,0.15);
 }
-.fpt-custom-theme-off .stat-card-label { color: var(--fpt-text-muted, #666); }
-.fpt-custom-theme-off .stat-card-value { color: var(--fpt-text, #111); }
-.fpt-custom-theme-off .stat-card-revenue { background: var(--fpt-accent-soft, rgba(193,38,211,0.10)); }
+.fpt-custom-theme-off .stat-card-label { color: #666 !important; }
+.fpt-custom-theme-off .stat-card-value { color: #111 !important; }
+.fpt-custom-theme-off .stat-card-revenue { background: rgba(193,38,211,0.10) !important; }
 
 .stat-card-success {
     border-left: 4px solid #4CAF50;
@@ -8137,3 +8144,110 @@ textarea.fp-cw-input { line-height:1.4; }
 .fp-cw-imgtoggle input { width:16px; height:16px; accent-color: var(--cw-accent); cursor:pointer; }
 .fp-cw-thumbs { display:flex; flex-wrap:wrap; gap:8px; }
 .fp-cw-thumb { width:54px; height:54px; border-radius:8px; background-size:cover; background-position:center; border:1px solid var(--cw-border); }
+
+/* ── Общий чат FP Tools: аватары, PRO-бейдж, калитка входа ───────────────── */
+.fpt-gc-msg{display:flex;gap:8px;align-items:flex-start;}
+.fpt-gc-avatar{width:30px;height:30px;border-radius:50%;object-fit:cover;flex-shrink:0;background:#2a2d44;}
+.fpt-gc-avatar-empty{display:inline-block;}
+.fpt-gc-body{flex:1;min-width:0;}
+.fpt-gc-pro{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:700;letter-spacing:.5px;background:linear-gradient(135deg,#E9A8FF,#9b6bff);color:#1a1326;vertical-align:middle;}
+.fpt-gc-gate{display:flex;align-items:center;justify-content:center;padding:30px 18px;}
+.fpt-gc-gate-inner{display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;max-width:360px;}
+.fpt-gc-gate-title{font-size:16px;font-weight:700;color:var(--fpt-text,#fff);}
+.fpt-gc-gate-sub{font-size:12.5px;line-height:1.5;color:var(--fpt-text-muted,#9aa0b5);}
+.fpt-gc-gate .btn{text-decoration:none;}
+.fpt-gc-code{font-size:12px;color:var(--fpt-text-muted,#9aa0b5);}
+.fpt-gc-gate-status{font-size:12px;color:var(--fpt-accent,#E9A8FF);min-height:16px;}
+
+/* === 3.1: borderless play button + inline seconds spinner === */
+.fpt-icon-play-btn{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:32px;height:32px;padding:0;border:none;background:transparent;
+    color:var(--fpt-accent,#C026D3);cursor:pointer;border-radius:50%;
+    transition:background .15s,transform .1s;flex-shrink:0;
+}
+.fpt-icon-play-btn:hover{background:var(--fpt-accent-soft,rgba(192,38,211,0.14));}
+.fpt-icon-play-btn:active{transform:scale(0.92);}
+.fpt-icon-play-btn .material-symbols-rounded{font-size:22px;line-height:1;}
+
+.fpt-sec-spin{
+    display:inline-flex !important;align-items:stretch;vertical-align:middle;
+    height:20px !important;width:42px !important;margin:0 2px;
+    border:1px solid var(--fpt-border,rgba(128,128,128,0.4));
+    border-radius:5px;overflow:hidden;background:transparent !important;
+    box-sizing:border-box;line-height:1;
+}
+.fpt-sec-spin input{
+    width:24px !important;min-width:0 !important;max-width:24px !important;
+    height:18px !important;min-height:0 !important;
+    border:none !important;background:transparent !important;text-align:center;
+    font-size:12px !important;font-weight:700;color:var(--fpt-accent,#C026D3) !important;
+    padding:0 !important;margin:0 !important;border-radius:0 !important;
+    -moz-appearance:textfield;appearance:none;outline:none;cursor:text;box-shadow:none !important;
+}
+.fpt-sec-spin-btns{display:flex;flex-direction:column;width:16px;flex-shrink:0;
+    border-left:1px solid var(--fpt-border,rgba(128,128,128,0.35));}
+.fpt-sec-spin-btns button{
+    flex:1;border:none;background:transparent;color:var(--fpt-text,#cfd2dc);
+    font-size:9px !important;line-height:1 !important;padding:0 !important;margin:0 !important;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;height:9px !important;min-height:0 !important;width:16px !important;
+    transition:color .12s,background .12s;}
+.fpt-sec-spin-btns button:hover{color:var(--fpt-accent,#C026D3);background:var(--fpt-accent-soft,rgba(192,38,211,0.18));}
+.fpt-sec-spin-btns button:first-child{border-bottom:1px solid var(--fpt-border,rgba(128,128,128,0.3));}
+
+/* === 3.1: redesigned multi-account items (popup is always dark — фиксированная палитра) === */
+.fpt-acc-item{
+    display:flex;align-items:center;gap:12px;padding:10px 12px;margin-bottom:8px;
+    background:#1a1c26;border:1px solid #22253a;
+    border-radius:12px;transition:border-color .15s,background .15s;
+}
+.fpt-acc-item.active{border-color:#C026D3;background:rgba(192,38,211,0.10);}
+.fpt-acc-avatar{
+    position:relative;width:44px;height:44px;border-radius:50%;flex-shrink:0;
+    background-size:cover;background-position:center;background-color:#20222e;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:inset 0 0 0 1px #2a2d3f;
+}
+.fpt-acc-avatar .material-symbols-rounded{font-size:24px;color:#9099b8;}
+.fpt-acc-unread{
+    position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 5px;
+    background:#f44336;color:#fff;border-radius:9px;font-size:10px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;line-height:1;
+    box-shadow:0 0 0 2px #1a1c26;
+}
+.fpt-acc-info{flex:1;min-width:0;}
+.fpt-acc-name{
+    font-size:14px;font-weight:600;color:#e8eaf0;
+    display:flex;align-items:center;gap:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.fpt-acc-active-dot{width:7px;height:7px;border-radius:50%;background:#4caf50;flex-shrink:0;}
+.fpt-acc-balance{font-size:12px;color:#9099b8;margin-top:2px;}
+.fpt-acc-actions{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.fpt-acc-login-btn{
+    display:inline-flex;align-items:center;justify-content:center;
+    padding:0 14px;height:34px;line-height:1;border-radius:9px;border:none;cursor:pointer;
+    background:#C026D3;color:#fff;font-size:13px;font-weight:600;transition:filter .15s,background .15s,color .15s;
+}
+.fpt-acc-login-btn:hover{filter:brightness(1.1);}
+.fpt-acc-login-btn.active{background:#20222e;color:#4caf50;cursor:default;filter:none;}
+.fpt-acc-login-btn:disabled{cursor:default;}
+.fpt-acc-btn{
+    width:34px;height:34px;display:flex;align-items:center;justify-content:center;
+    border:1px solid #2a2d3f;background:#20222e;
+    color:#9099b8;border-radius:9px;cursor:pointer;transition:all .15s;padding:0;
+}
+.fpt-acc-btn .material-symbols-rounded{font-size:18px;}
+.fpt-acc-btn:hover{color:#fff;border-color:#C026D3;}
+.fpt-acc-btn-delete:hover{color:#ff5c5c;border-color:#ff5c5c;}
+
+/* === 3.1: reply answer text under the clickable reply card === */
+.fpt-reply-rest{white-space:pre-wrap;word-break:break-word;}
+
+/* === 3.1: Telegram commands list === */
+.fpt-tg-cmd-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;}
+.fpt-tg-cmd-list li{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.fpt-tg-cmd-list li code{
+    background:#0e0f16;border:1px solid #2a2d3f;color:#e9a8ff;
+    border-radius:6px;padding:2px 8px;font-size:12px;font-family:'JetBrains Mono','Consolas',monospace;
+}
+.fpt-tg-cmd-list li span{color:#9099b8;font-size:12.5px;}

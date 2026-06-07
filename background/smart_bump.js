@@ -1,4 +1,4 @@
-// background/smart_bump.js - FunPay Tools 3.0
+// background/smart_bump.js - FunPay Tools 2.8
 // "Smart" auto-raise mode, ported from FP Tools's FP Tools.raise_lots().
 //
 // The old autobump just raised every category on a fixed interval (e.g. every 245 min) and

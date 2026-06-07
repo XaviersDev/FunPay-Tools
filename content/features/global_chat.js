@@ -1,100 +1,18 @@
-// content/features/global_chat.js
-// =============================================================================
-// FPT GLOBAL CHAT - «Общий чат»
-//
-// Общий чат для активных пользователей FP Tools. Технически это публичный узел
-// чата FunPay (node=game-307), поэтому весь обмен сообщениями идёт штатными
-// средствами самого FunPay: история тянется со страницы funpay.com/chat/?node=…,
-// отправка - через уже существующий фоновый обработчик 'fptSendChatText'
-// (тот же runner/chat_message, что и в остальном расширении).
-//
-// ВАЖНО: чат живёт на funpay.com и модерируется модераторами FunPay.
-// FP Tools НЕ модерирует этот чат - это лишь удобная витрина уже существующего
-// узла. Никакого собственного сервера сообщений у расширения нет.
-// =============================================================================
 
-// node/url по умолчанию (фолбэк, пока не подтянулся удалённый конфиг)
-let FPT_GC_NODE = 'game-307';
-let FPT_GC_URL = 'https://funpay.com/chat/?node=' + FPT_GC_NODE;
-const FPT_GC_POLL_MS = 7000;
+const FPT_GC_WORKER = 'https://fpt-chat.starobinskiy01.workers.dev';
+const FPT_BOT_USERNAME = 'FPToolsBot';
+const FPT_GC_POLL_MS = 6000;   // как часто тянем новые сообщения
+const FPT_GC_LINK_POLL_MS = 2500; // как часто проверяем подтверждение входа
 
-// =============================================================================
-// УДАЛЁННЫЙ КОНФИГ (public-chat.json на GitHub).
-// Позволяет включать/выключать чат и прятать вкладку БЕЗ обновления расширения.
-// Основной источник - jsDelivr (CDN, быстро/стабильно), фолбэк - raw.githubusercontent.
-// Опрашивается раз в 16 минут.
-// =============================================================================
-const FPT_GC_CFG_JSDELIVR = 'https://cdn.jsdelivr.net/gh/XaviersDev/FunPay-Tools@main/public-chat.json';
-const FPT_GC_CFG_RAW      = 'https://raw.githubusercontent.com/XaviersDev/FunPay-Tools/main/public-chat.json';
-const FPT_GC_CFG_TTL_MS   = 16 * 60 * 1000; // 16 минут
-
-// Состояние по умолчанию: если конфиг недоступен - чат работает как раньше.
-let _fptGcConfig = {
-    active: true,
-    display: true,
-    url: FPT_GC_URL,
-    node: FPT_GC_NODE,
-    disabledMessage: 'Наш общий чат временно недоступен. Мы ждём официального одобрения FunPay чтобы включить этот чат. Ожидайте.'
-};
-
-function _fptGcApplyConfig(cfg) {
-    if (!cfg || typeof cfg !== 'object') return;
-    if (typeof cfg.active === 'boolean')  _fptGcConfig.active  = cfg.active;
-    if (typeof cfg.display === 'boolean') _fptGcConfig.display = cfg.display;
-    if (typeof cfg.disabledMessage === 'string' && cfg.disabledMessage.trim()) {
-        _fptGcConfig.disabledMessage = cfg.disabledMessage;
-    }
-    if (typeof cfg.node === 'string' && cfg.node.trim()) {
-        FPT_GC_NODE = cfg.node.trim();
-        _fptGcConfig.node = FPT_GC_NODE;
-    }
-    if (typeof cfg.url === 'string' && cfg.url.trim()) {
-        FPT_GC_URL = cfg.url.trim();
-    } else {
-        FPT_GC_URL = 'https://funpay.com/chat/?node=' + FPT_GC_NODE;
-    }
-    _fptGcConfig.url = FPT_GC_URL;
-}
-
-// Тянем конфиг с GitHub. Сначала jsDelivr, при неудаче - raw github.
-// Результат кэшируем в chrome.storage.local на 16 минут.
-async function fptGcRefreshConfig(force) {
-    try {
-        if (!force) {
-            const { fpToolsGCConfig, fpToolsGCConfigTs } = await chrome.storage.local.get(['fpToolsGCConfig', 'fpToolsGCConfigTs']);
-            if (fpToolsGCConfig && fpToolsGCConfigTs && (Date.now() - fpToolsGCConfigTs) < FPT_GC_CFG_TTL_MS) {
-                _fptGcApplyConfig(fpToolsGCConfig);
-                return _fptGcConfig;
-            }
-        }
-        const bust = '?t=' + Date.now(); // обход CDN/прокси-кэша
-        let cfg = null;
-        for (const base of [FPT_GC_CFG_JSDELIVR, FPT_GC_CFG_RAW]) {
-            try {
-                const r = await fetch(base + bust, { cache: 'no-store' });
-                if (!r.ok) continue;
-                cfg = await r.json();
-                if (cfg && typeof cfg === 'object') break;
-            } catch (e) { /* пробуем следующий источник */ }
-        }
-        if (cfg && typeof cfg === 'object') {
-            _fptGcApplyConfig(cfg);
-            await chrome.storage.local.set({ fpToolsGCConfig: cfg, fpToolsGCConfigTs: Date.now() });
-        }
-    } catch (e) { /* офлайн / git недоступен - остаёмся на дефолтах/кэше */ }
-    return _fptGcConfig;
-}
-
-// Применить display: спрятать/показать пункт меню «Общий чат».
-function fptGcApplyVisibility() {
-    const navLi = document.querySelector('li[data-page="global_chat"]');
-    if (navLi) navLi.style.display = _fptGcConfig.display ? '' : 'none';
-}
-
-let _fptGcTimer = null;
-let _fptGcLastIds = new Set();
 let _fptGcInited = false;
 let _fptGcSelfName = null;
+let _fptGcSelfAvatar = '';
+let _fptGcSelfUrl = '';
+let _fptGcToken = null;
+let _fptGcLastTs = 0;
+let _fptGcFeedTimer = null;
+let _fptGcLinkTimer = null;
+let _fptGcRenderedIds = new Set();
 
 function _fptGcEl(id) { return document.getElementById(id); }
 
@@ -105,281 +23,368 @@ function _fptGcStatus(msg, isError) {
     s.classList.toggle('fpt-gc-status-err', !!isError);
 }
 
-// Узнаём свой ник, чтобы подсвечивать собственные сообщения.
-function _fptGcDetectSelf() {
-    try {
-        const link = document.querySelector('.user-link-name, .menu-item-account .menu-item-name, .user-link-dropdown .user-link-name');
-        if (link && link.textContent.trim()) { _fptGcSelfName = link.textContent.trim(); return; }
-        const appData = document.body && document.body.dataset && document.body.dataset.appData;
-        if (appData) {
-            const d = JSON.parse(appData);
-            if (d && d.userName) _fptGcSelfName = d.userName;
-        }
-    } catch (e) { /* ignore */ }
-}
-
 function _fptGcEscape(str) {
     const d = document.createElement('div');
     d.textContent = str == null ? '' : String(str);
     return d.innerHTML;
 }
 
-// Разбор HTML страницы чата FunPay в массив сообщений.
-function _fptGcParse(html) {
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    const items = doc.querySelectorAll('.chat-message-list .chat-msg-item');
-    const out = [];
-    let lastAuthor = null;
-    let lastAuthorUrl = null;
-    items.forEach(item => {
-        const id = (item.id || '').replace('message-', '') || null;
-        const msgEl = item.querySelector('.chat-message');
-        const blocked = msgEl && msgEl.classList.contains('blocked');
-        const authorLink = item.querySelector('.media-user-name .chat-msg-author-link');
-        let author = authorLink ? authorLink.textContent.trim() : null;
-        let authorUrl = authorLink ? authorLink.getAttribute('href') : null;
-        // FunPay не дублирует автора у подряд идущих сообщений одного человека.
-        if (!author) { author = lastAuthor; authorUrl = lastAuthorUrl; }
-        else { lastAuthor = author; lastAuthorUrl = authorUrl; }
-        const dateEl = item.querySelector('.chat-msg-date');
-        const date = dateEl ? (dateEl.getAttribute('title') || dateEl.textContent.trim()) : '';
-        const textEl = item.querySelector('.chat-msg-text');
-        const text = textEl ? textEl.textContent : '';
-        if (!text && !blocked) return;
-        out.push({ id, author: author || '???', authorUrl, date, text: blocked ? 'Сообщение скрыто.' : text, blocked: !!blocked });
-    });
-    return out;
+// =============================================================================
+// УДАЛЁННЫЙ КОНФИГ (public-chat.json на GitHub): active / display.
+// Позволяет включать/выключать чат и прятать вкладку БЕЗ обновления расширения.
+// =============================================================================
+const FPT_GC_CFG_JSDELIVR = 'https://cdn.jsdelivr.net/gh/XaviersDev/FunPay-Tools@main/public-chat.json';
+const FPT_GC_CFG_RAW      = 'https://raw.githubusercontent.com/XaviersDev/FunPay-Tools/main/public-chat.json';
+const FPT_GC_CFG_TTL_MS   = 16 * 60 * 1000;
+
+let _fptGcConfig = {
+    active: true,
+    display: true,
+    disabledMessage: 'Общий чат временно недоступен. Ожидайте.'
+};
+
+function _fptGcApplyConfig(cfg) {
+    if (!cfg || typeof cfg !== 'object') return;
+    if (typeof cfg.active === 'boolean')  _fptGcConfig.active  = cfg.active;
+    if (typeof cfg.display === 'boolean') _fptGcConfig.display = cfg.display;
+    if (typeof cfg.disabledMessage === 'string' && cfg.disabledMessage.trim()) {
+        _fptGcConfig.disabledMessage = cfg.disabledMessage;
+    }
 }
 
-function _fptGcRender(messages, append) {
-    const feed = _fptGcEl('fpt-gc-feed');
-    if (!feed) return;
-    const wasNearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 80;
+async function fptGcRefreshConfig(force) {
+    try {
+        if (!force) {
+            const { fpToolsGCConfig, fpToolsGCConfigTs } = await chrome.storage.local.get(['fpToolsGCConfig', 'fpToolsGCConfigTs']);
+            if (fpToolsGCConfig && fpToolsGCConfigTs && (Date.now() - fpToolsGCConfigTs) < FPT_GC_CFG_TTL_MS) {
+                _fptGcApplyConfig(fpToolsGCConfig);
+                return _fptGcConfig;
+            }
+        }
+        const bust = '?t=' + Date.now();
+        let cfg = null;
+        for (const base of [FPT_GC_CFG_JSDELIVR, FPT_GC_CFG_RAW]) {
+            try {
+                const r = await fetch(base + bust, { cache: 'no-store' });
+                if (!r.ok) continue;
+                cfg = await r.json();
+                if (cfg && typeof cfg === 'object') break;
+            } catch (e) { /* next source */ }
+        }
+        if (cfg && typeof cfg === 'object') {
+            _fptGcApplyConfig(cfg);
+            await chrome.storage.local.set({ fpToolsGCConfig: cfg, fpToolsGCConfigTs: Date.now() });
+        }
+    } catch (e) { /* offline - keep defaults */ }
+    return _fptGcConfig;
+}
 
-    if (!append) { feed.innerHTML = ''; _fptGcLastIds = new Set(); }
+function fptGcApplyVisibility() {
+    const navLi = document.querySelector('li[data-page="global_chat"]');
+    if (navLi) navLi.style.display = _fptGcConfig.display ? '' : 'none';
+}
 
-    let added = 0;
-    messages.forEach(m => {
-        if (m.id && _fptGcLastIds.has(m.id)) return;
-        if (m.id) _fptGcLastIds.add(m.id);
-        added++;
-        const mine = _fptGcSelfName && m.author === _fptGcSelfName;
-        const row = document.createElement('div');
-        row.className = 'fpt-gc-msg' + (mine ? ' fpt-gc-msg-mine' : '') + (m.blocked ? ' fpt-gc-msg-blocked' : '');
-        
-        // --- ПРОВЕРКА НА РАЗРАБОТЧИКА ---
-        let devBadge = '';
-        if (m.author === 'sDImosX') {
-            devBadge = `<span class="fpt-gc-dev-badge" title="Создатель FP Tools"><span class="material-symbols-rounded">verified</span>Разработчик расширения</span>`;
+// =============================================================================
+// Кто я на FunPay (ник, аватар, ссылка на профиль) — со страницы. Косметика.
+// =============================================================================
+function _fptGcDetectSelf() {
+    try {
+        // Ник: внутри .user-link-name может быть обёртка декорированного ника
+        // (.fpt-epic-text) + canvas с частицами. Берём именно текстовый узел,
+        // а не весь контейнер, иначе ник окажется пустым/кривым.
+        let nameEl = document.querySelector('.user-link-name .fpt-epic-text');
+        if (!nameEl) nameEl = document.querySelector('.user-link-name');
+        if (nameEl && nameEl.textContent.trim()) _fptGcSelfName = nameEl.textContent.trim();
+
+        // Ссылка на свой профиль: пункт меню "Профиль".
+        const profA = document.querySelector('a.user-link-dropdown[href*="/users/"], .user-link-dropdown[href*="/users/"]');
+        if (profA && profA.getAttribute('href')) {
+            _fptGcSelfUrl = new URL(profA.getAttribute('href'), location.origin).href;
         }
 
-        const nameHtml = m.authorUrl
-            ? `<a href="${_fptGcEscape(m.authorUrl)}" target="_blank" class="fpt-gc-author">${_fptGcEscape(m.author)}</a>${devBadge}`
-            : `<span class="fpt-gc-author">${_fptGcEscape(m.author)}</span>${devBadge}`;
-            
+        // Аватар: .user-link-photo img в шапке.
+        const av = document.querySelector('.user-link-photo img[src], .navbar-header .user-link-photo img[src]');
+        if (av) {
+            const src = av.getAttribute('src');
+            if (src && src.trim()) _fptGcSelfAvatar = new URL(src, location.origin).href;
+        }
+
+        const appData = document.body && document.body.dataset && document.body.dataset.appData;
+        if (appData && !_fptGcSelfName) {
+            const d = JSON.parse(appData);
+            if (d && d.userName) _fptGcSelfName = d.userName;
+        }
+    } catch (e) { /* ignore */ }
+}
+
+// =============================================================================
+// Worker API
+// =============================================================================
+async function _fptGcApi(payload) {
+    const r = await fetch(FPT_GC_WORKER, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    let data = {};
+    try { data = await r.json(); } catch (e) {}
+    return { ok: r.ok, status: r.status, data };
+}
+
+// =============================================================================
+// Рендер ленты
+// =============================================================================
+function _fptGcRender(messages) {
+    const feed = _fptGcEl('fpt-gc-feed');
+    if (!feed) return;
+    const loading = feed.querySelector('.fpt-gc-loading');
+    if (loading) loading.remove();
+
+    let appended = false;
+    (messages || []).forEach(m => {
+        if (!m || !m.id || _fptGcRenderedIds.has(m.id)) return;
+        _fptGcRenderedIds.add(m.id);
+        appended = true;
+        if (m.ts && m.ts > _fptGcLastTs) _fptGcLastTs = m.ts;
+
+        const mine = _fptGcSelfName && m.nick === _fptGcSelfName;
+        const avatar = m.avatar
+            ? `<img class="fpt-gc-avatar" src="${_fptGcEscape(m.avatar)}" alt="">`
+            : '<span class="fpt-gc-avatar fpt-gc-avatar-empty"></span>';
+        const nameHtml = m.url
+            ? `<a href="${_fptGcEscape(m.url)}" target="_blank" rel="noopener" class="fpt-gc-author">${_fptGcEscape(m.nick)}</a>`
+            : `<span class="fpt-gc-author">${_fptGcEscape(m.nick)}</span>`;
+        const time = m.ts ? new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+        const row = document.createElement('div');
+        row.className = 'fpt-gc-msg' + (mine ? ' fpt-gc-msg-mine' : '');
         row.innerHTML =
-            `<div class="fpt-gc-head">${nameHtml}<span class="fpt-gc-date">${_fptGcEscape(m.date)}</span></div>` +
-            `<div class="fpt-gc-text">${_fptGcEscape(m.text)}</div>`;
+            avatar +
+            '<div class="fpt-gc-body">' +
+                `<div class="fpt-gc-head">${nameHtml}<span class="fpt-gc-date">${time}</span></div>` +
+                `<div class="fpt-gc-text">${_fptGcEscape(m.text)}</div>` +
+            '</div>';
         feed.appendChild(row);
     });
 
-    if (!append) {
-        feed.scrollTop = feed.scrollHeight;
-    } else if (added && wasNearBottom) {
-        feed.scrollTop = feed.scrollHeight;
+    if (appended) {
+        const nearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 150;
+        if (nearBottom) feed.scrollTop = feed.scrollHeight;
     }
-    return added;
 }
 
-async function _fptGcFetch(append) {
+// =============================================================================
+// Тянем ленту
+// =============================================================================
+async function _fptGcFetch() {
     try {
-        const res = await fetch(FPT_GC_URL, {
-            credentials: 'include',
-            headers: { 'x-requested-with': 'XMLHttpRequest' }
-        });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const html = await res.text();
-        const messages = _fptGcParse(html);
-        if (!messages.length && !append) {
-            const feed = _fptGcEl('fpt-gc-feed');
-            if (feed) feed.innerHTML = '<div class="fpt-gc-loading">Пока нет сообщений. Будьте первым!</div>';
-            return;
-        }
-        _fptGcRender(messages, append);
-        _fptGcStatus('');
-    } catch (e) {
-        if (!append) {
-            const feed = _fptGcEl('fpt-gc-feed');
-            if (feed) feed.innerHTML = '<div class="fpt-gc-loading">Не удалось загрузить чат. Проверьте, что вы вошли на FunPay.</div>';
-        }
-        _fptGcStatus('Ошибка обновления: ' + e.message, true);
-    }
+        const { ok, data } = await _fptGcApi({ action: 'fetch', since: _fptGcLastTs });
+        if (ok && data && Array.isArray(data.messages)) _fptGcRender(data.messages);
+    } catch (e) { /* network blip - ignore */ }
 }
 
+function _fptGcStartFeed() {
+    _fptGcStopFeed();
+    _fptGcFeedTimer = setInterval(() => {
+        const page = document.querySelector('.fp-tools-page-content[data-page="global_chat"]');
+        if (page && page.classList.contains('active')) _fptGcFetch();
+    }, FPT_GC_POLL_MS);
+}
+function _fptGcStopFeed() {
+    if (_fptGcFeedTimer) { clearInterval(_fptGcFeedTimer); _fptGcFeedTimer = null; }
+}
+
+// =============================================================================
+// Отправка
+// =============================================================================
 async function _fptGcSend() {
     const input = _fptGcEl('fpt-gc-input');
+    const btn = _fptGcEl('fpt-gc-send');
     if (!input) return;
-    const text = input.value.trim();
+    const text = (input.value || '').trim();
     if (!text) return;
-
-    // Проверяем, соглашался ли пользователь с правилами
-    const { fpToolsGCRulesAccepted } = await chrome.storage.local.get('fpToolsGCRulesAccepted');
-    
-    if (!fpToolsGCRulesAccepted) {
-        _fptGcShowRulesModal(text);
+    if (text.length > 300) {
+        _fptGcStatus('Слишком длинное сообщение (максимум 300 символов)', true);
         return;
     }
 
-    await _actualSend(text);
-}
+    if (!_fptGcToken) { _fptGcShowGate(); return; }
 
-// Фактическая отправка сообщения вынесена отдельно
-async function _actualSend(text) {
-    const input = _fptGcEl('fpt-gc-input');
-    const btn = _fptGcEl('fpt-gc-send');
-    
     btn && (btn.disabled = true);
     _fptGcStatus('Отправка…');
     try {
-        const resp = await chrome.runtime.sendMessage({ action: 'fptSendChatText', chatId: FPT_GC_NODE, text });
-        if (!resp || !resp.ok) throw new Error((resp && resp.error) || 'неизвестная ошибка');
-        input.value = '';
-        input.style.height = 'auto';
-        _fptGcStatus('');
-        // Подтянуть свежие сообщения сразу после отправки.
-        await _fptGcFetch(true);
+        const { ok, status, data } = await _fptGcApi({
+            action: 'send',
+            token: _fptGcToken,
+            nick: _fptGcSelfName || 'FunPay user',
+            avatar: _fptGcSelfAvatar || '',
+            url: _fptGcSelfUrl || '',
+            text,
+        });
+        if (ok && data && data.ok) {
+            input.value = '';
+            input.style.height = 'auto';
+            _fptGcStatus('');
+            await _fptGcFetch();
+        } else if (status === 429 && data && data.error === 'cooldown') {
+            const sec = Math.ceil((data.wait || 5000) / 1000);
+            _fptGcStatus(`Подожди ${sec} сек перед следующим сообщением`, true);
+        } else if (status === 401) {
+            // токен протух/невалиден — сбрасываем, просим войти заново
+            _fptGcToken = null;
+            await chrome.storage.local.remove('fpToolsGCToken');
+            _fptGcShowGate();
+        } else if (status === 403) {
+            _fptGcStatus('Доступ ограничен.', true);
+        } else {
+            _fptGcStatus('Не удалось отправить: ' + ((data && data.error) || 'ошибка'), true);
+        }
     } catch (e) {
-        _fptGcStatus('Не удалось отправить: ' + e.message, true);
+        _fptGcStatus('Сеть недоступна, попробуй ещё раз', true);
     } finally {
         btn && (btn.disabled = false);
         input.focus();
     }
 }
 
-// Модальное окно с правилами при первой отправке
-function _fptGcShowRulesModal(pendingText) {
-    if (document.getElementById('fpt-gc-rules-overlay')) return;
+// =============================================================================
+// «Калитка»: показываем форму входа, если токена нет
+// =============================================================================
+function _fptGcShowGate() {
+    const composer = document.querySelector('.fp-tools-page-content[data-page="global_chat"] .fpt-gc-composer');
+    if (composer) composer.style.display = 'none';
 
-    const overlay = document.createElement('div');
-    overlay.id = 'fpt-gc-rules-overlay';
-    overlay.className = 'fp-tools-modal-overlay';
-    overlay.style.zIndex = '100100'; // Поверх всего
-
-    overlay.innerHTML = `
-        <div class="fp-tools-modal-content" style="max-width: 480px; padding: 25px; text-align: left; animation: popIn 0.4s cubic-bezier(0.26, 0.53, 0.74, 1.48);">
-            <div style="display:flex; align-items:center; gap: 10px; margin-bottom: 15px;">
-                <span class="material-symbols-rounded" style="color:#e05252; font-size: 32px;">warning</span>
-                <h3 style="margin:0; font-size: 20px; color: var(--fpt-text, #fff); border:none; padding:0;">Стой! Прочитай правила ✋</h3>
-            </div>
-            <p style="font-size: 13px; color: var(--fpt-text-muted, #ccc); margin-bottom: 15px; line-height: 1.5;">
-                Перед тем как начать общаться, учти, что это <b>официальный общий игровой чат FunPay</b>,
-                и на него действуют строгие правила площадки. За их нарушение твой аккаунт на FunPay может быть <b>заблокирован</b>!
-            </p>
-            <div style="background: var(--fpt-surface, rgba(0,0,0,0.3)); border: 1px solid var(--fpt-border, #333); padding: 12px; border-radius: 8px; font-size: 12.5px; color: var(--fpt-text, #d8dae8); margin-bottom: 15px; max-height: 220px; overflow-y: auto; font-family: monospace;">
-                <div style="color: #ff6b6b; font-weight: bold; margin-bottom: 6px;">ЗАПРЕЩЕНО:</div>
-                <ul style="padding-left: 20px; margin: 0; display: flex; flex-direction: column; gap: 6px;">
-                    <li>сообщения о продаже/скупке чего-то;</li>
-                    <li>ссылки на предложения;</li>
-                    <li>реклама торговых площадок;</li>
-                    <li>критика других продавцов и их предложений;</li>
-                    <li>спам и флуд;</li>
-                    <li>оскорбления;</li>
-                    <li>политические обсуждения;</li>
-                    <li>передавать Telegram, Discord, VK, номер телефона и другие контакты;</li>
-                    <li>просить контакты другого пользователя;</li>
-                    <li>использовать полученные контакты для связи вне FunPay;</li>
-                    <li>любые незаконные сообщения.</li>
-                </ul>
-            </div>
-            <p style="font-size: 12px; color: var(--fpt-text-muted, #888); margin-bottom: 20px;">
-                Подробные правила площадки: <a href="https://funpay.com/trade/info" target="_blank" style="color: var(--fpt-accent, #E9A8FF); text-decoration: underline;">funpay.com/trade/info</a>
-            </p>
-            <button id="fpt-gc-rules-accept-btn" class="btn" disabled style="width: 100%; transition: all 0.3s ease; background: var(--fpt-surface-2, #333); color: var(--fpt-text-muted, #888); cursor: not-allowed; box-shadow: none;">
-                Понял (<span id="fpt-gc-timer">24</span>)
-            </button>
-        </div>
-    `;
-
-    document.body.appendChild(overlay);
-
-    const acceptBtn = overlay.querySelector('#fpt-gc-rules-accept-btn');
-    const timerSpan = overlay.querySelector('#fpt-gc-timer');
-    let timeLeft = 24;
-
-    const timerInterval = setInterval(() => {
-        timeLeft--;
-        timerSpan.textContent = timeLeft;
-        if (timeLeft <= 0) {
-            clearInterval(timerInterval);
-            acceptBtn.disabled = false;
-            acceptBtn.innerHTML = 'Понял, отправить сообщение ✓';
-            acceptBtn.style.background = '#4caf82'; // Зеленая кнопка после таймера
-            acceptBtn.style.color = '#fff';
-            acceptBtn.style.cursor = 'pointer';
-            acceptBtn.style.boxShadow = '0 8px 15px rgba(76, 175, 130, 0.3)';
-        }
-    }, 1000);
-
-    acceptBtn.addEventListener('click', async () => {
-        if (timeLeft > 0) return;
-        await chrome.storage.local.set({ fpToolsGCRulesAccepted: true });
-        overlay.remove();
-        // Отправляем сообщение, которое юзер пытался отправить
-        await _actualSend(pendingText);
-    });
-}
-
-function _fptGcStartPolling() {
-    _fptGcStopPolling();
-    _fptGcTimer = setInterval(() => {
+    let gate = _fptGcEl('fpt-gc-gate');
+    if (!gate) {
         const page = document.querySelector('.fp-tools-page-content[data-page="global_chat"]');
-        // Опрашиваем только пока вкладка реально открыта.
-        if (page && page.classList.contains('active')) _fptGcFetch(true);
-    }, FPT_GC_POLL_MS);
+        if (!page) return;
+        gate = document.createElement('div');
+        gate.id = 'fpt-gc-gate';
+        gate.className = 'fpt-gc-gate';
+        page.appendChild(gate);
+    }
+    gate.style.display = '';
+    gate.innerHTML =
+        '<div class="fpt-gc-gate-inner">' +
+            '<div class="fpt-gc-gate-title">Писать в общий чат можно только авторизованным пользователям</div>' +
+            '<div class="fpt-gc-gate-sub">Подтверди вход один раз через нашего Telegram-бота. Чтение чата доступно и без этого.</div>' +
+            '<button id="fpt-gc-gate-btn" class="btn">Войти в чат</button>' +
+            '<div id="fpt-gc-gate-status" class="fpt-gc-gate-status"></div>' +
+        '</div>';
+    const gbtn = _fptGcEl('fpt-gc-gate-btn');
+    if (gbtn) gbtn.addEventListener('click', _fptGcStartLink);
 }
 
-function _fptGcStopPolling() {
-    if (_fptGcTimer) { clearInterval(_fptGcTimer); _fptGcTimer = null; }
+function _fptGcHideGate() {
+    const gate = _fptGcEl('fpt-gc-gate');
+    if (gate) gate.style.display = 'none';
+    const composer = document.querySelector('.fp-tools-page-content[data-page="global_chat"] .fpt-gc-composer');
+    if (composer) composer.style.display = '';
 }
 
+function _fptGcGateStatus(t) {
+    const s = _fptGcEl('fpt-gc-gate-status');
+    if (s) s.textContent = t || '';
+}
+
+// Запрос кода у Worker → показ кнопки-диплинка → опрос подтверждения
+async function _fptGcStartLink() {
+    const gbtn = _fptGcEl('fpt-gc-gate-btn');
+    gbtn && (gbtn.disabled = true);
+    _fptGcGateStatus('Готовлю вход…');
+    try {
+        const { ok, data } = await _fptGcApi({ action: 'start' });
+        if (!ok || !data || !data.code) { _fptGcGateStatus('Не удалось начать. Попробуй ещё раз.'); gbtn && (gbtn.disabled = false); return; }
+        const code = data.code;
+        const deeplink = `https://t.me/${FPT_BOT_USERNAME}?start=fptchat_${code}`;
+
+        const gate = _fptGcEl('fpt-gc-gate');
+        if (gate) {
+            gate.querySelector('.fpt-gc-gate-inner').innerHTML =
+                '<div class="fpt-gc-gate-title">Подтверди вход в Telegram</div>' +
+                '<div class="fpt-gc-gate-sub">Нажми кнопку и откроется наш бот и автоматические верифицирует вас. Вы можете скопировать код ниже и написать в @FPToolsBot, если не можете открыть ссылку.</div>' +
+                `<a href="${deeplink}" target="_blank" class="btn" id="fpt-gc-open-bot">Открыть бота и подтвердить</a>` +
+                `<div class="fpt-gc-code">Если у вас нет Telegram на компьютере, введите код с телефона в бота @FPToolsBot: <b>${_fptGcEscape(code)}</b></div>` +
+                '<div id="fpt-gc-gate-status" class="fpt-gc-gate-status">Ожидаю подтверждения…</div>';
+        }
+        _fptGcPollLink(code);
+    } catch (e) {
+        _fptGcGateStatus('Сеть недоступна.');
+        gbtn && (gbtn.disabled = false);
+    }
+}
+
+function _fptGcStopLink() {
+    if (_fptGcLinkTimer) { clearInterval(_fptGcLinkTimer); _fptGcLinkTimer = null; }
+}
+
+function _fptGcPollLink(code) {
+    _fptGcStopLink();
+    let tries = 0;
+    _fptGcLinkTimer = setInterval(async () => {
+        tries++;
+        if (tries > 160) { _fptGcStopLink(); _fptGcGateStatus('Время вышло. Нажми «Войти в чат» заново.'); return; }
+        try {
+            const { data } = await _fptGcApi({ action: 'poll', code });
+            if (data && data.token) {
+                _fptGcStopLink();
+                _fptGcToken = data.token;
+                await chrome.storage.local.set({ fpToolsGCToken: data.token });
+                _fptGcHideGate();
+                _fptGcStatus('');
+                const input = _fptGcEl('fpt-gc-input');
+                if (input) input.focus();
+            }
+        } catch (e) { /* keep polling */ }
+    }, FPT_GC_LINK_POLL_MS);
+}
+
+// =============================================================================
+// Инициализация вкладки
+// =============================================================================
 async function initializeGlobalChat() {
-    // Подтянуть удалённый конфиг (из кэша, если свежий).
     await fptGcRefreshConfig(false);
     fptGcApplyVisibility();
 
     const feed = _fptGcEl('fpt-gc-feed');
     const composer = document.querySelector('.fp-tools-page-content[data-page="global_chat"] .fpt-gc-composer');
 
-    // Чат выключен удалённо - показываем заглушку вместо ленты/композера.
+    // Чат выключен удалённо.
     if (!_fptGcConfig.active) {
-        _fptGcStopPolling();
+        _fptGcStopFeed();
+        _fptGcStopLink();
         if (composer) composer.style.display = 'none';
-        _fptGcStatus('');
+        const gate = _fptGcEl('fpt-gc-gate'); if (gate) gate.style.display = 'none';
         if (feed) {
             feed.innerHTML =
-                '<div class="fpt-gc-disabled" style="display:flex; flex-direction:column; align-items:center; justify-content:center; '
-                + 'gap:12px; text-align:center; padding:40px 20px; color: var(--fpt-text-muted, #9aa0b5);">'
-                + '<span class="material-symbols-rounded" style="font-size:48px; color: var(--fpt-accent, #E9A8FF);">hourglass_top</span>'
-                + '<div style="font-size:14px; line-height:1.6; max-width:380px;">' + _fptGcEscape(_fptGcConfig.disabledMessage) + '</div>'
-                + '</div>';
+                '<div class="fpt-gc-disabled" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:40px 20px;color:var(--fpt-text-muted,#9aa0b5);">' +
+                '<span class="material-symbols-rounded" style="font-size:48px;color:var(--fpt-accent,#E9A8FF);">hourglass_top</span>' +
+                '<div style="font-size:14px;line-height:1.6;max-width:380px;">' + _fptGcEscape(_fptGcConfig.disabledMessage) + '</div>' +
+                '</div>';
         }
         return;
     }
 
-    // Чат включён - обычная работа.
-    if (composer) composer.style.display = '';
     _fptGcDetectSelf();
-    const input = _fptGcEl('fpt-gc-input');
-    const btn = _fptGcEl('fpt-gc-send');
 
+    // Восстанавливаем токен из хранилища.
+    if (!_fptGcToken) {
+        try {
+            const { fpToolsGCToken } = await chrome.storage.local.get('fpToolsGCToken');
+            if (fpToolsGCToken) _fptGcToken = fpToolsGCToken;
+        } catch (e) {}
+    }
+
+    // Однократная привязка обработчиков ввода.
     if (!_fptGcInited) {
         _fptGcInited = true;
+        const btn = _fptGcEl('fpt-gc-send');
+        const input = _fptGcEl('fpt-gc-input');
         if (btn) btn.addEventListener('click', _fptGcSend);
         if (input) {
             input.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); _fptGcSend(); }
             });
-            // авто-рост текстового поля
             input.addEventListener('input', () => {
                 input.style.height = 'auto';
                 input.style.height = Math.min(input.scrollHeight, 120) + 'px';
@@ -387,8 +392,15 @@ async function initializeGlobalChat() {
         }
     }
 
-    _fptGcFetch(false);
-    _fptGcStartPolling();
+    // Чтение ленты доступно всем; писать — только при наличии токена.
+    if (_fptGcToken) _fptGcHideGate(); else _fptGcShowGate();
+
+    _fptGcRenderedIds = new Set();
+    _fptGcLastTs = 0;
+    const feedEl = _fptGcEl('fpt-gc-feed');
+    if (feedEl) feedEl.innerHTML = '<div class="fpt-gc-loading">Загрузка сообщений…</div>';
+    _fptGcFetch();
+    _fptGcStartFeed();
 }
 
 if (typeof window !== 'undefined') {

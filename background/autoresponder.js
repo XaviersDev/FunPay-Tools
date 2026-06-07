@@ -1,15 +1,8 @@
-// FP Tools-style random per-cycle tag. Importing lazily-safe value here keeps this module
-// self-contained even if the engine module isn't loaded.
+
 function randomTag() {
     return Math.floor(Math.random() * 0xffffffff).toString(16).padStart(8, '0');
 }
 
-// 3.0 FIX (Cardinal parity): every message the bot sends in the background is prefixed with
-// an invisible marker character. When we later read the chat list, if the last message starts
-// with this marker we KNOW it was sent by us and must NOT react to it. Without this the
-// autoresponder could re-trigger on its own replies (the "spam 1000 times" symptom) whenever
-// the per-chat id bookkeeping had any race. Cardinal uses U+2061; we use the same so messages
-// stay invisible and consistent.
 const BOT_MARKER = '\u2061';
 const OLD_BOT_MARKER = '\u2064';
 function markOutgoing(text) {
@@ -23,9 +16,7 @@ function isBotMarked(text) {
     return typeof text === 'string' && (text.startsWith(BOT_MARKER) || text.startsWith(OLD_BOT_MARKER));
 }
 
-// 3.0: resilient fetch - retries transient failures (network blips, 429/5xx) with backoff.
-// This is a major source of "send worked on the 3rd-4th try": a single transient failure
-// used to drop the whole action. Now we retry before giving up.
+
 async function fetchWithRetry(url, options, { retries = 4, baseDelay = 800 } = {}) {
     let lastErr;
     for (let attempt = 0; attempt <= retries; attempt++) {
@@ -49,10 +40,7 @@ async function fetchWithRetry(url, options, { retries = 4, baseDelay = 800 } = {
 }
 
 const RX = {
-    // 3.0: now match BOTH Russian and English FunPay system messages. Previously only Russian
-    // was matched, so on English-language accounts every system message was misclassified as
-    // NON_SYSTEM and wrongly got a greeting/keyword reply - i.e. "ignore system messages" did
-    // nothing. Patterns mirror FP Tools's RegularExpressions.
+
     ORDER_PURCHASED:    /(оплатил заказ|has paid for order) #([A-Z0-9]{8})/i,
     ORDER_CONFIRMED:    /(подтвердил успешное выполнение заказа|has confirmed that order) #([A-Z0-9]{8})/i,
     NEW_FEEDBACK:       /(написал отзыв к заказу|has given feedback to the order) #([A-Z0-9]{8})/i,
@@ -229,9 +217,7 @@ async function sendReplyContent(chatId, content, auth, images, sendOrder) {
 }
 
 async function sendReviewReply(orderId, text, auth, rating) {
-    // Cardinal parity: pass the ACTUAL star rating (hardcoding 5 caused FunPay to reject
-    // replies to non-5-star reviews → "auto-reviews work через раз"), and append the bot
-    // marker so we never re-trigger on our own reply.
+
     const stars = (rating >= 1 && rating <= 5) ? rating : '';
     const markedText = text ? (text + BOT_MARKER) : text;
     const payload = new URLSearchParams({ orderId, text: markedText, rating: stars, authorId: auth.userId, csrf_token: auth.csrf_token });
@@ -581,12 +567,6 @@ async function notifyDearVendors(msg) {
 }
 
 const RUNNER_TAG_KEY = 'fpToolsAutoResponderTag';
-
-// 3.0 FIX (Cardinal __is_running parity): a hard reentrancy lock. The engine drives this from
-// THREE layers (active loop, heartbeat alarm, watchdog). Without a lock, if one cycle is still
-// sending replies (awaiting network + inter-message delays) when another layer fires, both read
-// the SAME chat before lastSeenMsgIds is written at the end of the cycle - and both send. That
-// is the root cause of "replied 1000000 times". The lock makes overlapping calls no-op instead.
 let __arCycleRunning = false;
 
 export async function runAutoResponderCycle() {
@@ -653,45 +633,23 @@ async function _runAutoResponderCycleInner() {
         const chats = await parseViaOffscreen(chatObj.data.html, 'parseChatList');
         const { fpToolsAutoReplies: fresh = {} } = await chrome.storage.local.get('fpToolsAutoReplies');
 
-        // Cardinal-style per-chat tracking: lastSeenMsgIds[chatId] = highest message id we've
-        // already handled for that chat. We only act when a chat's current last-message id is
-        // STRICTLY GREATER than what we've seen - this prevents re-greeting the same chat every
-        // 3s cycle (which also caused the "all chats get marked read" symptom, because each
-        // bogus reply marked a chat read).
         const lastSeen = fresh.lastSeenMsgIds || {};
-
-        // FIRST-RUN SEEDING: if we've never tracked anything yet, just record current state and
-        // DO NOT act. Otherwise enabling the autoresponder would instantly greet/reply to every
-        // existing unread chat at once (mass spam + mass read). Cardinal does the same on its
-        // first request.
         const isFirstRun = !fresh.autoResponderSeeded;
 
         const updates = {}; // chatId -> newest msgId to persist
-        const textUpdates = {}; // chatId -> last handled message text (Cardinal text guard)
+        const textUpdates = {}; // chatId -> last handled message text 
 
         for (const chat of chats) {
             const nodeMsg = chat.nodeMsg;            // last message id in the chat
             const userMsg = chat.userMsg;            // last id the account has read
             const prevSeen = lastSeen[chat.chatId] || 0;
 
-            // Determine if this chat has a genuinely new inbound message.
-            // Cardinal parity: a message is "new" purely when its node_msg_id is higher than
-            // what we last handled (runner_last_messages: `if node_msg_id <= prev: continue`).
-            // We deliberately do NOT gate on user_msg here: if the seller happened to open/read
-            // the chat before the cycle ran, FunPay bumps user_msg and the old `nodeMsg>userMsg`
-            // check would suppress the reply - that was the real "autoreply works через раз".
-            // Replying to our own message is prevented by the bot-marker (lastByBot) below, not
-            // by user_msg.
             let hasNew;
             if (nodeMsg != null) {
                 hasNew = nodeMsg > prevSeen;
             } else {
                 hasNew = chat.isUnread && !( (fresh.processedMessageIds || []).includes(chat.msgId) );
             }
-
-            // 3.0 FIX (Cardinal parity): if the chat's LAST message was sent by us (carries the
-            // bot marker), never react - just advance the marker. This is the primary defence
-            // against the autoresponder replying to its own messages / spamming a chat.
             if (chat.lastByBot) {
                 if (nodeMsg != null) updates[chat.chatId] = Math.max(prevSeen, nodeMsg);
                 continue;
@@ -702,14 +660,7 @@ async function _runAutoResponderCycleInner() {
             // Always advance our per-chat marker so we never re-handle this id, even on first run.
             if (nodeMsg != null) updates[chat.chatId] = Math.max(prevSeen, nodeMsg);
 
-            if (isFirstRun) continue; // seed only, do not act on pre-existing messages
-
-            // Cardinal parity (runner_last_messages text guard): defence-in-depth for keyword
-            // replies, which - unlike orders/reviews - have no orderId to dedup on. If the chat's
-            // last message text is IDENTICAL to the last text we already handled for this chat, we
-            // skip. This catches the edge case where the id check or bot-marker fails (e.g. FunPay
-            // strips the marker from the chat-list preview) and would otherwise let a keyword fire
-            // twice on the same message.
+            if (isFirstRun) continue; 
             const lastText = (fresh.lastHandledText || {})[chat.chatId];
             const isSameText = lastText != null && lastText === chat.messageText;
 
@@ -754,7 +705,6 @@ async function _runAutoResponderCycleInner() {
                 }
                 s.lastSeenMsgIds = m;
 
-                // text guard store (Cardinal runner_last_messages parity)
                 const t = s.lastHandledText || {};
                 for (const [cid, txt] of Object.entries(textUpdates)) t[cid] = txt;
                 const tkeys = Object.keys(t);

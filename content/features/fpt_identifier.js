@@ -1,7 +1,4 @@
-// content/features/fpt_identifier.js - FunPay Tools 3.0
-// FIXED: Now works on /users/, /orders/, /chat/ and chat list pages.
-//        Previously silently exited on /users/ (not in path allowlist).
-//        Fixed selector for textarea and chat container across all page types.
+
 
 function initializeFPTIdentifier() {
     'use strict';

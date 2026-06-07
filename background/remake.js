@@ -1,4 +1,4 @@
-// background/remake.js - FunPay Tools 3.0
+// background/remake.js - FunPay Tools 2.8
 // FIXED: auto_delivery no longer placed into "message after payment".
 //        FP Tools `answer` → order_msg, `secrets` stays as auto-delivery goods.
 

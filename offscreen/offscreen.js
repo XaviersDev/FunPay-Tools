@@ -1,8 +1,5 @@
 // offscreen/offscreen.js
 
-// 3.0: Offscreen keepalive driver. The offscreen document is NOT killed on the 30s idle
-// timer the way the service worker is, so a periodic message FROM here keeps the worker
-// awake. This is one of several redundancy layers for background reliability.
 (function startOffscreenKeepalive() {
     const PING_MS = 20000; // < 30s worker idle timeout
     setInterval(() => {
@@ -13,12 +10,6 @@
     }, PING_MS);
 })();
 
-// 3.0 FIX: при чтении описания со страницы лот превращается в HTML, где визуальные
-// переносы строк закодированы И как <br>, И как реальные \n в исходнике + отступы.
-// Из-за этого после замены <br>→\n появлялись лишние ПУСТЫЕ строки. Эта функция
-// извлекает чистый текст: <br> и блочные теги дают ровно один \n, а исходные
-// переносы/отступы между тегами не считаются за переносы. Затем схлопываем подряд
-// идущие пустые строки и убираем хвостовые пробелы - как в оригинальном описании.
 function fptCleanDescriptionHtml(rawHtml) {
     if (!rawHtml) return '';
     let html = String(rawHtml);
@@ -183,10 +174,7 @@ function parseLotEditPage(html) {
 }
 
 // =====================================================================================
-// 3.0 SERVER-SIDE LOT CLONING
-// -------------------------------------------------------------------------------------
-// Эти две функции реализуют ПОЛНОЦЕННОЕ серверное копирование чужого лота, по той же
-// схеме, что и официальный плагин AutoCopy + методы Cardinal get_lot_fields / save_lot:
+// SERVER-SIDE LOT CLONING
 //   1) parsePublicLotForClone  - читает ПУБЛИЧНУЮ страницу чужого лота (lots/offer?id=)
 //      и достаёт всё, что видно: название, описание, сообщение покупателю, видимые
 //      параметры категории (param-item), кол-во, цену и ID подкатегории (node).
@@ -218,7 +206,6 @@ function parsePublicLotForClone(html) {
     try {
         const doc = new DOMParser().parseFromString(html, 'text/html');
 
-        // Проверка "лот не найден" - как в Cardinal.get_lot_page.
         const pageHeader = doc.querySelector('h1.page-header');
         if (pageHeader && /Предложение не найдено|Пропозицію не знайдено|Offer not found/i.test(pageHeader.textContent)) {
             return { notFound: true };
@@ -230,8 +217,6 @@ function parsePublicLotForClone(html) {
         const attributePairs = []; // {label, value} - для показа пользователю
         let images = [];
 
-        // 1) ID подкатегории (node) - ТОЧНО как в Cardinal: a.js-back-link href .../<node>/...
-        //    Cardinal: int(parser.find("a", class_="js-back-link")['href'].split("/")[-2])
         let nodeId = null;
         let isChips = false;
         let categoryName = '';
@@ -251,7 +236,6 @@ function parsePublicLotForClone(html) {
             if (m) { nodeId = m[2]; isChips = m[1] === 'chips'; categoryName = categoryName || alt.textContent.trim(); }
         }
 
-        // 2) Параметры лота - как в Cardinal.get_lot_page (div.param-item > h5/div).
         const SUMMARY_H = ['краткое описание', 'короткий опис', 'short description'];
         const DESC_H = ['подробное описание', 'докладний опис', 'detailed description'];
         const IMG_H = ['картинки', 'зображення', 'images'];
@@ -906,6 +890,126 @@ function parseOrdersPage(html) {
     return [...ids];
 }
 
+// Detailed parse of the sales/orders list (used by Telegram notifications + /orders).
+function parseOrdersDetailed(html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const orders = [];
+    doc.querySelectorAll('a.tc-item[href*="/orders/"]').forEach(row => {
+        const href = row.getAttribute('href') || '';
+        const m = href.match(/\/orders\/([A-Z0-9]{8})/);
+        const id = m ? m[1] : '';
+        if (!id) return;
+        const title = (row.querySelector('.tc-desc-text') || row.querySelector('.order-desc') || {}).textContent || '';
+        const buyer = (row.querySelector('.media-user-name') || row.querySelector('.tc-user') || {}).textContent || '';
+        const price = (row.querySelector('.tc-price') || {}).textContent || '';
+        const status = (row.querySelector('.tc-status') || {}).textContent || '';
+        orders.push({
+            id,
+            link: href.startsWith('http') ? href : ('https://funpay.com' + href),
+            title: (title || '').replace(/\s+/g, ' ').trim(),
+            buyer: (buyer || '').replace(/\s+/g, ' ').trim(),
+            price: (price || '').replace(/\s+/g, ' ').trim(),
+            status: (status || '').replace(/\s+/g, ' ').trim()
+        });
+    });
+    return orders;
+}
+
+// Parse basic profile info (username + balance) from the FunPay homepage HTML.
+// Извлекает userId и csrf-token из data-app-data главной страницы.
+// Используется фоном (autobump), когда нет открытой вкладки FunPay.
+function parseAuthData(html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const raw = doc.querySelector('body')?.getAttribute('data-app-data');
+    const out = { userId: null, csrfToken: null, username: '' };
+    if (raw) {
+        try {
+            const d = JSON.parse(raw.replace(/&quot;/g, '"'));
+            const u = Array.isArray(d) ? d[0] : d;
+            out.userId = u.userId || u.id || null;
+            out.csrfToken = u['csrf-token'] || null;
+            out.username = u.userName || '';
+        } catch (_) {}
+    }
+    return out;
+}
+
+function parseProfileInfo(html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    let username = '';
+    const userLink = doc.querySelector('.user-link-name, .menu-item-night + * .user-link-name');
+    if (userLink) username = userLink.textContent.trim();
+    if (!username) {
+        const appData = doc.querySelector('body')?.getAttribute('data-app-data');
+        if (appData) {
+            try {
+                const d = JSON.parse(appData.replace(/&quot;/g, '"'));
+                const u = Array.isArray(d) ? d[0] : d;
+                username = u.userName || '';
+            } catch (_) {}
+        }
+    }
+    let balance = '';
+    const balEl = doc.querySelector('.badge-balance, .menu-item-balance, .user-link-balance');
+    if (balEl) balance = balEl.textContent.replace(/\s+/g, ' ').trim();
+    return { username, balance };
+}
+
+// Снимок аккаунта для вкладки мультиаккаунтов: имя, аватар, баланс, непрочитанные.
+function parseAccountSnapshot(html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const out = { username: '', avatar: '', balance: '', unread: 0, loggedIn: false };
+
+    // имя + userId из app-data
+    let userId = null;
+    const appDataRaw = doc.querySelector('body')?.getAttribute('data-app-data');
+    if (appDataRaw) {
+        try {
+            const d = JSON.parse(appDataRaw.replace(/&quot;/g, '"'));
+            const u = Array.isArray(d) ? d[0] : d;
+            out.username = u.userName || '';
+            userId = u.userId || u.id || null;
+        } catch (_) {}
+    }
+    const nameEl = doc.querySelector('.user-link-name');
+    if (!out.username && nameEl) out.username = nameEl.textContent.trim();
+    out.loggedIn = !!out.username;
+
+    // аватар: .user-link-photo background-image или img
+    const photo = doc.querySelector('.user-link-photo, .avatar-photo');
+    if (photo) {
+        const style = photo.getAttribute('style') || '';
+        const m = style.match(/url\(([^)]+)\)/);
+        if (m) out.avatar = m[1].replace(/['"]/g, '');
+        if (!out.avatar) {
+            const img = photo.querySelector('img');
+            if (img) out.avatar = img.getAttribute('src') || '';
+        }
+    }
+
+    // баланс
+    const balEl = doc.querySelector('.badge-balance, .menu-item-balance, .user-link-balance');
+    if (balEl) out.balance = balEl.textContent.replace(/\s+/g, ' ').trim();
+
+    // непрочитанные сообщения: бейдж на иконке чата
+    const unreadEl = doc.querySelector('.menu-icon-chat .badge, .badge-chat, .menu-item-chat .badge, .chat-counter');
+    if (unreadEl) {
+        const n = parseInt((unreadEl.textContent || '').replace(/\D/g, ''), 10);
+        if (!isNaN(n)) out.unread = n;
+    }
+    // запасной источник: app-data.userBadges / counters
+    if (!out.unread && appDataRaw) {
+        try {
+            const d = JSON.parse(appDataRaw.replace(/&quot;/g, '"'));
+            const u = Array.isArray(d) ? d[0] : d;
+            const c = (u.counters && (u.counters.chat || u.counters.messages)) || (u.badges && u.badges.chat);
+            if (c) { const n = parseInt(c, 10); if (!isNaN(n)) out.unread = n; }
+        } catch (_) {}
+    }
+
+    return out;
+}
+
 
 function parseTicketDetails(html) {
     const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -995,6 +1099,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             break;
         case 'parseOrdersPage':
             sendResponse(parseOrdersPage(message.html));
+            break;
+        case 'parseOrdersDetailed':
+            sendResponse(parseOrdersDetailed(message.html));
+            break;
+        case 'parseProfileInfo':
+            sendResponse(parseProfileInfo(message.html));
+            break;
+        case 'parseAuthData':
+            sendResponse(parseAuthData(message.html));
+            break;
+        case 'parseAccountSnapshot':
+            sendResponse(parseAccountSnapshot(message.html));
             break;
         case 'parseTicketDetails':
             sendResponse(parseTicketDetails(message.html));

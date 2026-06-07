@@ -486,8 +486,24 @@ function fptResolveBg() {
 
 // Главная функция: парсит палитру и возвращает набор производных цветов.
 function fptComputePalette() {
-    const bg = fptResolveBg();
+    let bg = fptResolveBg();
     const textRaw = fptParseRGB(getComputedStyle(document.body).color) || [224, 224, 224, 1];
+
+    // Если наша кастомная тема ВЫКЛЮЧЕНА, базовая страница FunPay — светлая по
+    // умолчанию (тёмной её делает только сам сайт в редких темах). Чтобы случайный
+    // тёмный фон какого-то контейнера (или нашего же окна) не «переключал» палитру
+    // в тёмную при перемещении меню, при выключенной теме фон считаем светлым,
+    // если он подозрительно тёмный.
+    try {
+        if (document.documentElement.classList.contains('fpt-custom-theme-off')) {
+            // Если фон вышел тёмным, но текст страницы тёмный — это противоречие
+            // (на тёмном фоне текст светлый). Значит фон считан ошибочно с тёмного
+            // оверлея/нашего окна → принудительно светлая база.
+            const txtDark = textRaw && fptLuma(textRaw) < 0.5;
+            if (fptLuma(bg) < 0.5 && txtDark) bg = [255, 255, 255, 1];
+        }
+    } catch (_) {}
+
     const dark = fptLuma(bg) < 0.5; // тёмная тема?
 
     // поверхности: чуть светлее (на тёмной) или чуть темнее (на светлой) основного фона
@@ -559,3 +575,11 @@ function fptInitThemeEngine() {
 // запуск как можно раньше
 if (document.body) fptInitThemeEngine();
 else document.addEventListener('DOMContentLoaded', fptInitThemeEngine, { once: true });
+
+// Если вкладку открыли в фоне, computed-стили могли посчитаться до отрисовки —
+// палитра выходила «чёрной». Переприменяем при возврате на вкладку и фокусе.
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) { try { fptApplyThemeVars(); } catch (_) {} }
+});
+window.addEventListener('focus', () => { try { fptApplyThemeVars(); } catch (_) {} });
+window.addEventListener('pageshow', () => { try { fptApplyThemeVars(); } catch (_) {} });

@@ -85,6 +85,8 @@ function createMainPopup() {
                     <li data-page="general" class="active"><a><span class="nav-icon material-symbols-rounded">settings</span><span>Общие</span></a></li>
                     <li data-page="accounts"><a><span class="nav-icon material-symbols-rounded">group</span><span>Аккаунты</span></a></li>
                     <li data-page="needs"><a><span class="nav-icon material-symbols-rounded">tune</span><span>Что тебе нужно</span></a></li>
+                    <li data-page="slash_commands"><a><span class="nav-icon material-symbols-rounded">terminal</span><span>Слэш-команды</span></a></li>
+                    <li data-page="telegram"><a><span class="nav-icon material-symbols-rounded">send</span><span>Telegram</span></a></li>
                     <li class="fp-nav-divider">Эксклюзив</li>
                     <li data-page="epic_nicks"><a><span class="nav-icon material-symbols-rounded">diamond</span><span>Это увидят все</span></a></li>
                     <li class="fp-nav-divider">Интерфейс</li>
@@ -136,6 +138,42 @@ function createMainPopup() {
                         <label class="fp-tools-radio-option"><input type="radio" name="notificationSound" value="iphone"><span>iPhone</span></label>
                         <label class="fp-tools-radio-option"><input type="radio" name="notificationSound" value="discord"><span>Discord</span></label>
                         <label class="fp-tools-radio-option"><input type="radio" name="notificationSound" value="whatsapp"><span>WhatsApp</span></label>
+                        <label class="fp-tools-radio-option"><input type="radio" name="notificationSound" value="custom"><span>Своя мелодия</span></label>
+                    </div>
+
+                    <!-- Загрузка своей мелодии + обрезка до 5 секунд -->
+                    <div id="fptCustomSoundBlock" style="margin-top:12px;background:#0e0f16;border:1px solid #1e2030;border-radius:10px;padding:14px;display:none;">
+                        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                            <button id="fptCustomSoundUploadBtn" class="btn btn-default" style="padding:6px 12px;font-size:13px;">
+                                <span class="material-symbols-rounded" style="font-size:16px;vertical-align:-3px;margin-right:5px;">upload_file</span>Выбрать аудио
+                            </button>
+                            <input type="file" id="fptCustomSoundInput" accept="audio/*" style="display:none;">
+                            <span id="fptCustomSoundFileName" style="font-size:12px;color:#9099b8;">Файл не выбран</span>
+                        </div>
+                        <p class="template-info" style="margin-top:10px;">Можно выбрать любые <span class="fpt-sec-spin"><input type="text" id="fptClipSeconds" value="5" inputmode="numeric" maxlength="1"><span class="fpt-sec-spin-btns"><button type="button" id="fptClipSecUp" tabindex="-1">▲</button><button type="button" id="fptClipSecDown" tabindex="-1">▼</button></span></span> сек. из вашего трека: перетащите выделение по дорожке, прослушайте и сохраните. Уведомление будет проигрывать именно этот отрезок.</p>
+
+                        <div id="fptCustomSoundEditor" style="display:none;margin-top:8px;">
+                            <div id="fptWaveWrap" style="position:relative;height:64px;background:#070810;border:1px solid #22253a;border-radius:8px;overflow:hidden;user-select:none;cursor:pointer;">
+                                <canvas id="fptWaveCanvas" style="position:absolute;inset:0;width:100%;height:100%;"></canvas>
+                                <div id="fptWaveSel" style="position:absolute;top:0;bottom:0;background:rgba(192,38,211,0.22);border-left:2px solid #C026D3;border-right:2px solid #C026D3;box-sizing:border-box;"></div>
+                                <div id="fptWavePlayhead" style="position:absolute;top:0;bottom:0;width:2px;background:#ffd24a;display:none;"></div>
+                                <div id="fptWaveSelHandleL" style="position:absolute;top:0;bottom:0;width:8px;margin-left:-4px;cursor:ew-resize;"></div>
+                                <div id="fptWaveSelHandleR" style="position:absolute;top:0;bottom:0;width:8px;margin-left:-4px;cursor:ew-resize;"></div>
+                            </div>
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;gap:10px;flex-wrap:wrap;">
+                                <span id="fptCustomSoundRange" style="font-size:11px;color:#5a5f7a;">0:00 – 0:05</span>
+                                <div style="display:flex;gap:8px;align-items:center;">
+                                    <button id="fptCustomSoundPreviewBtn" class="fpt-icon-play-btn" title="Прослушать отрезок">
+                                        <span class="material-symbols-rounded">play_arrow</span>
+                                    </button>
+                                    <button id="fptCustomSoundSaveBtn" class="btn" style="padding:5px 14px;font-size:12px;">Сохранить мелодию</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="fptCustomSoundSaved" style="display:none;margin-top:10px;font-size:12px;color:#4caf82;">
+                            <span class="material-symbols-rounded" style="font-size:15px;vertical-align:-3px;">check_circle</span>
+                            Сохранена своя мелодия (<span id="fptCustomSoundSavedLen">5.0</span> сек).
+                        </div>
                     </div>
                     <div class="template-container" style="margin-top:14px;">
                         <div class="range-label" style="display:flex;align-items:center;justify-content:space-between;">
@@ -144,7 +182,7 @@ function createMainPopup() {
                         </div>
                         <div style="display:flex;align-items:center;gap:10px;margin-top:6px;">
                             <input type="range" id="notificationVolume" min="0" max="100" step="1" value="100" style="flex:1;">
-                            <button id="previewNotificationBtn" class="btn btn-default" title="Прослушать"><span class="material-symbols-rounded">play_arrow</span></button>
+                            <button id="previewNotificationBtn" class="fpt-icon-play-btn" title="Прослушать"><span class="material-symbols-rounded">play_arrow</span></button>
                         </div>
                     </div>
 
@@ -225,7 +263,12 @@ function createMainPopup() {
                         <span>Нажмите «+ Добавить текущий аккаунт» для каждого профиля. Переключение происходит мгновенно без ввода паролей.</span>
                     </div>
                     <button id="addCurrentAccountBtn" class="btn">+ Добавить текущий аккаунт</button>
-                    <h4 style="margin-top: 30px;">Сохраненные аккаунты:</h4>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:22px;margin-bottom:10px;">
+                        <h4 style="margin:0;">Сохраненные аккаунты:</h4>
+                        <button id="fptRefreshAccountsBtn" class="btn btn-default" style="padding:4px 10px;font-size:12px;" title="Обновить баланс, аватары и непрочитанные">
+                            <span class="material-symbols-rounded" style="font-size:15px;vertical-align:-3px;">refresh</span> Обновить
+                        </button>
+                    </div>
                     <div id="fpToolsAccountsList"></div>
                 </div>
                 <div class="fp-tools-page-content" data-page="needs">
@@ -252,6 +295,98 @@ function createMainPopup() {
                         </div>
                     </div>
                 </div>
+
+                <!-- НАЧАЛО ВКЛАДКИ "СЛЭШ-КОМАНДЫ" -->
+                <div class="fp-tools-page-content" data-page="slash_commands">
+                    <h3>Слэш-команды</h3>
+                    <p class="template-info">Свои быстрые ответы для поля чата. Вы задаёте команду (например <code>/привет</code>) и её ответ (например «Привет, я тут. Какие вопросы?»). В чате начинаете печатать команду — <code>/при</code> — появляется подсказка; нажимаете Tab или Enter, и команда сразу превращается в полный текст ответа. Удобно для приветствий, реквизитов, частых фраз.</p>
+
+                    <div class="checkbox-label-inline">
+                        <input type="checkbox" id="fptSlashEnabled" checked>
+                        <label for="fptSlashEnabled" style="margin-bottom:0;"><span><b>Включить слэш-команды</b></span></label>
+                    </div>
+
+                    <div id="fptSlashConfig">
+                        <div class="checkbox-label-inline" style="margin-top:8px;">
+                            <input type="checkbox" id="fptSlashAutocomplete" checked>
+                            <label for="fptSlashAutocomplete" style="margin-bottom:0;"><span>Показывать выпадающую подсказку при вводе</span></label>
+                        </div>
+
+                        <label style="display:block;margin-top:14px;margin-bottom:6px;font-size:13px;">Чем разворачивать команду:</label>
+                        <div class="fp-tools-radio-group" id="fptSlashKeyGroup">
+                            <label class="fp-tools-radio-option"><input type="radio" name="fptSlashKey" value="both" checked><span>Tab или Enter</span></label>
+                            <label class="fp-tools-radio-option"><input type="radio" name="fptSlashKey" value="tab"><span>Только Tab</span></label>
+                            <label class="fp-tools-radio-option"><input type="radio" name="fptSlashKey" value="enter"><span>Только Enter</span></label>
+                        </div>
+
+                        <div class="support-promo" style="background:rgba(192,38,211,0.07);border-color:rgba(192,38,211,0.2);margin:16px 0;">
+                            <span class="material-symbols-rounded" style="font-size:16px;color:#f4c84a;vertical-align:-3px;">lightbulb</span>
+                            <span>Переменные в ответе: <code>{buyername}</code> - имя собеседника, <code>{date}</code>, <code>{time}</code>.</span>
+                        </div>
+
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                            <h4 style="margin:0;">Мои команды</h4>
+                            <button id="fptSlashAddBtn" class="btn btn-default" style="padding:5px 12px;font-size:13px;">+ Добавить команду</button>
+                        </div>
+                        <div id="fptSlashList"></div>
+                    </div>
+                </div>
+                <!-- КОНЕЦ ВКЛАДКИ "СЛЭШ-КОМАНДЫ" -->
+
+                <!-- НАЧАЛО ВКЛАДКИ "TELEGRAM" -->
+                <div class="fp-tools-page-content" data-page="telegram">
+                    <h3>Управление через Telegram</h3>
+                    <p class="template-info">Управляйте FP Tools и получайте уведомления (новые заказы и сообщения) прямо в Telegram-боте. Создайте бота, вставьте токен — и всё работает.</p>
+
+                    <div class="support-promo" style="background:rgba(192,38,211,0.08);border-color:rgba(192,38,211,0.25);margin-bottom:16px;">
+                        <span class="nav-icon material-symbols-rounded" style="color:#C026D3;">info</span>
+                        <span>Как настроить: 1) создайте бота через <b>@BotFather</b> и скопируйте токен; 2) <b>напишите своему боту любое сообщение</b> в Telegram; 3) вставьте токен ниже и нажмите «Подключить».</span>
+                    </div>
+
+                    <div class="checkbox-label-inline">
+                        <input type="checkbox" id="fptTgEnabled">
+                        <label for="fptTgEnabled" style="margin-bottom:0;"><span><b>Включить интеграцию с Telegram</b></span></label>
+                    </div>
+
+                    <div id="fptTgConfig" style="margin-top:10px;">
+                        <label for="fptTgToken" style="margin-top:6px;">Токен бота:</label>
+                        <input type="text" id="fptTgToken" class="template-input" placeholder="123456789:AAExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false">
+                        <div style="display:flex;gap:8px;margin-top:8px;">
+                            <button id="fptTgConnectBtn" class="btn" style="flex:1;">Подключить</button>
+                            <button id="fptTgTestBtn" class="btn btn-default" style="flex:1;">Тест уведомления</button>
+                        </div>
+                        <div id="fptTgStatus" style="font-size:12px;margin-top:8px;color:#9099b8;"></div>
+
+                        <label for="fptTgChatId" style="margin-top:14px;">Chat ID (определяется автоматически):</label>
+                        <input type="text" id="fptTgChatId" class="template-input" placeholder="Будет заполнено после «Подключить»" autocomplete="off" spellcheck="false">
+
+                        <h4 style="margin-top:22px;">Уведомления</h4>
+                        <div class="checkbox-label-inline">
+                            <input type="checkbox" id="fptTgNotifyOrders" checked>
+                            <label for="fptTgNotifyOrders" style="margin-bottom:0;"><span>Новые заказы</span></label>
+                        </div>
+                        <div class="checkbox-label-inline">
+                            <input type="checkbox" id="fptTgNotifyMessages" checked>
+                            <label for="fptTgNotifyMessages" style="margin-bottom:0;"><span>Новые сообщения в чатах</span></label>
+                        </div>
+
+                        <h4 style="margin-top:22px;">Управление из бота</h4>
+                        <div class="checkbox-label-inline">
+                            <input type="checkbox" id="fptTgAllowControl" checked>
+                            <label for="fptTgAllowControl" style="margin-bottom:0;"><span>Разрешить команды управления из бота</span></label>
+                        </div>
+
+                        <p class="template-info" style="margin-top:12px;margin-bottom:8px;">Команды бота (принимаются только из вашего чата):</p>
+                        <ul class="fpt-tg-cmd-list">
+                            <li><code>/status</code><span>баланс и статус</span></li>
+                            <li><code>/chats</code><span>непрочитанные чаты</span></li>
+                            <li><code>/sales</code><span>статистика продаж</span></li>
+                            <li><code>/online</code><span>поддержать онлайн</span></li>
+                            <li><code>/help</code><span>список команд</span></li>
+                        </ul>
+                    </div>
+                </div>
+                <!-- КОНЕЦ ВКЛАДКИ "TELEGRAM" -->
                 <div class="fp-tools-page-content" data-page="templates">
                     <h3>Настройки шаблонов</h3>
                     <div class="checkbox-label-inline"><input type="checkbox" id="templatesEnabled" checked><label for="templatesEnabled" style="margin-bottom:0;"><span><b>Включить шаблоны</b></span></label></div>
@@ -575,7 +710,7 @@ function createMainPopup() {
                     <div class="setting-group"><h4 style="margin-top: 0;">Главная страница</h4><div class="checkbox-label-inline"><input type="checkbox" id="enableRedesignedHomepage"><label for="enableRedesignedHomepage" style="margin-bottom:0;"><span>Включить улучшенную</span></label></div><small style="font-size: 12px; opacity: 0.7; display: block; margin-top: -10px;">Заменяет главную страницу на более современный вид с поиском. Требуется перезагрузка.</small></div>
                     <div class="setting-group"><h4 style="margin-top: 0;">Расположение</h4><div class="template-container"><div class="range-label"><label for="headerPositionSelect">Верхняя панель:</label></div><select id="headerPositionSelect"><option value="top">Вверх (по умолчанию)</option><option value="bottom">Вниз</option></select></div></div>
                     <div class="setting-group"><h4 style="margin-top: 0;">Прозрачное меню FunPay Tools</h4><div class="checkbox-label-inline"><input type="checkbox" id="fptMenuTransparentEnabled"><label for="fptMenuTransparentEnabled" style="margin-bottom:0;"><span>Сделать меню прозрачным</span></label></div><small style="font-size:12px;opacity:0.7;display:block;margin-top:-10px;margin-bottom:8px;">Делает окно FunPay Tools прозрачным со стеклянным размытием.</small><div id="fptMenuTransparentControls" style="display:none;"><div class="template-container color-input-grid"><div><label for="fptMenuTintColor">Цвет фона:</label><input type="color" id="fptMenuTintColor" class="theme-color-input"></div></div></div></div>
-                    <div class="setting-group"><h4 style="margin-top: 0;">Контур тексту</h4><div class="checkbox-label-inline"><input type="checkbox" id="fptTextOutlineEnabled"><label for="fptTextOutlineEnabled" style="margin-bottom:0;"><span>Включить контур буквам</span></label></div><small style="font-size:12px;opacity:0.7;display:block;margin-top:-10px;margin-bottom:8px;">Обводит все буквы в меню контуром для возможного повышения читаемости.</small><div id="fptTextOutlineControls" style="display:none;"><div class="template-container color-input-grid"><div><label for="fptTextOutlineColor">Цвет контура:</label><input type="color" id="fptTextOutlineColor" class="theme-color-input"></div></div><div class="template-container"><div class="range-label"><label for="fptTextOutlineWidth">Толщина:</label><span id="fptTextOutlineWidthValue">1px</span></div><input type="range" id="fptTextOutlineWidth" min="0" max="5" step="0.5"></div></div></div>
+                    <div class="setting-group" id="fptTextOutlineGroup"><h4 style="margin-top: 0;">Контур тексту</h4><div class="checkbox-label-inline"><input type="checkbox" id="fptTextOutlineEnabled"><label for="fptTextOutlineEnabled" style="margin-bottom:0;"><span>Включить контур буквам</span></label></div><small style="font-size:12px;opacity:0.7;display:block;margin-top:-10px;margin-bottom:8px;">Обводит все буквы в меню контуром для возможного повышения читаемости.</small><div id="fptTextOutlineControls" style="display:none;"><div class="template-container color-input-grid"><div><label for="fptTextOutlineColor">Цвет контура:</label><input type="color" id="fptTextOutlineColor" class="theme-color-input"></div></div><div class="template-container"><div class="range-label"><label for="fptTextOutlineWidth">Толщина:</label><span id="fptTextOutlineWidthValue">1px</span></div><input type="range" id="fptTextOutlineWidth" min="0" max="5" step="0.5"></div></div></div>
                     <div class="theme-actions-grid"><button id="enableMagicStickBtn" class="btn" style="grid-column: 1 / -1;"><span class="material-icons">auto_fix_normal</span><span>Включить режим редактора</span></button><button id="generatePaletteBtn" class="btn btn-default" style="display: flex; align-items: center; justify-content: center; gap: 8px;"><span class="material-icons" style="font-size: 18px;">auto_fix_high</span>цвета фона</button><button id="randomizeThemeBtn" class="btn btn-default" style="display: flex; align-items: center; justify-content: center; gap: 8px;"><span class="material-icons" style="font-size: 18px;">casino</span>рандом</button><button id="shareThemeBtn" class="btn btn-default" style="display: flex; align-items: center; justify-content: center; gap: 8px;"><span class="material-icons" style="font-size: 18px;">share</span>Поделиться темой</button><button id="exportThemeBtn" class="btn btn-default" title="Сохранить текущие настройки темы в файл (.fptheme)">Экспорт</button><button id="importThemeBtn" class="btn btn-default" title="Загрузить настройки темы из файла (.fptheme)">Импорт</button><input type="file" id="importThemeInput" accept=".fptheme" style="display: none;"><button id="resetThemeBtn" class="btn btn-default">СБРОСИТЬ ТЕМУ</button></div>
                 </div>
                 <div class="fp-tools-page-content" data-page="autobump">
@@ -603,17 +738,17 @@ function createMainPopup() {
                 </div>
                 <div class="fp-tools-page-content" data-page="global_chat">
                     <h3>Общий чат</h3>
-                    <p class="template-info">Отдельный чат для пользователей FP Tools.</p>
+                    <p class="template-info">Чат для пользователей расширения</p>
                     
                     <!-- ЗАМЕТКА С ПРАВИЛАМИ И ПРЕДУПРЕЖДЕНИЕМ -->
                     <div class="fpt-gc-disclaimer" style="flex-direction: column; gap: 10px;">
                         <div style="display:flex; align-items:flex-start; gap: 6px;">
                             <span class="material-symbols-rounded" style="color:#e05252;">shield</span>
-                            <span>Чат модерируется модераторами самого <b>FunPay</b>. Мы (FP Tools) <b>не модерируем</b> этот чат. Соблюдайте <a href="https://funpay.com/trade/info" target="_blank" style="color:#E9A8FF;">официальные правила</a>.</span>
+                            <span>Это чат сообщества FP Tools. Будьте вежливы и уважайте других участников. За нарушения - блокировка в чате.</span>
                         </div>
                         <div style="background: rgba(0,0,0,0.2); border: 1px dashed rgba(224, 82, 82, 0.4); border-radius: 6px; padding: 10px; font-size: 11px;">
                             <b style="color: #ff6b6b; display: block; margin-bottom: 4px;">ЗАПРЕЩЕНО:</b>
-                            Сообщения о продаже/скупке, реклама, спам, оскорбления, политика, обмен любыми контактами (Telegram/VK/DS и др.), ссылки на лоты. За нарушение - блокировка аккаунта FunPay.
+                            Спам и флуд, реклама, оскорбления, разжигание, обман. Соблюдайте порядок - чат для общения по FP Tools.
                         </div>
                     </div>
 
@@ -621,7 +756,7 @@ function createMainPopup() {
                         <div class="fpt-gc-loading">Загрузка сообщений…</div>
                     </div>
                     <div class="fpt-gc-composer">
-                        <textarea id="fpt-gc-input" rows="1" placeholder="Сообщение…" maxlength="2000"></textarea>
+                        <textarea id="fpt-gc-input" rows="1" placeholder="Сообщение…" maxlength="300"></textarea>
                         <button id="fpt-gc-send" type="button" class="fpt-gc-send-btn" title="Отправить"><span class="material-symbols-rounded">send</span></button>
                     </div>
                     <div id="fpt-gc-status" class="fpt-gc-status"></div>
@@ -1117,6 +1252,8 @@ function setupPopupNavigation() {
             if (pageId === 'lot_io') { if (typeof initializeLotIO === 'function') initializeLotIO(); }
             if (pageId === 'auto_review') { if (typeof initializeAutoReviewUI === 'function') initializeAutoReviewUI(); }
             if (pageId === 'needs') { if (typeof initializeNeedsTab === 'function') initializeNeedsTab(); }
+            if (pageId === 'slash_commands') { if (typeof initializeSlashCommandsUI === 'function') initializeSlashCommandsUI(); }
+            if (pageId === 'telegram') { if (typeof initializeTelegramUI === 'function') initializeTelegramUI(); }
             if (pageId === 'blacklist') { if (typeof initializeBlacklist === 'function') initializeBlacklist(); }
             if (pageId === 'tickets') { initTicketsTab(); }
             if (pageId === 'theme') {

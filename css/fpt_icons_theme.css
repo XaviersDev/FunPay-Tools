@@ -1,8 +1,4 @@
-/* css/fpt_icons_theme.css - FunPay Tools 3.0
-   1) Local Material Symbols Rounded font (bundled, cached forever - no network).
-   2) Nav redesign: icon ABOVE label, centered.
-   3) Full-black menu theme with very subtle pink→purple gradient accents (used sparingly).
-   Loaded LAST in the manifest so it cleanly overrides css/content_styles.css. */
+
 
 /* ---------- 1. Bundled icon font ---------- */
 @font-face {

@@ -7,6 +7,8 @@ function getStatsBlockHTML() {
             <h1>Статистика продаж</h1>
             <div class="fp-stats-controls">
                 <button type="button" class="btn btn-default" id="fpTools-stats-reset">Обновить</button>
+                <button type="button" class="btn btn-default fp-stats-search-toggle" id="fpTools-stats-search-toggle" title="Поиск по заказам"><span class="material-symbols-rounded" style="font-size:18px;vertical-align:-4px;">search</span></button>
+                <button type="button" class="btn btn-default fp-stats-filter-toggle" id="fpTools-stats-filter-toggle" title="Фильтры и сортировка"><span class="material-symbols-rounded" style="font-size:18px;vertical-align:-4px;">tune</span></button>
                 <select class="form-control" id="fpTools-stats-period">
                     <option value="today">За сегодня</option>
                     <option value="yesterday">За вчера</option>
@@ -19,6 +21,43 @@ function getStatsBlockHTML() {
             </div>
         </div>
 
+        <div class="fp-stats-modebar" id="fpTools-stats-modebar">
+            <button type="button" class="fp-stats-mode-btn active" data-mode="cards"><span class="material-symbols-rounded">dashboard</span>Карточки</button>
+            <button type="button" class="fp-stats-mode-btn" data-mode="charts"><span class="material-symbols-rounded">show_chart</span>Графики</button>
+            <button type="button" class="fp-stats-mode-btn" data-mode="diagrams"><span class="material-symbols-rounded">pie_chart</span>Диаграммы</button>
+            <button type="button" class="fp-stats-mode-btn" data-mode="detailed"><span class="material-symbols-rounded">table_rows</span>Детально</button>
+            <button type="button" class="fp-stats-mode-btn" data-mode="full"><span class="material-symbols-rounded">apps</span>Полный</button>
+        </div>
+
+        <div class="fp-stats-searchbar" id="fpTools-stats-searchbar" style="display:none;">
+            <span class="material-symbols-rounded fp-stats-search-ico">search</span>
+            <input type="text" id="fpTools-stats-search" placeholder="Поиск по заказам: покупатель, товар, категория…" autocomplete="off">
+            <button type="button" id="fpTools-stats-search-btn">Найти</button>
+            <button type="button" id="fpTools-stats-search-clear" title="Сбросить">×</button>
+        </div>
+
+        <div class="fp-stats-filterbar" id="fpTools-stats-filterbar" style="display:none;">
+            <div class="fp-stats-filter-row">
+                <span class="fp-stats-filter-cap">Показывать статусы:</span>
+                <button type="button" class="fp-stats-status-btn active" id="fpFilt-st-closed" data-status="closed">Закрытые</button>
+                <button type="button" class="fp-stats-status-btn active" id="fpFilt-st-paid" data-status="paid">Оплаченные</button>
+                <button type="button" class="fp-stats-status-btn active" id="fpFilt-st-refunded" data-status="refunded">Возвраты</button>
+            </div>
+            <div class="fp-stats-filter-row">
+                <span class="fp-stats-filter-cap">Сортировка:</span>
+                <select class="form-control fp-stats-sort-select" id="fpFilt-sort">
+                    <option value="date-desc">Сначала новые</option>
+                    <option value="date-asc">Сначала старые</option>
+                    <option value="price-desc">Дороже сверху</option>
+                    <option value="price-asc">Дешевле сверху</option>
+                </select>
+                <button type="button" class="fp-stats-filter-reset" id="fpFilt-reset">Сбросить фильтры</button>
+            </div>
+        </div>
+
+        <div id="fpTools-stats-modeview"></div>
+
+        <div id="fpTools-stats-cards">
         <div class="fp-stats-grid">
             <div class="fp-stat-card stat-card-large stat-card-revenue">
                 <div class="stat-card-icon">💰</div>
@@ -100,6 +139,7 @@ function getStatsBlockHTML() {
                 </div>
             </div>
         </div>
+        </div>
     </div>
     `;
 }
@@ -117,9 +157,20 @@ async function calculateSalesStats(allOrders, startDate, endDate) {
     const validCurrencies = new Set(["RUB", "USD", "EUR"]);
     const exchangeRates = { RUB: 0.011, USD: 1, EUR: 1.08 };
 
+    // Учитываем глобальные фильтры статусов (общие со статистикой/диаграммами).
+    let flt = { stClosed: true, stPaid: true, stRefunded: true };
+    try { if (typeof window.fptGetStatsFilters === 'function') flt = window.fptGetStatsFilters(); } catch (_) {}
+    const statusOk = (st) => {
+        if (st === 'refunded') return flt.stRefunded !== false;
+        if (st === 'paid') return flt.stPaid !== false;
+        if (st === 'closed') return flt.stClosed !== false;
+        return true;
+    };
+
     for (const orderId in allOrders) {
         const order = allOrders[orderId];
         if ((startDate && order.orderDate < startDate) || (endDate && order.orderDate > endDate)) continue;
+        if (!statusOk(order.orderStatus)) continue;
 
         stats.totalOrders++;
         stats.uniqueBuyers.add(order.buyerId);
@@ -244,6 +295,11 @@ async function displaySalesStats() {
     }
 }
 
+// Позволяет другим модулям (панель фильтров) пересчитать карточки.
+if (typeof window !== 'undefined') {
+    window.fptRefreshStatsCards = function () { try { displaySalesStats(); } catch (_) {} };
+}
+
 function initializeSalesStatistics() {
     if (!window.location.pathname.includes('/orders/trade')) return;
     const ordersTable = document.querySelector('.orders-table');
@@ -273,6 +329,9 @@ function initializeSalesStatistics() {
     if (chrome.runtime?.id) {
         chrome.runtime.sendMessage({ action: 'updateSales' });
     }
+
+    // Несколько режимов отображения статистики (графики/диаграммы/детально/полный).
+    if (typeof initSalesModes === 'function') initSalesModes();
 
     // Expand/collapse "Показать ещё"
     const expandBtn = document.getElementById('fpTools-stats-expand-btn');
