@@ -6,7 +6,7 @@
 
     const CACHE_KEY = 'fpt_donaters_cache';
     const CACHE_TIME_KEY = 'fpt_donaters_time';
-    const CACHE_DURATION = 5 * 60 * 1000; // 5 минут
+    const CACHE_DURATION = 60 * 1000; // 60 секунд
 
     let donatersMap = {}; 
     let parsedConfigs = {}; // Имя пользователя -> Распакованный конфиг
@@ -26,31 +26,55 @@
     }, { rootMargin: "100px" });
 
     // --- 1. КЭШИРОВАНИЕ И ЗАГРУЗКА БАЗЫ ---
-    async function fetchDonaters() {
-        const cache = await chrome.storage.local.get([CACHE_KEY, CACHE_TIME_KEY]);
-        const now = Date.now();
-
-        if (cache[CACHE_KEY] && cache[CACHE_TIME_KEY] && (now - cache[CACHE_TIME_KEY] < CACHE_DURATION)) {
-            donatersMap = cache[CACHE_KEY];
-            return;
-        }
-
+    // Тянет свежую базу из сети и, если она изменилась, перекрашивает ники на лету.
+    async function refreshFromNetwork() {
         try {
             const response = await new Promise(resolve => {
                 chrome.runtime.sendMessage({ action: 'fetchDonaters' }, resolve);
             });
 
-            if (response && response.success && typeof response.data === 'object') {
-                donatersMap = response.data;
+            if (response && response.success && response.data &&
+                typeof response.data === 'object' && Object.keys(response.data).length > 0) {
+
+                const fresh = response.data;
+                const changed = JSON.stringify(fresh) !== JSON.stringify(donatersMap);
+
+                donatersMap = fresh;
                 await chrome.storage.local.set({
                     [CACHE_KEY]: donatersMap,
-                    [CACHE_TIME_KEY]: now
+                    [CACHE_TIME_KEY]: Date.now()
                 });
+
+                // Если данные реально поменялись — пересобрать стили и перерисовать
+                if (changed) {
+                    parsedConfigs = {};
+                    injectGlobalCSS();
+                    scanDOM(document.body);
+                }
             }
         } catch (e) {
-            console.error('FPT Epic Nicks: Error fetching data', e);
-            donatersMap = cache[CACHE_KEY] || {}; // Fallback
+            console.error('FPT Epic Nicks: refresh error', e);
         }
+    }
+
+    // stale-while-revalidate: мгновенно отдаём кэш, в фоне всегда обновляем.
+    async function fetchDonaters() {
+        const cache = await chrome.storage.local.get([CACHE_KEY, CACHE_TIME_KEY]);
+        const now = Date.now();
+        const fresh = cache[CACHE_KEY] && cache[CACHE_TIME_KEY] &&
+                      (now - cache[CACHE_TIME_KEY] < CACHE_DURATION);
+
+        // Всегда сначала показываем что есть в кэше (быстрый старт)
+        if (cache[CACHE_KEY]) donatersMap = cache[CACHE_KEY];
+
+        if (fresh) {
+            // Кэш свежий — рисуем из него сразу, но всё равно тихо обновим в фоне
+            refreshFromNetwork();
+            return;
+        }
+
+        // Кэш протух (или его нет) — дожидаемся сети
+        await refreshFromNetwork();
     }
 
     // --- 2. РАСПАКОВКА И ИНЪЕКЦИЯ CSS ---
