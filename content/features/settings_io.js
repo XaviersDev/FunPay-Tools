@@ -1,43 +1,69 @@
 // content/features/settings_io.js - FunPay Tools 2.9
-// Экспорт и импорт всех настроек FunPay Tools в файл .fpconfig
+// Экспорт и импорт ВСЕХ настроек FunPay Tools в файл .fpconfig
+// Принцип: выгружаем всё из chrome.storage.local, КРОМЕ списка исключений
+// (аккаунты, токены, кэши и временное рантайм-состояние). Так новые фичи
+// попадают в бэкап автоматически, без правки списка.
 
-const FP_CONFIG_VERSION  = 1;
+const FP_CONFIG_VERSION  = 2;
 const FP_CONFIG_MAGIC    = 'FPTCONFIG';
 
-// Keys to export/import (excludes session data, pinned lots handled separately)
-const EXPORT_KEYS = [
-    'fpToolsAutoReplies',
-    'fpToolsCustomTheme',
-    'enableCustomTheme',
-    'enableRedesignedHomepage',
-    'showSalesStats',
-    'hideBalance',
-    'viewSellersPromo',
-    'notificationSound',
-    'fpToolsDiscord',
-    'autoBumpEnabled',
-    'autoBumpCooldown',
-    'fpToolsSelectiveBumpEnabled',
-    'fpToolsSelectedBumpCategories',
-    'fpToolsBumpOnlyAutoDelivery',
-    'fpToolsTemplates',
-    'fpToolsCursorFx',
-    'fpToolsCustomCursor',
-    'sendTemplatesImmediately',
-    'templatePos',
-    'fpToolsPiggyBanks',
-    'fpToolsNotes',
-    'fpToolsPinnedLots',
-    'fpToolsIdentifierEnabled',
-    'fpToolsHeaderPosition',
-    'fpToolsPopupPosition',
-    'fpToolsPopupSize',
-    'headerPositionSelect',
-];
+// Ключи, которые НЕ экспортируем.
+// 1) Аккаунты и авторизация — по требованию исключаем.
+// 2) Токены/секреты сторонних сервисов.
+// 3) Большие кэши и временное состояние, которое только навредит на другом
+//    устройстве (heartbeat, «seeded/processed/collecting», позиции окна и т.п.).
+const EXCLUDE_KEYS = new Set([
+    // --- Аккаунты (НИКОГДА не экспортируем) ---
+    'fpToolsAccounts',
+    'fpToolsAccountsList',
+    // --- Токены/секреты ---
+    'fpToolsGCToken',
+    'fpToolsGCConfig',
+    'fpToolsGCConfigTs',
+    // --- Рантайм/служебное состояние движков (per-device) ---
+    'fpToolsEngineHeartbeat',
+    'fpToolsTelegramPoll',
+    'fpToolsTelegramSeeded',
+    'fpToolsTelegramOrdersSeeded',
+    'fpToolsTelegramProcessedIds',
+    'fpToolsTelegramProcessedOrders',
+    'fpToolsDiscordSeeded',
+    'fpToolsDiscordCheck',
+    'fpToolsProcessedDiscordIds',
+    'fpToolsSalesCollecting',
+    'fpToolsPurchasesCollecting',
+    'fpToolsFinanceCollecting',
+    'fpToolsSalesLastUpdate',
+    'fpToolsPurchasesLastUpdate',
+    'fpToolsFinanceLastUpdate',
+    'fpToolsFinanceCount',
+    'fpToolsFirstOrderId',
+    'fpToolsLastOrderId',
+    'fpToolsLotImportProcess',
+    'fpToolsCheckRestoreLots',
+    'fpToolsBlacklistUpdated',
+    'fpToolsUnreadCount',
+    // --- Кэши (большие, легко перезапросятся) ---
+    'fpToolsWallpaperCache',
+    'fpToolsImageStore',
+    'fpToolsImageCanvas',
+    'fpToolsCustomSoundData',   // звук может весить много; мета оставляем
+    'fpToolsBuyerHistory',
+    'fpToolsBuyerViewing',
+    // --- Чисто UI-состояние текущей вкладки/окна (per-device) ---
+    'fpToolsLastPage',
+    'fpToolsPopupDragged',
+]);
 
 async function exportSettings() {
     try {
-        const data = await chrome.storage.local.get(EXPORT_KEYS);
+        // Берём ВСЁ хранилище и фильтруем исключения.
+        const all = await chrome.storage.local.get(null);
+        const data = {};
+        for (const [k, v] of Object.entries(all)) {
+            if (EXCLUDE_KEYS.has(k)) continue;
+            data[k] = v;
+        }
 
         const exportObj = {
             _magic:   FP_CONFIG_MAGIC,
@@ -59,7 +85,8 @@ async function exportSettings() {
         a.remove();
         URL.revokeObjectURL(url);
 
-        showNotification('Настройки экспортированы ✓');
+        const cnt = Object.keys(data).length;
+        showNotification(`Настройки экспортированы (${cnt} разделов) ✓`);
     } catch (e) {
         showNotification(`Ошибка экспорта: ${e.message}`, true);
     }
@@ -78,16 +105,19 @@ async function importSettings(file) {
             throw new Error('Файл не содержит настроек.');
         }
 
-        // Strip unknown keys for safety
+        // На всякий случай НЕ применяем исключённые ключи, даже если они попали
+        // в старый файл (например, аккаунты из бэкапа другой версии).
         const safe = {};
-        EXPORT_KEYS.forEach(k => {
-            if (k in obj.settings) safe[k] = obj.settings[k];
-        });
+        for (const [k, v] of Object.entries(obj.settings)) {
+            if (EXCLUDE_KEYS.has(k)) continue;
+            safe[k] = v;
+        }
 
         await chrome.storage.local.set(safe);
 
-        const fromVer = obj._extVer ? ` (из v${obj._extVer})` : '';
-        showNotification(`Настройки импортированы${fromVer} - перезагрузите страницу ✓`);
+        const cnt = Object.keys(safe).length;
+        const fromVer = obj._extVer ? ` из v${obj._extVer}` : '';
+        showNotification(`Импортировано ${cnt} разделов${fromVer} — перезагрузите страницу ✓`);
 
         // Reload after 1.5s
         setTimeout(() => window.location.reload(), 1500);

@@ -13,6 +13,7 @@ let _fptGcLastTs = 0;
 let _fptGcFeedTimer = null;
 let _fptGcLinkTimer = null;
 let _fptGcRenderedIds = new Set();
+let _fptGcFirstRenderAfterOpen = false; // FIX 2.8.2 (№11): скролл вниз при открытии
 
 function _fptGcEl(id) { return document.getElementById(id); }
 
@@ -85,7 +86,7 @@ function fptGcApplyVisibility() {
 }
 
 // =============================================================================
-// Кто я на FunPay (ник, аватар, ссылка на профиль) — со страницы. Косметика.
+// Кто я на FunPay (ник, аватар, ссылка на профиль) - со страницы. Косметика.
 // =============================================================================
 function _fptGcDetectSelf() {
     try {
@@ -168,8 +169,16 @@ function _fptGcRender(messages) {
     });
 
     if (appended) {
-        const nearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 150;
-        if (nearBottom) feed.scrollTop = feed.scrollHeight;
+        // FIX 2.8.2 (№11): при ПЕРВОМ рендере после открытия панели всегда
+        // прокручиваем к самым свежим сообщениям, чтобы не приходилось скроллить
+        // вниз вручную. Дальше - только если пользователь и так внизу.
+        if (_fptGcFirstRenderAfterOpen) {
+            _fptGcFirstRenderAfterOpen = false;
+            feed.scrollTop = feed.scrollHeight;
+        } else {
+            const nearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 150;
+            if (nearBottom) feed.scrollTop = feed.scrollHeight;
+        }
     }
 }
 
@@ -230,7 +239,7 @@ async function _fptGcSend() {
             const sec = Math.ceil((data.wait || 5000) / 1000);
             _fptGcStatus(`Подожди ${sec} сек перед следующим сообщением`, true);
         } else if (status === 401) {
-            // токен протух/невалиден — сбрасываем, просим войти заново
+            // токен протух/невалиден - сбрасываем, просим войти заново
             _fptGcToken = null;
             await chrome.storage.local.remove('fpToolsGCToken');
             _fptGcShowGate();
@@ -392,11 +401,12 @@ async function initializeGlobalChat() {
         }
     }
 
-    // Чтение ленты доступно всем; писать — только при наличии токена.
+    // Чтение ленты доступно всем; писать - только при наличии токена.
     if (_fptGcToken) _fptGcHideGate(); else _fptGcShowGate();
 
     _fptGcRenderedIds = new Set();
     _fptGcLastTs = 0;
+    _fptGcFirstRenderAfterOpen = true;
     const feedEl = _fptGcEl('fpt-gc-feed');
     if (feedEl) feedEl.innerHTML = '<div class="fpt-gc-loading">Загрузка сообщений…</div>';
     _fptGcFetch();

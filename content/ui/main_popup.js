@@ -119,7 +119,11 @@ function createMainPopup() {
                     <h3>Общие настройки</h3>
                     <div class="checkbox-label-inline">
                         <input type="checkbox" id="showSalesStatsCheckbox">
-                        <label for="showSalesStatsCheckbox" style="margin-bottom:0;"><span>Статистика продаж в "Продажи"</span></label>
+                        <label for="showSalesStatsCheckbox" style="margin-bottom:0;"><span>Показывать статистику покупок и продаж на их вкладках</span></label>
+                    </div>
+                    <div class="checkbox-label-inline">
+                        <input type="checkbox" id="showFinanceStatsCheckbox">
+                        <label for="showFinanceStatsCheckbox" style="margin-bottom:0;"><span>Показывать статистику финансов в «Финансы»</span></label>
                     </div>
                     <div class="checkbox-label-inline">
                         <input type="checkbox" id="hideBalanceCheckbox">
@@ -161,7 +165,7 @@ function createMainPopup() {
                                 <div id="fptWaveSelHandleR" style="position:absolute;top:0;bottom:0;width:8px;margin-left:-4px;cursor:ew-resize;"></div>
                             </div>
                             <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;gap:10px;flex-wrap:wrap;">
-                                <span id="fptCustomSoundRange" style="font-size:11px;color:#5a5f7a;">0:00 – 0:05</span>
+                                <span id="fptCustomSoundRange" style="font-size:11px;color:#5a5f7a;">0:00 - 0:05</span>
                                 <div style="display:flex;gap:8px;align-items:center;">
                                     <button id="fptCustomSoundPreviewBtn" class="fpt-icon-play-btn" title="Прослушать отрезок">
                                         <span class="material-symbols-rounded">play_arrow</span>
@@ -204,10 +208,6 @@ function createMainPopup() {
                     </div>
                     
                     <h3 style="margin-top: 30px;">Заказы и статистика</h3>
-                    <div class="checkbox-label-inline">
-                        <input type="checkbox" id="fpToolsShowPaymentType" checked>
-                        <label for="fpToolsShowPaymentType" style="margin-bottom:0;"><span>Показывать тип оплаты в списке заказов (Сделка / Обычный)</span></label>
-                    </div>
                     <div class="checkbox-label-inline">
                         <input type="checkbox" id="fpToolsBuyerHistory" checked>
                         <label for="fpToolsBuyerHistory" style="margin-bottom:0;"><span>Показывать историю покупок в чате</span></label>
@@ -299,7 +299,7 @@ function createMainPopup() {
                 <!-- НАЧАЛО ВКЛАДКИ "СЛЭШ-КОМАНДЫ" -->
                 <div class="fp-tools-page-content" data-page="slash_commands">
                     <h3>Слэш-команды</h3>
-                    <p class="template-info">Свои быстрые ответы для поля чата. Вы задаёте команду (например <code>/привет</code>) и её ответ (например «Привет, я тут. Какие вопросы?»). В чате начинаете печатать команду — <code>/при</code> — появляется подсказка; нажимаете Tab или Enter, и команда сразу превращается в полный текст ответа. Удобно для приветствий, реквизитов, частых фраз.</p>
+                    <p class="template-info">Свои быстрые ответы для поля чата. Вы задаёте команду (например <code>/привет</code>) и её ответ (например «Привет, я тут. Какие вопросы?»). В чате начинаете печатать команду - <code>/при</code> - появляется подсказка; нажимаете Tab или Enter, и команда сразу превращается в полный текст ответа. Удобно для приветствий, реквизитов, частых фраз.</p>
 
                     <div class="checkbox-label-inline">
                         <input type="checkbox" id="fptSlashEnabled" checked>
@@ -336,11 +336,16 @@ function createMainPopup() {
                 <!-- НАЧАЛО ВКЛАДКИ "TELEGRAM" -->
                 <div class="fp-tools-page-content" data-page="telegram">
                     <h3>Управление через Telegram</h3>
-                    <p class="template-info">Управляйте FP Tools и получайте уведомления (новые заказы и сообщения) прямо в Telegram-боте. Создайте бота, вставьте токен — и всё работает.</p>
+                    <p class="template-info">Управляйте FP Tools и получайте уведомления (новые заказы и сообщения) прямо в Telegram-боте. Создайте бота, вставьте токен - и всё работает.</p>
 
                     <div class="support-promo" style="background:rgba(192,38,211,0.08);border-color:rgba(192,38,211,0.25);margin-bottom:16px;">
                         <span class="nav-icon material-symbols-rounded" style="color:#C026D3;">info</span>
                         <span>Как настроить: 1) создайте бота через <b>@BotFather</b> и скопируйте токен; 2) <b>напишите своему боту любое сообщение</b> в Telegram; 3) вставьте токен ниже и нажмите «Подключить».</span>
+                    </div>
+
+                    <div class="support-promo" style="background:rgba(240,160,64,0.08);border-color:rgba(240,160,64,0.3);margin-bottom:16px;">
+                        <span class="nav-icon material-symbols-rounded" style="color:#f0a040;">warning</span>
+                        <span>Важно: в некоторых странах доступ к Telegram ограничен или блокируется - если вы находитесь в такой стране, не удивляйтесь ошибкам подключения, таймаутам или «вечному ожиданию» сообщений, это связано с ограничениями сети, а не с расширением. Также у части пользователей бот может работать нестабильно (периодические ошибки, задержки, зависание ответов) даже без блокировок Telegram - причины бывают на стороне Telegram или провайдера. Если у вас так - это известное поведение, попробуйте переподключить бота позже.</span>
                     </div>
 
                     <div class="checkbox-label-inline">
@@ -569,6 +574,11 @@ function createMainPopup() {
                             <button id="addBonusBtn" class="btn btn-default">Добавить бонус в список</button>
                         </div>
                     </div>
+                    <div class="template-container" style="margin-top:8px;">
+                        <label for="bonusForReviewDelaySec" style="display:block;margin-bottom:4px;">Задержка перед отправкой бонуса (сек)</label>
+                        <input type="number" id="bonusForReviewDelaySec" class="template-input" min="0" max="60" step="1" value="4" style="max-width:120px;">
+                        <p class="template-info">Пауза между ответом на отзыв и сообщением с бонусом. Без паузы ответ на отзыв в некоторых случаях может не отправиться. Рекомендуется 3-5 секунд.</p>
+                    </div>
 
                     <h3>Автоответчик в чате</h3>
                      <div class="template-container">
@@ -649,7 +659,11 @@ function createMainPopup() {
                     <p class="template-info">Измените название, описание или сообщение покупателю сразу у нескольких лотов.</p>
                     <button id="fp-bulk-edit-btn" class="btn btn-default" style="width:auto;padding:8px 16px;"><span class="material-symbols-rounded" style="font-size:16px;vertical-align:-3px;margin-right:5px;">edit</span>Массово изменить лоты</button>
 
-                    <a href="#" id="convert-cardinal-lots-btn" style="display: block; text-align: center; margin-top: 25px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 13px; color: #a0a0a0; text-decoration: underline;">Конвертер лотов из внешнего формата</a>
+                    <h4 style="margin-top: 30px;">Личные заметки к лотам</h4>
+                    <p class="template-info">Заметки видны только тебе. Добавляй их через ПКМ по лоту (в профиле, на странице лота) или прямо в чате с покупателем. Здесь — все заметки сразу, даже к удалённым лотам.</p>
+                    <button id="fp-open-notes-btn" class="btn btn-default" style="width:auto;padding:8px 16px;"><span class="material-symbols-rounded" style="font-size:16px;vertical-align:-3px;margin-right:5px;">sticky_note_2</span>Открыть все заметки</button>
+
+                    <a href="#" id="convert-cardinal-lots-btn" style="display: block; text-align: center; margin-top: 25px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 13px; color: #a0a0a0; text-decoration: underline;">Конвертер лотов FunPay Cardinal → FunPay Tools</a>
 
                     <h4 style="margin-top: 30px;">Незавершённые импорты</h4>
                     <div id="lot-io-pending-imports-list">
@@ -666,7 +680,7 @@ function createMainPopup() {
                     <h3>Кастомизация темы</h3>
                     <div class="checkbox-label-inline" style="margin-bottom:15px;"><input type="checkbox" id="enableCustomThemeCheckbox"><label for="enableCustomThemeCheckbox" style="margin-bottom:0;"><span>Включить кастомную тему</span></label></div>
                     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-                        <span style="font-size:12px;color:#5a5f7a;flex:1;">Готовые обои:</span>
+                        <span style="font-size:12px;color:#5a5f7a;flex:1;">Готовые темы:</span>
                         <button id="fp-apply-dark-preset" class="btn btn-default" style="padding:3px 10px;font-size:12px;"><span class="material-symbols-rounded" style="font-size:15px;vertical-align:-3px;margin-right:4px;">dark_mode</span>Чёрная</button>
                     </div>
                     <div id="fp-wallpaper-carousel" style="position:relative;width:100%;aspect-ratio:16/9;border-radius:8px;overflow:hidden;background:#0e0f16;contain:layout style paint;">
@@ -684,6 +698,8 @@ function createMainPopup() {
                         </div>
                         <button id="fp-wp-apply-cur" style="position:absolute;top:6px;right:6px;background:rgba(192,38,211,.85);border:none;color:#fff;font-size:11px;font-weight:600;padding:4px 10px;border-radius:12px;cursor:pointer;z-index:2;display:none;">Применить</button>
                     </div>
+                    <div id="fp-wp-desc" style="font-size:12px;color:#9aa0b8;margin:6px 0 2px;line-height:1.4;min-height:16px;"></div>
+                    <div style="font-size:11px;color:#5a5f7a;margin:6px 0 12px;line-height:1.4;">Хотите добавить свою тему в этот каталог? Загрузите её в Telegram-боте <a href="https://t.me/FPToolsBot" target="_blank" rel="noopener noreferrer" style="color:#C026D3;">@FPToolsBot</a> → «Загрузить тему».</div>
                     <div class="template-container">
                         <label>Фоновое изображение:</label>
                         <div id="bg-image-preview" style="width:100%; height:60px; background-color:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); border-radius:8px; margin-bottom:10px; background-size:cover; background-position:center; display:flex; align-items:center; justify-content:center; color: #888; font-size:12px;">Нет изображения</div>
@@ -951,6 +967,24 @@ function createMainPopup() {
                         <button id="fp-create-ticket-btn" class="btn btn-default" style="padding:3px 10px;font-size:11px;">+ Создать заявку</button>
                     </div>
 
+                    <!-- Filters (поиск + статус + сортировка) - фильтрация локальная, все заявки грузятся сразу -->
+                    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;">
+                        <input type="text" id="fp-tickets-search" placeholder="Поиск по заявкам..." class="fp-field-input" style="padding:6px 8px;font-size:12px;width:100%;box-sizing:border-box;">
+                        <div style="display:flex;gap:8px;">
+                            <select id="fp-tickets-status-filter" class="fp-field-input" style="padding:5px 8px;font-size:12px;flex:1;">
+                                <option value="all" selected>Все</option>
+                                <option value="active">Актуальные</option>
+                                <option value="solved">Закрытые</option>
+                            </select>
+                            <select id="fp-tickets-sort" class="fp-field-input" style="padding:5px 8px;font-size:12px;flex:1;">
+                                <option value="newest_first" selected>Сначала новые</option>
+                                <option value="oldest_first">Сначала старые</option>
+                                <option value="last_answered">Последние отвеченные</option>
+                            </select>
+                        </div>
+                        <span id="fp-tickets-count" style="font-size:11px;color:#3a3d52;"></span>
+                    </div>
+
                     <!-- List -->
                     <div id="fp-tickets-list" style="display:flex;flex-direction:column;gap:5px;max-height:240px;overflow-y:auto;"></div>
                     <div id="fp-tickets-empty" style="display:none;text-align:center;color:#3a3d52;font-size:13px;padding:18px 0;">Заявок нет</div>
@@ -1061,6 +1095,48 @@ const FP_WP_CACHE_KEY = 'fpToolsWallpaperCache';
 const FP_WP_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 const _fpWpImgCache = new Map();
 
+// --- Каталог готовых ТЕМ (.fptheme) с GitHub ------------------------------
+// Ленивая загрузка: index.json тянется ОДИН раз при первом открытии вкладки,
+// превью каждой темы грузится по одному (только текущий слайд карусели),
+// сам .fptheme качается только в момент нажатия «Применить». Ничего не
+// предзагружается — трафик не жрётся.
+const FP_THEME_GH_USER   = 'XaviersDev';
+const FP_THEME_GH_REPO   = 'fpt-themes';
+const FP_THEME_GH_BRANCH = 'main';
+const FP_THEME_RAW_BASE  = `https://raw.githubusercontent.com/${FP_THEME_GH_USER}/${FP_THEME_GH_REPO}/${FP_THEME_GH_BRANCH}/`;
+const FP_THEME_INDEX_URL = FP_THEME_RAW_BASE + 'index.json';
+
+let _fpThemeCatalog = null;   // массив тем после загрузки index.json
+let _fpThemeCatalogLoaded = false;
+
+function _fpThemeResolveUrl(u) {
+    if (!u) return '';
+    if (/^https?:\/\//i.test(u)) return u;
+    return FP_THEME_RAW_BASE + String(u).replace(/^\/+/, '');
+}
+
+async function _fpLoadThemeCatalog() {
+    if (_fpThemeCatalogLoaded) return _fpThemeCatalog;
+    try {
+        const resp = await fetch(FP_THEME_INDEX_URL, { cache: 'no-store' });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        const list = Array.isArray(data) ? data : (Array.isArray(data.themes) ? data.themes : []);
+        _fpThemeCatalog = list.filter(t => t && t.file).map(t => ({
+            name: t.name || 'Без названия',
+            desc: t.desc || t.description || '',
+            author: t.author || '',
+            previewUrl: _fpThemeResolveUrl(t.preview || ''),
+            fileUrl: _fpThemeResolveUrl(t.file),
+        }));
+    } catch (e) {
+        console.error('FP Tools: не удалось загрузить каталог тем', e);
+        _fpThemeCatalog = null; // отличаем «ошибка» от «пусто»
+    }
+    _fpThemeCatalogLoaded = true;
+    return _fpThemeCatalog;
+}
+
 async function _getWpCache() {
     try { const r = await chrome.storage.local.get(FP_WP_CACHE_KEY); return r[FP_WP_CACHE_KEY] || {}; } catch { return {}; }
 }
@@ -1073,8 +1149,10 @@ let _wpLoading = false;
 
 async function _loadCarouselSlide(index) {
     if (_wpLoading) return;
-    const preset = FP_WALLPAPER_PRESETS[index];
-    if (!preset) return;
+    const catalog = _fpThemeCatalog;
+    if (!catalog || !catalog.length) return;
+    const theme = catalog[index];
+    if (!theme) return;
     _wpLoading = true;
 
     const slot    = document.getElementById('fp-wp-img-slot');
@@ -1087,13 +1165,24 @@ async function _loadCarouselSlide(index) {
     const applyBtn= document.getElementById('fp-wp-apply-cur');
     if (!slot) { _wpLoading = false; return; }
 
-    nameEl.textContent  = preset.name;
-    counter.textContent = `${index + 1} / ${FP_WALLPAPER_PRESETS.length}`;
-    emoji.textContent   = preset.emoji;
+    nameEl.textContent  = theme.name + (theme.author ? `  ·  ${theme.author}` : '');
+    counter.textContent = `${index + 1} / ${catalog.length}`;
+    emoji.textContent   = '🎨';
+    const descEl = document.getElementById('fp-wp-desc');
+    if (descEl) descEl.textContent = theme.desc || '';
     if (applyBtn) applyBtn.style.display = 'none';
 
-    if (_fpWpImgCache.has(preset.url)) {
-        const img = _fpWpImgCache.get(preset.url).cloneNode();
+    // Нет превью у темы — показываем заглушку, но «Применить» доступна.
+    if (!theme.previewUrl) {
+        slot.innerHTML = '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#5a5f7a;font-size:12px;">Без превью</div>';
+        if (loaderEl) loaderEl.style.display = 'none';
+        if (applyBtn) applyBtn.style.display = 'block';
+        _wpLoading = false;
+        return;
+    }
+
+    if (_fpWpImgCache.has(theme.previewUrl)) {
+        const img = _fpWpImgCache.get(theme.previewUrl).cloneNode();
         _showCarouselImg(img, slot, loaderEl);
         _wpLoading = false;
         return;
@@ -1104,7 +1193,7 @@ async function _loadCarouselSlide(index) {
     bar.style.width = '0%'; pct.textContent = '0%';
 
     const storageCache = await _getWpCache();
-    const cached = storageCache[preset.url] && Date.now() - storageCache[preset.url].ts < FP_WP_CACHE_TTL;
+    const cached = storageCache[theme.previewUrl] && Date.now() - storageCache[theme.previewUrl].ts < FP_WP_CACHE_TTL;
 
     if (!cached) {
         let fakeP = 0;
@@ -1121,21 +1210,22 @@ async function _loadCarouselSlide(index) {
     img.referrerPolicy = 'no-referrer';
     img.decoding = 'async';
     img.width = 160;
-    img.src = preset.url;
+    img.src = theme.previewUrl;
 
     try {
         await img.decode();
         if (slot._fakeIv) { clearInterval(slot._fakeIv); delete slot._fakeIv; }
         bar.style.width = '100%'; pct.textContent = '100%';
-        _fpWpImgCache.set(preset.url, img);
-        if (!cached) _markWpCached(preset.url);
+        _fpWpImgCache.set(theme.previewUrl, img);
+        if (!cached) _markWpCached(theme.previewUrl);
         _showCarouselImg(img.cloneNode(), slot, loaderEl);
     } catch {
+        // превью не загрузилось — показываем заглушку, но не скипаем тему,
+        // чтобы её всё равно можно было применить
         if (slot._fakeIv) { clearInterval(slot._fakeIv); delete slot._fakeIv; }
-        _wpLoading = false;
-        _wpIndex = (index + 1) % FP_WALLPAPER_PRESETS.length;
-        _loadCarouselSlide(_wpIndex);
-        return;
+        slot.innerHTML = '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#5a5f7a;font-size:12px;">Превью недоступно</div>';
+        if (loaderEl) loaderEl.style.display = 'none';
+        if (applyBtn) applyBtn.style.display = 'block';
     }
     _wpLoading = false;
 }
@@ -1152,29 +1242,93 @@ function _showCarouselImg(img, slot, loaderEl) {
     }));
 }
 
-function initializeWallpaperPresets() {
+async function initializeWallpaperPresets() {
     const carousel = document.getElementById('fp-wallpaper-carousel');
     if (!carousel || carousel.dataset.initialized) return;
     carousel.dataset.initialized = '1';
+
+    const loaderEl = document.getElementById('fp-wp-loader');
+    const slot     = document.getElementById('fp-wp-img-slot');
+    const nameEl   = document.getElementById('fp-wp-name');
+    const emoji    = document.getElementById('fp-wp-emoji');
+    if (loaderEl) loaderEl.style.display = 'flex';
+    if (emoji) emoji.textContent = '⏳';
+    if (nameEl) nameEl.textContent = 'Загрузка каталога…';
+
+    // Лениво грузим index.json ровно один раз (вкладка уже открыта).
+    await _fpLoadThemeCatalog();
+
+    const _descEl0 = document.getElementById('fp-wp-desc');
+    if (_descEl0) _descEl0.textContent = '';
+
+    if (_fpThemeCatalog === null) {
+        // ошибка сети/каталога
+        if (slot) slot.innerHTML = '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#5a5f7a;font-size:12px;text-align:center;padding:10px;">Не удалось загрузить каталог тем.<br>Проверьте интернет и переоткройте вкладку.</div>';
+        if (loaderEl) loaderEl.style.display = 'none';
+        carousel.dataset.initialized = ''; // позволить повторную попытку
+        return;
+    }
+    if (!_fpThemeCatalog.length) {
+        if (slot) slot.innerHTML = '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#5a5f7a;font-size:12px;text-align:center;padding:10px;">Каталог пока пуст.<br>Темы добавляются через @FPToolsBot.</div>';
+        if (loaderEl) loaderEl.style.display = 'none';
+        return;
+    }
 
     _wpIndex = 0;
     _loadCarouselSlide(0);
 
     document.getElementById('fp-wp-prev')?.addEventListener('click', () => {
-        if (_wpLoading) return;
-        _wpIndex = (_wpIndex - 1 + FP_WALLPAPER_PRESETS.length) % FP_WALLPAPER_PRESETS.length;
+        if (_wpLoading || !_fpThemeCatalog || !_fpThemeCatalog.length) return;
+        _wpIndex = (_wpIndex - 1 + _fpThemeCatalog.length) % _fpThemeCatalog.length;
         _loadCarouselSlide(_wpIndex);
     });
     document.getElementById('fp-wp-next')?.addEventListener('click', () => {
-        if (_wpLoading) return;
-        _wpIndex = (_wpIndex + 1) % FP_WALLPAPER_PRESETS.length;
+        if (_wpLoading || !_fpThemeCatalog || !_fpThemeCatalog.length) return;
+        _wpIndex = (_wpIndex + 1) % _fpThemeCatalog.length;
         _loadCarouselSlide(_wpIndex);
     });
     document.getElementById('fp-wp-apply-cur')?.addEventListener('click', () => {
-        const preset = FP_WALLPAPER_PRESETS[_wpIndex];
-        if (preset) applyWallpaperPreset(preset);
+        const theme = _fpThemeCatalog && _fpThemeCatalog[_wpIndex];
+        if (theme) applyThemeFromCatalog(theme);
     });
     document.getElementById('fp-apply-dark-preset')?.addEventListener('click', applyBlackThemePreset);
+}
+
+// Скачивает .fptheme выбранной темы и применяет её (тот же путь, что ручной импорт).
+async function applyThemeFromCatalog(theme) {
+    const applyBtn = document.getElementById('fp-wp-apply-cur');
+    if (!theme || !theme.fileUrl) return;
+    const oldText = applyBtn ? applyBtn.textContent : '';
+    if (applyBtn) { applyBtn.textContent = 'Применяю…'; applyBtn.disabled = true; }
+    try {
+        const resp = await fetch(theme.fileUrl, { cache: 'no-store' });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const text = await resp.text();
+        let data;
+        try { data = JSON.parse(text); }
+        catch { throw new Error('файл темы повреждён'); }
+        if (!data || typeof data !== 'object' || !data.bgColor1 || !data.font) {
+            throw new Error('неверный формат темы');
+        }
+
+        // Тот же контракт, что и при ручном импорте .fptheme.
+        const newTheme = { ...data, enableCustomTheme: true };
+        await chrome.storage.local.set({ fpToolsTheme: newTheme, enableCustomTheme: true });
+
+        if (typeof applyCustomTheme === 'function') await applyCustomTheme();
+        if (typeof applyHeaderPosition === 'function') await applyHeaderPosition();
+        if (typeof updateThemePreview === 'function') await updateThemePreview();
+        // отметить чекбокс «Включить кастомную тему», если он есть
+        const chk = document.getElementById('enableCustomThemeCheckbox');
+        if (chk) chk.checked = true;
+
+        if (typeof showNotification === 'function') showNotification(`Тема «${theme.name}» применена!`);
+    } catch (e) {
+        if (typeof showNotification === 'function') showNotification(`Не удалось применить тему: ${e.message}`, true);
+        console.error('FP Tools: apply theme from catalog error', e);
+    } finally {
+        if (applyBtn) { applyBtn.textContent = oldText || 'Применить'; applyBtn.disabled = false; }
+    }
 }
 
 async function applyWallpaperPreset(preset, cardEl) {

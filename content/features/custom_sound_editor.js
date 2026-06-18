@@ -85,7 +85,7 @@
         hL.style.left = left + 'px';
         hR.style.left = (left + width) + 'px';
 
-        if (rangeEl) rangeEl.textContent = `${fmtTime(selStart)} – ${fmtTime(selStart + clip)} (${clip.toFixed(1)} сек)`;
+        if (rangeEl) rangeEl.textContent = `${fmtTime(selStart)} - ${fmtTime(selStart + clip)} (${clip.toFixed(1)} сек)`;
     }
 
     // ── drag selection ──────────────────────────────────────────────────────────
@@ -293,7 +293,7 @@
         const nameEl = $('fptCustomSoundFileName');
         if (savedEl) savedEl.style.display = (isCustom && data) ? 'block' : 'none';
         if (lenEl && meta && meta.length) lenEl.textContent = Number(meta.length).toFixed(1);
-        // Если клип уже сохранён ранее — показываем это, а не «Файл не выбран».
+        // Если клип уже сохранён ранее - показываем это, а не «Файл не выбран».
         if (nameEl && !decodedBuffer) {
             if (data) {
                 const len = (meta && meta.length) ? Number(meta.length).toFixed(1) : '5.0';
@@ -306,7 +306,7 @@
         }
     }
 
-    // публичная инициализация — вызывается при построении попапа
+    // публичная инициализация - вызывается при построении попапа
     function initializeCustomSoundEditor() {
         const block = $('fptCustomSoundBlock');
         if (!block || block.dataset.init) {

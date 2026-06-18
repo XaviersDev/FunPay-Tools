@@ -38,7 +38,7 @@ async function renderAccountsList() {
         if (account.avatar) avatar.style.backgroundImage = `url('${account.avatar}')`;
         else avatar.innerHTML = '<span class="material-symbols-rounded">person</span>';
 
-        // непрочитанные (бейдж поверх аватара) — только если > 0
+        // непрочитанные (бейдж поверх аватара) - только если > 0
         if (account.unread && account.unread > 0) {
             const badge = createElement('span', { class: 'fpt-acc-unread' });
             badge.textContent = account.unread > 99 ? '99+' : String(account.unread);
@@ -56,13 +56,13 @@ async function renderAccountsList() {
             nameSpan.appendChild(dot);
         }
         const balSpan = createElement('div', { class: 'fpt-acc-balance' });
-        balSpan.textContent = account.balance || '—';
+        balSpan.textContent = account.balance || '-';
         info.append(nameSpan, balSpan);
 
         // действия
         const actionsDiv = createElement('div', { class: 'fpt-acc-actions' });
 
-        // кнопка "Войти" (текстовая) — как просили вернуть
+        // кнопка "Войти" (текстовая) - как просили вернуть
         const switchBtn = createElement('button', { class: `fpt-acc-login-btn ${isActive ? 'active' : ''}` });
         switchBtn.textContent = isActive ? 'Активен' : 'Войти';
         switchBtn.disabled = isActive;

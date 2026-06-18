@@ -16,25 +16,26 @@
     function savePinned() { chrome.storage.local.set({ fpToolsPinnedLots: pinnedLots }); }
 
     function parseLot(el) {
-        const a = el.closest('a.tc-item') || (el.tagName === 'A' ? el : null);
+        const a = el.closest('a.tc-item') ||
+                  el.closest('a[href*="lots/offer?id="]') ||
+                  el.closest('a[href*="offerEdit"]') ||
+                  (el.tagName === 'A' ? el : null);
         if (!a) return null;
         const href       = a.getAttribute('href') || '';
-        const offerMatch = href.match(/[?&]id=(\d+)/);
-        const offerId    = offerMatch?.[1] || null;
+        // offerId: либо ?id=NNN (публичная страница), либо offer=NNN (offerEdit/своя)
+        const offerMatch = href.match(/[?&]id=(\d+)/) || href.match(/[?&]offer=(\d+)/);
+        const offerId    = offerMatch?.[1] || a.getAttribute('data-offer') || null;
         const titleEl    = a.querySelector('.tc-desc-text, .tc-desc');
-        const title      = titleEl?.textContent.trim() || 'Лот';
+        const title      = (titleEl?.textContent.trim() || a.textContent.trim() || 'Лот').slice(0, 200);
         const selLink    = a.querySelector('.media-user-name a, .media-user-name span[data-href]');
         const selHref    = selLink?.getAttribute('href') || selLink?.getAttribute('data-href') || '';
         const selIdMatch = selHref.match(/\/users\/(\d+)/);
         const sellerId   = selIdMatch?.[1] || null;
         const selName    = selLink?.textContent.trim() || null;
-        // Build public lot URL; href can be absolute or relative
         const hrefClean = href.startsWith('http') ? href : `https://funpay.com${href}`;
-        // For 'offerEdit' links (own lots), extract offer id and make public URL
-        const editIdMatch = href.match(/offer=(\d+)/);
         const lotUrl = offerId
             ? `https://funpay.com/lots/offer?id=${offerId}`
-            : (editIdMatch ? `https://funpay.com/lots/offer?id=${editIdMatch[1]}` : hrefClean);
+            : hrefClean;
         return { offerId, title, sellerId, sellerName: selName, lotUrl };
     }
 
@@ -50,8 +51,10 @@
         menu.id = MENU_ID;
         menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:#13141a;border:1px solid #22253a;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.5);z-index:100000;min-width:210px;padding:4px 0;font-family:Inter,'Segoe UI',sans-serif;font-size:13px;color:#d8dae8;`;
 
+        const hasNote = lot.__hasNote;
         const items = [
             { icon: isPinned ? '📌' : '📍', label: isPinned ? 'Открепить из таблицы' : 'Закрепить в таблице', action: 'pin', enabled: !!lot.offerId },
+            { icon: '📝', label: hasNote ? 'Заметка (изменить)' : 'Добавить заметку', action: 'note', enabled: !!lot.offerId },
             { icon: '✉️', label: lot.sellerName ? `Написать ${lot.sellerName}` : 'Написать', action: 'msg', enabled: !!lot.sellerId },
             { icon: '🔗', label: 'Скопировать ссылку', action: 'copy', enabled: true },
             { sep: true },
@@ -109,6 +112,10 @@
             });
         }
         if (action === 'msg') showInlineChat(lot);
+        if (action === 'note') {
+            if (window.FPTNotes) window.FPTNotes.openEditor(lot.offerId, lot.title);
+            else showNotification('Модуль заметок не загрузился', true);
+        }
         if (action === 'toggle_ctx') {
             _ctxInverted = !_ctxInverted;
             chrome.storage.local.set({ fpToolsCtxInverted: _ctxInverted });
@@ -300,12 +307,21 @@
         //              false → plain RMB = this menu, Shift+RMB = browser (default)
         const wantsMenu = _ctxInverted ? e.shiftKey : !e.shiftKey;
         if (!wantsMenu) { removeMenu(); return; }
-        const lotEl = e.target.closest('a.tc-item, .tc-item');
+        const lotEl = e.target.closest('a.tc-item, .tc-item') ||
+                      e.target.closest('.chat-panel[data-type="c-p-u"] a[href*="lots/offer?id="]') ||
+                      e.target.closest('a[href*="lots/offer?id="]');
         if (!lotEl) { removeMenu(); return; }
         e.preventDefault(); e.stopPropagation();
         const lot = parseLot(lotEl);
         if (!lot) return;
-        showMenu(e.clientX, e.clientY, lot);
+        const x = e.clientX, y = e.clientY;
+        // Узнаём, есть ли заметка у этого лота (для подписи пункта меню), затем показываем.
+        if (lot.offerId && window.FPTNotes) {
+            window.FPTNotes.get(lot.offerId).then(n => { lot.__hasNote = !!n; showMenu(x, y, lot); })
+                .catch(() => showMenu(x, y, lot));
+        } else {
+            showMenu(x, y, lot);
+        }
     }, true);
 
     document.addEventListener('click', (e) => { if (!e.target.closest(`#${MENU_ID}`)) removeMenu(); });

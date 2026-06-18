@@ -271,7 +271,7 @@ async function applyCustomTheme() {
         if (flashFixStyle) flashFixStyle.remove();
         // Палитра --fpt-* зависит от фактического фона страницы. После выключения
         // темы фон становится светлым НЕ мгновенно, поэтому пересчитываем переменные
-        // на следующих кадрах — иначе панели (статистика и пр.) останутся тёмными
+        // на следующих кадрах - иначе панели (статистика и пр.) останутся тёмными
         // на белой странице («чёрное окно статистики»).
         if (typeof fptApplyThemeVars === 'function') {
             requestAnimationFrame(() => { try { fptApplyThemeVars(); } catch (_) {} });
@@ -299,7 +299,7 @@ async function applyCustomTheme() {
     let themeCss = getCustomThemeCss(settings);
     themeCss += ` body { visibility: visible !important; } `; 
     styleEl.textContent = themeCss;
-    // фон становится тёмным не мгновенно — пересчитываем палитру на след. кадрах
+    // фон становится тёмным не мгновенно - пересчитываем палитру на след. кадрах
     if (typeof fptApplyThemeVars === 'function') {
         requestAnimationFrame(() => { try { fptApplyThemeVars(); } catch (_) {} });
         setTimeout(() => { try { fptApplyThemeVars(); } catch (_) {} }, 120);
@@ -899,7 +899,7 @@ async function setupFptMenuTransparency() {
     enabled.checked = !!s.menuTransparent;
     if (controls) controls.style.display = s.menuTransparent ? 'block' : 'none';
     if (tint) tint.value = s.menuTintColor || DEFAULT_THEME.menuTintColor;
-    // «Контур тексту» имеет смысл только при прозрачном меню — иначе скрываем весь блок.
+    // «Контур тексту» имеет смысл только при прозрачном меню - иначе скрываем весь блок.
     const outlineGroup0 = document.getElementById('fptTextOutlineGroup');
     if (outlineGroup0) outlineGroup0.style.display = s.menuTransparent ? '' : 'none';
 
@@ -998,7 +998,7 @@ async function applyFptTextOutline(override) {
     const w = Math.max(0, parseFloat(s.textOutlineWidth) || 0);
     const c = s.textOutlineColor || '#000000';
     if (w <= 0) { if (styleEl) styleEl.textContent = ''; return; }
-    // Надёжный контур через text-shadow в 8 направлений — рендерится всегда,
+    // Надёжный контур через text-shadow в 8 направлений - рендерится всегда,
     // в отличие от -webkit-text-stroke (который местами не виден). Шаг = ширина.
     const o = w.toFixed(2);
     const shadow = [

@@ -7,7 +7,7 @@ function createAIGeneratorUI() {
         .find(h1 => h1.textContent.includes('Добавление предложения') || h1.textContent.includes('Редактирование предложения'));
 
     if (!header) return;
-    if (document.getElementById('fp-tools-ai-gen-btn-wrapper')) return;
+    if (document.getElementById('fp-tools-ai-gen-btn')) return;
 
     let actionsContainer = document.querySelector('.fp-tools-lot-edit-actions-container');
     if (!actionsContainer) {
@@ -15,23 +15,17 @@ function createAIGeneratorUI() {
         header.parentNode.insertBefore(actionsContainer, header.nextSibling);
     }
 
-    const wrapper = createElement('div', { id: 'fp-tools-ai-gen-btn-wrapper' });
-    const button = createElement('button', { class: 'fp-tools-ai-gen-btn', id: 'fp-tools-ai-gen-btn' });
-    button.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#e3e3e3"><path d="m176-120-56-56 301-302-181-45 198-123-17-234 179 151 216-88-87 217 151 178-234-16-124 198-45-181-301 301Zm24-520-80-80 80-80 80 80-80 80Zm355 197 48-79 93 7-60-71 35-86-86 35-71-59 7 92-79 49 90 22 23 90Zm165 323-80-80 80-80 80 80-80 80ZM569-570Z"/></svg>
-        <span>ИИ-генерация</span>
-    `;
-    const overlay = createElement('div', { class: 'fp-tools-ai-gen-overlay' });
-    const canvas = createElement('canvas', { id: 'fp-tools-ai-gen-canvas' });
-    
-    wrapper.append(overlay, canvas, button);
-    
-    actionsContainer.appendChild(wrapper);
+    // FIX 2.9.0: кнопка ИИ-генерации теперь - простой клон кнопки "Импорт"
+    // (btn btn-default), без частиц/canvas, чтобы единообразно смотреться в ряду
+    // действий лота.
+    const button = createElement('button', { class: 'btn btn-default fp-tools-ai-gen-btn', id: 'fp-tools-ai-gen-btn' }, {}, 'ИИ-генерация');
+
+    actionsContainer.appendChild(button);
 
     const modal = createModal();
     document.body.appendChild(modal);
 
-    setupAIGeneratorEventListeners(button, overlay, canvas, modal);
+    setupAIGeneratorEventListeners(button, null, null, modal);
 }
 
 function createModal() {
@@ -75,78 +69,14 @@ function createModal() {
 }
 
 function setupAIGeneratorEventListeners(button, overlay, canvas, modal) {
-    const ctx = canvas.getContext('2d');
-
-    const resizeCanvas = () => {
-        const rect = button.getBoundingClientRect();
-        canvas.width = rect.width + 100;
-        canvas.height = rect.height + 100;
-        canvas.style.left = `${rect.left - 50}px`;
-        canvas.style.top = `${rect.top - 50}px`;
-    };
-
-    const particleLoop = () => {
-        if (!isHoveringAIGenBtn && particles.length === 0) {
-            animationFrameId = null;
-            return;
-        }
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        if (isHoveringAIGenBtn && Math.random() > 0.5) {
-            for(let i = 0; i < 2; i++) {
-                particles.push({
-                    x: canvas.width / 2, y: canvas.height / 2,
-                    vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3,
-                    life: 50, size: Math.random() * 2 + 1,
-                    color: `rgba(227, 227, 227, ${Math.random() * 0.5 + 0.3})`
-                });
-            }
-        }
-        
-        for (let i = particles.length - 1; i >= 0; i--) {
-            const p = particles[i];
-            p.x += p.vx; p.y += p.vy;
-            p.life--;
-            p.vx *= 0.98; p.vy *= 0.98;
-
-            if (p.life <= 0) {
-                particles.splice(i, 1);
-                continue;
-            }
-
-            ctx.globalAlpha = p.life / 50;
-            ctx.fillStyle = p.color;
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-            ctx.fill();
-        }
-        ctx.globalAlpha = 1;
-        animationFrameId = requestAnimationFrame(particleLoop);
-    };
-
-    button.addEventListener('mouseenter', () => {
-        isHoveringAIGenBtn = true;
-        overlay.classList.add('active');
-        resizeCanvas();
-        if (!animationFrameId) particleLoop();
-    });
-
-    button.addEventListener('mouseleave', () => {
-        isHoveringAIGenBtn = false;
-        overlay.classList.remove('active');
-    });
-
+    // FIX 2.9.0: кнопка ИИ-генерации - простой клон "Импорт", без частиц/canvas.
+    // Здесь только открытие/закрытие модалки и отправка.
     button.addEventListener('click', () => modal.classList.add('active'));
     modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            modal.classList.remove('active');
-        }
+        if (e.target === modal) modal.classList.remove('active');
     });
     modal.querySelector('.close-btn').addEventListener('click', () => modal.classList.remove('active'));
     modal.querySelector('#ai-gen-submit-btn').addEventListener('click', handleAIGeneration);
-
-    window.addEventListener('resize', resizeCanvas);
 }
 
 
@@ -261,10 +191,25 @@ function addTranslateButton() {
         translateBtn.disabled = true;
 
         try {
+            // FIX 2.8.2 (№5): раньше тут был прямой .value у querySelector без проверки
+            // на null. Если разметка формы лота отличается (поле отсутствует, другая
+            // локаль, чипсы вместо лотов) - querySelector возвращал null и падала
+            // ошибка "Cannot read properties of null (reading 'value')". Берём значения
+            // через безопасный геттер и понятно сообщаем, если поля не найдены.
+            const val = (sel) => { const el = document.querySelector(sel); return el ? el.value : null; };
+            const ruTitle = val('input[name="fields[summary][ru]"]');
+            const ruDesc  = val('textarea[name="fields[desc][ru]"]');
+            const ruMsg   = val('textarea[name="fields[payment_msg][ru]"]');
+
+            if (ruTitle === null && ruDesc === null && ruMsg === null) {
+                showNotification('Не найдены русские поля лота на странице. Откройте вкладку «Русский» и попробуйте снова.', true);
+                return;
+            }
+
             const data = {
-                title: document.querySelector('input[name="fields[summary][ru]"]').value,
-                description: document.querySelector('textarea[name="fields[desc][ru]"]').value,
-                buyerMessage: document.querySelector('textarea[name="fields[payment_msg][ru]"]').value
+                title: ruTitle || '',
+                description: ruDesc || '',
+                buyerMessage: ruMsg || ''
             };
 
             if (!data.title && !data.description) {
@@ -275,9 +220,10 @@ function addTranslateButton() {
             const result = await chrome.runtime.sendMessage({ action: 'translateLotText', data: data });
 
             if (result && result.success) {
-                document.querySelector('input[name="fields[summary][en]"]').value = result.data.title || '';
-                document.querySelector('textarea[name="fields[desc][en]"]').value = result.data.description || '';
-                document.querySelector('textarea[name="fields[payment_msg][en]"]').value = result.data.buyerMessage || '';
+                const setVal = (sel, v) => { const el = document.querySelector(sel); if (el) el.value = v || ''; };
+                setVal('input[name="fields[summary][en]"]',     result.data.title);
+                setVal('textarea[name="fields[desc][en]"]',     result.data.description);
+                setVal('textarea[name="fields[payment_msg][en]"]', result.data.buyerMessage);
                 showNotification('Текст успешно переведен!', false);
             } else {
                 throw new Error(result.error || 'Неизвестная ошибка перевода.');

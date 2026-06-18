@@ -1,11 +1,11 @@
 // content/features/sales_modes.js
 // Несколько режимов отображения статистики продаж на /orders/trade:
-//   cards (стандартные карточки — управляется ui_enhancements),
+//   cards (стандартные карточки - управляется ui_enhancements),
 //   charts (линия выручки + столбцы заказов по дням),
 //   diagrams (круговые: по категориям, по статусам, по валютам),
-//   detailed (топ покупателей/товаров/категорий — таблицы),
+//   detailed (топ покупателей/товаров/категорий - таблицы),
 //   full (всё сразу).
-// Цвета — из живой палитры (--fpt-*).
+// Цвета - из живой палитры (--fpt-*).
 
 (function () {
     'use strict';
@@ -41,8 +41,12 @@
     }
 
     // Глобальное состояние фильтров/сортировки (применяется во ВСЕХ режимах).
-    const FILTER_KEY = 'fpToolsStatsFilters';
-    let filters = { stClosed: true, stPaid: true, stRefunded: true, sort: 'date-desc' };
+    // У продаж и покупок РАЗНЫЕ ключи и разные дефолты: для покупок возвраты по
+    // умолчанию выключены (возвращённые деньги ты по факту не тратил).
+    const _cfg = (typeof window !== 'undefined' && window.fptStatsCfg) || null;
+    const FILTER_KEY = (_cfg && _cfg.filterKey) || 'fpToolsStatsFilters';
+    const _defRefunded = _cfg ? false : true; // покупки: по умолчанию без возвратов
+    let filters = { stClosed: true, stPaid: true, stRefunded: _defRefunded, sort: 'date-desc' };
     function loadFilters() {
         try {
             const raw = localStorage.getItem(FILTER_KEY);
@@ -73,9 +77,9 @@
     }
 
     function getOrders(range) {
-        return new Promise(resolve => {
-            chrome.storage.local.get('fpToolsSalesData', ({ fpToolsSalesData }) => {
-                const all = fpToolsSalesData ? Object.values(fpToolsSalesData) : [];
+        return new Promise(async resolve => {
+            const all = await (window.fptOrdersDB || FPTSalesDB).getAllAsArray();
+            {
                 let filtered = all.filter(o => {
                     if (range.start && o.orderDate < range.start) return false;
                     if (range.end && o.orderDate > range.end) return false;
@@ -84,17 +88,13 @@
                 });
                 filtered = sortOrders(filtered);
                 resolve(filtered);
-            });
+            }
         });
     }
 
     function countStoredOrders() {
-        return new Promise(resolve => {
-            try {
-                chrome.storage.local.get('fpToolsSalesData', ({ fpToolsSalesData }) => {
-                    resolve(fpToolsSalesData ? Object.keys(fpToolsSalesData).length : 0);
-                });
-            } catch (_) { resolve(0); }
+        return new Promise(async resolve => {
+            try { resolve(await (window.fptOrdersDB || FPTSalesDB).count()); } catch (_) { resolve(0); }
         });
     }
 
@@ -107,7 +107,7 @@
                 chrome.runtime.sendMessage({ action: 'updateSales' });
             }
         } catch (_) {}
-        // если за 8 сек данные так и не пришли — позволим повторить попытку позже
+        // если за 8 сек данные так и не пришли - позволим повторить попытку позже
         setTimeout(() => { _salesUpdateTriggered = false; }, 8000);
     }
 
@@ -141,11 +141,11 @@
                 count++;
             }
 
-            const buyer = o.buyerUsername || '—';
+            const buyer = o.buyerUsername || '-';
             if (!byBuyer[buyer]) byBuyer[buyer] = { count: 0, id: o.buyerId };
             byBuyer[buyer].count++;
 
-            const prod = o.description || '—';
+            const prod = o.description || '-';
             byProduct[prod] = (byProduct[prod] || 0) + 1;
         }
 
@@ -165,6 +165,11 @@
         const barW = Math.max(2, Math.min(26, slot - 4));
 
         let bars = '', xL = '', yL = '';
+        // Подписи дат: копим по пиксельному интервалу, чтобы не накладывались.
+        // Последнюю дату ("сегодня") ставим всегда и удаляем все предыдущие подписи,
+        // которые к ней ближе порога - иначе две крайние даты налезали друг на друга.
+        const MIN_GAP = 40;
+        const xlParts = []; // { x, anchor, label }
         days.forEach((day, i) => {
             const v = vals[i];
             const x = PAD.l + slot * i + slot / 2;
@@ -173,10 +178,17 @@
             bars += `<rect class="fp-sm-bar" x="${x - barW / 2}" y="${y}" width="${barW}" height="${bh}" rx="2"
                 fill="${color}" data-label="${esc(day)}" data-val="${esc(fmt(v))}" data-day="${esc(day)}"
                 tabindex="0"></rect>`;
-            if (i === 0 || i === days.length - 1 || i % Math.max(1, Math.floor(days.length / 7)) === 0) {
-                xL += `<text x="${x}" y="${H - 8}" text-anchor="middle" font-size="9" fill="var(--fpt-text-muted)">${esc(day.slice(5))}</text>`;
+
+            const isLast = i === days.length - 1;
+            if (isLast) {
+                const tx = Math.min(x, W - PAD.r);
+                while (xlParts.length && (tx - xlParts[xlParts.length - 1].x) < MIN_GAP) xlParts.pop();
+                xlParts.push({ x: tx, anchor: 'end', label: day.slice(5) });
+            } else if (!xlParts.length || (x - xlParts[xlParts.length - 1].x) >= MIN_GAP) {
+                xlParts.push({ x, anchor: 'middle', label: day.slice(5) });
             }
         });
+        xL = xlParts.map(p => `<text x="${p.x}" y="${H - 8}" text-anchor="${p.anchor}" font-size="9" fill="var(--fpt-text-muted)">${esc(p.label)}</text>`).join('');
         const steps = 4;
         for (let i = 0; i <= steps; i++) {
             const y = PAD.t + ch - (i / steps) * ch;
@@ -198,7 +210,7 @@
     function chartHTML(agg) {
         const days = Object.keys(agg.byDay).sort();
         if (!days.length) return emptyHTML('Нет данных за период');
-        const revChart = singleChart('Выручка по дням, ₽', days, d => agg.byDay[d].revenue, v => money(v, 'RUB'), 'var(--fpt-accent)');
+        const revChart = singleChart(((_cfg && _cfg.moneyByDayLabel) || 'Выручка по дням, ₽'), days, d => agg.byDay[d].revenue, v => money(v, 'RUB'), 'var(--fpt-accent)');
         const cntChart = singleChart('Заказы по дням, шт.', days, d => agg.byDay[d].count, v => v + ' заказ.', '#2563eb');
         return `<div class="fp-sm-charts-stack">${revChart}${cntChart}</div>`;
     }
@@ -245,7 +257,7 @@
         return `<div class="fp-sm-grid">
             ${donut('Заказы по категориям', catEntries)}
             ${donut('Заказы по статусам', statusEntries)}
-            ${donut('Выручка по валютам', curEntries, (v) => Math.round(v).toLocaleString('ru-RU'))}
+            ${donut(((_cfg && _cfg.moneyByCurLabel) || 'Выручка по валютам'), curEntries, (v) => Math.round(v).toLocaleString('ru-RU'))}
         </div>`;
     }
 
@@ -253,7 +265,8 @@
     // rows: { name, value, href?, filterType?, filterKey? }
     function tableHTML(title, rows) {
         if (!rows.length) return `<div class="fp-sm-card"><div class="fp-sm-card-title">${esc(title)}</div>${emptyHTML('Нет данных')}</div>`;
-        const body = rows.map((r, i) => {
+        const VISIBLE = 10; // показываем 10, остальное прячем под «Показать ещё»
+        const rowHTML = (r, i) => {
             const nameInner = r.href
                 ? `<a class="fp-sm-row-link" href="${esc(r.href)}" target="_blank" rel="noopener" title="Открыть профиль">${esc(r.name)}</a>`
                 : `<span>${esc(r.name)}</span>`;
@@ -266,13 +279,21 @@
                 <span class="fp-sm-row-name">${nameInner}</span>
                 ${valInner}
             </div>`;
-        }).join('');
-        return `<div class="fp-sm-card"><div class="fp-sm-card-title">${esc(title)}</div>${body}</div>`;
+        };
+        const head = rows.slice(0, VISIBLE).map(rowHTML).join('');
+        const restRows = rows.slice(VISIBLE);
+        let moreBlock = '';
+        if (restRows.length) {
+            const hidden = restRows.map((r, i) => rowHTML(r, i + VISIBLE)).join('');
+            moreBlock = `<div class="fp-sm-more-hidden" style="display:none;">${hidden}</div>` +
+                `<button type="button" class="fp-sm-more-btn" data-fp-more="1" data-more-count="${restRows.length}">Показать ещё ${restRows.length}</button>`;
+        }
+        return `<div class="fp-sm-card"><div class="fp-sm-card-title">${esc(title)}</div>${head}${moreBlock}</div>`;
     }
 
     function detailedHTML(agg) {
         const topBuyers = Object.entries(agg.byBuyer).map(([name, v]) => ({ name, count: v.count, id: v.id }))
-            .sort((a, b) => b.count - a.count).slice(0, 10)
+            .sort((a, b) => b.count - a.count).slice(0, 100)
             .map(b => ({
                 name: b.name,
                 value: `${b.count} зак.`,
@@ -280,14 +301,14 @@
                 filterType: 'buyer', filterKey: b.name
             }));
         const topProducts = Object.entries(agg.byProduct).map(([name, c]) => ({ name, c }))
-            .sort((a, b) => b.c - a.c).slice(0, 10)
+            .sort((a, b) => b.c - a.c).slice(0, 100)
             .map(p => ({ name: p.name, value: `${p.c} раз`, filterType: 'product', filterKey: p.name }));
         const topCats = Object.entries(agg.byCategory).map(([name, c]) => ({ name, c }))
-            .sort((a, b) => b.c - a.c).slice(0, 10)
+            .sort((a, b) => b.c - a.c).slice(0, 100)
             .map(c => ({ name: c.name, value: `${c.c} зак.`, filterType: 'category', filterKey: c.name }));
 
         return `<div class="fp-sm-grid">
-            ${tableHTML('Топ покупателей', topBuyers)}
+            ${tableHTML((_cfg && _cfg.topTableLabel) || 'Топ покупателей', topBuyers)}
             ${tableHTML('Топ товаров', topProducts)}
             ${tableHTML('Топ категорий', topCats)}
         </div>`;
@@ -314,6 +335,9 @@
         .fp-sm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;}
         .fp-sm-card{background:var(--fpt-surface,#1a1c26);border:1px solid var(--fpt-border,#22253a);border-radius:10px;padding:14px;}
         .fp-sm-card-title{font-size:12px;font-weight:700;color:var(--fpt-text,#d8dae8);margin-bottom:10px;}
+        .fp-sm-more-btn{margin-top:6px;padding:2px 0;background:none;border:none;cursor:pointer;
+            font-size:11px;color:var(--fpt-text-muted,#9099b8);opacity:.85;width:auto;}
+        .fp-sm-more-btn:hover{opacity:1;color:var(--fpt-accent,#C026D3);text-decoration:underline;}
         .fp-sm-donut-row{display:flex;align-items:center;gap:14px;}
         .fp-sm-legend{display:flex;flex-direction:column;gap:5px;flex:1;min-width:0;}
         .fp-sm-leg{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--fpt-text-muted,#9099b8);}
@@ -460,7 +484,7 @@
     // ── render orchestrator ───────────────────────────────────────────────────────
     let currentMode = 'cards';
     let searchQuery = '';
-    // Текущий «дрилл-даун» (просмотр заказов дня/покупателя/...). Если задан —
+    // Текущий «дрилл-даун» (просмотр заказов дня/покупателя/...). Если задан -
     // изменение фильтров/сортировки перерисовывает именно его, а не выкидывает в режим.
     let currentView = null; // { type:'day', key } | { type:'buyer'|'product'|'category', key } | null
 
@@ -492,7 +516,7 @@
                     ${price ? `<span class="fp-sm-sr-price">${esc(price)}</span>` : ''}
                 </div>
                 <div class="fp-sm-sr-meta">
-                    <span>${esc(o.buyerUsername || '—')}</span>
+                    <span>${esc(o.buyerUsername || '-')}</span>
                     <span>${esc(o.subcategoryName || '')}</span>
                     <span class="fp-sm-sr-status fp-sm-st-${esc(o.orderStatus || '')}">${esc(st)}</span>
                     <span>${esc(dateStr)}</span>
@@ -523,7 +547,7 @@
             return;
         }
 
-        // карточки — показываем стандартный блок, очищаем доп. view
+        // карточки - показываем стандартный блок, очищаем доп. view
         if (currentMode === 'cards') {
             if (cards) cards.style.display = '';
             view.innerHTML = '';
@@ -550,7 +574,7 @@
         const summary = `<div class="fp-sm-summary">
             <span>Период: <strong>${esc(range.label)}</strong></span>
             <span>Заказов: <strong>${agg.total}</strong></span>
-            <span>Продаж: <strong>${agg.count}</strong></span>
+            <span>${(_cfg && _cfg.countLabel) || "Продаж"}: <strong>${agg.count}</strong></span>
         </div>`;
 
         let html = summary;
@@ -560,7 +584,7 @@
         else if (currentMode === 'full') {
             html += chartHTML(agg) + '<div style="height:12px;"></div>' + diagramsHTML(agg) + '<div style="height:12px;"></div>' + detailedHTML(agg);
         }
-        // Сначала заполняем view готовым контентом, и только потом прячем карточки —
+        // Сначала заполняем view готовым контентом, и только потом прячем карточки -
         // так между переключением вкладок не возникает пустого «провала» статистики.
         view.innerHTML = html;
         if (cards) cards.style.display = 'none';
@@ -571,6 +595,33 @@
                 const type = btn.getAttribute('data-filter-type');
                 const key = btn.getAttribute('data-filter-key');
                 if (type && key != null) showFilteredOrders(type, key);
+            });
+        });
+        // «Показать ещё» / «Скрыть» в топ-таблицах — раскрывает и сворачивает на месте
+        view.querySelectorAll('.fp-sm-more-btn').forEach(btn => {
+            const totalMore = btn.getAttribute('data-more-count') || '';
+            let bound = false;
+            btn.addEventListener('click', () => {
+                const hidden = btn.previousElementSibling;
+                if (!hidden || !hidden.classList.contains('fp-sm-more-hidden')) return;
+                const isOpen = hidden.style.display !== 'none';
+                if (isOpen) {
+                    hidden.style.display = 'none';
+                    btn.textContent = `Показать ещё ${totalMore}`;
+                } else {
+                    hidden.style.display = '';
+                    btn.textContent = 'Скрыть';
+                    if (!bound) {
+                        bound = true;
+                        hidden.querySelectorAll('.fp-sm-row-valbtn').forEach(b => {
+                            b.addEventListener('click', () => {
+                                const t = b.getAttribute('data-filter-type');
+                                const k = b.getAttribute('data-filter-key');
+                                if (t && k != null) showFilteredOrders(t, k);
+                            });
+                        });
+                    }
+                }
             });
         });
     }
@@ -638,7 +689,7 @@
 
         root.querySelectorAll('.fp-sm-chart').forEach(svg => {
             wireSvg(svg);
-            // клик по столбцу — показать все заказы за этот день
+            // клик по столбцу - показать все заказы за этот день
             svg.style.cursor = 'default';
             svg.addEventListener('click', (e) => {
                 const bar = e.target.closest('.fp-sm-bar');
@@ -681,7 +732,7 @@
                     ${price ? `<span class="fp-sm-sr-price">${esc(price)}</span>` : ''}
                 </div>
                 <div class="fp-sm-sr-meta">
-                    <span>${esc(o.buyerUsername || '—')}</span>
+                    <span>${esc(o.buyerUsername || '-')}</span>
                     <span>${esc(o.subcategoryName || '')}</span>
                     <span class="fp-sm-sr-status fp-sm-st-${esc(o.orderStatus || '')}">${esc(stMap[o.orderStatus] || o.orderStatus || '')}</span>
                     <span>${esc(time)}</span>
@@ -717,7 +768,7 @@
                 ${price ? `<span class="fp-sm-sr-price">${esc(price)}</span>` : ''}
             </div>
             <div class="fp-sm-sr-meta">
-                <span>${esc(o.buyerUsername || '—')}</span>
+                <span>${esc(o.buyerUsername || '-')}</span>
                 <span>${esc(o.subcategoryName || '')}</span>
                 <span class="fp-sm-sr-status fp-sm-st-${esc(o.orderStatus || '')}">${esc(stMap[o.orderStatus] || o.orderStatus || '')}</span>
                 <span>${esc(dateStr)}</span>
@@ -733,15 +784,15 @@
         const range = getPeriodRange();
         const orders = await getOrders(range);
         const match = (o) => {
-            if (type === 'buyer') return (o.buyerUsername || '—') === key;
-            if (type === 'product') return (o.description || '—') === key;
+            if (type === 'buyer') return (o.buyerUsername || '-') === key;
+            if (type === 'product') return (o.description || '-') === key;
             if (type === 'category') return (o.subcategoryName || 'Без категории') === key;
             return false;
         };
         const list = sortOrders(orders.filter(match));
         let revenue = 0;
         list.forEach(o => { if (o.orderStatus === 'closed' || o.orderStatus === 'paid') revenue += (o.price || 0); });
-        const typeLabel = type === 'buyer' ? 'Покупатель' : (type === 'product' ? 'Товар' : 'Категория');
+        const typeLabel = type === 'buyer' ? ((_cfg && _cfg.partyLabel) || 'Покупатель') : (type === 'product' ? 'Товар' : 'Категория');
         const rows = list.map(o => orderRowHTML(o, true)).join('');
 
         view.innerHTML = `
@@ -768,7 +819,7 @@
                 render();
             });
         });
-        // период меняется — перерисуем активный режим
+        // период меняется - перерисуем активный режим
         const period = document.getElementById('fpTools-stats-period');
         if (period && !period.dataset.smBound) {
             period.dataset.smBound = '1';
@@ -777,7 +828,8 @@
         // обновление данных
         if (chrome.storage && chrome.storage.onChanged) {
             chrome.storage.onChanged.addListener((changes, area) => {
-                if (area === 'local' && changes.fpToolsSalesData && (currentMode !== 'cards' || searchQuery)) render();
+                const _luk = (window.fptStatsCfg && window.fptStatsCfg.lastUpdateKey) || 'fpToolsSalesLastUpdate';
+                if (area === 'local' && changes[_luk] && (currentMode !== 'cards' || searchQuery)) render();
             });
         }
 
@@ -869,8 +921,8 @@
         if (fReset && !fReset.dataset.bound) {
             fReset.dataset.bound = '1';
             fReset.addEventListener('click', () => {
-                filters = { stClosed: true, stPaid: true, stRefunded: true, sort: 'date-desc' };
-                setBtn(fClosed, true); setBtn(fPaid, true); setBtn(fRefunded, true);
+                filters = { stClosed: true, stPaid: true, stRefunded: _defRefunded, sort: 'date-desc' };
+                setBtn(fClosed, true); setBtn(fPaid, true); setBtn(fRefunded, _defRefunded);
                 if (fSort) fSort.value = 'date-desc';
                 applyFilterChange();
             });
@@ -878,7 +930,7 @@
     }
 
     function refreshFilterToggleState(btn) {
-        // Кнопка фильтров — простой клон кнопки поиска, без фиолетовой подсветки.
+        // Кнопка фильтров - простой клон кнопки поиска, без фиолетовой подсветки.
         // (оставлено как заглушка, чтобы не трогать места вызова)
     }
 

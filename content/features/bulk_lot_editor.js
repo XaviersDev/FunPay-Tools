@@ -11,6 +11,13 @@ function initBulkLotEditor() {
     if (!btn) return;
 
     btn.addEventListener('click', openBulkEditor);
+
+    // Кнопка «Открыть все заметки»
+    const notesBtn = document.getElementById('fp-open-notes-btn');
+    if (notesBtn) notesBtn.addEventListener('click', () => {
+        if (window.FPTNotes) window.FPTNotes.openViewer();
+        else showNotification('Модуль заметок не загрузился', true);
+    });
 }
 
 async function openBulkEditor() {
@@ -142,6 +149,7 @@ async function openBulkEditor() {
             </div>
             <div class="fp-tools-modal-footer" style="padding:14px 20px;display:flex;gap:10px;background:#13141a;border-top:1px solid #1e2030;border-radius:0 0 10px 10px;">
                 <button id="fp-bulk-apply-btn" class="btn" style="flex:1;">Применить изменения</button>
+                <button id="fp-bulk-activate-btn" class="btn btn-default" style="flex:0 0 auto;" title="Активировать выбранные лоты">Активировать</button>
                 <button class="fp-tools-modal-close btn btn-default">Отмена</button>
             </div>
         </div>
@@ -384,5 +392,69 @@ async function openBulkEditor() {
 
         applyBtn.disabled = false;
         applyBtn.textContent = 'Применить изменения';
+    });
+
+    // FIX 2.8.2 (№10): массовая активация выбранных (неактивных) лотов.
+    // Грузим полную форму лота, ставим active=on и сохраняем - ровно тем же
+    // путём, что и обычное сохранение, поэтому ничего из полей лота не теряется.
+    $('fp-bulk-activate-btn').addEventListener('click', async () => {
+        const selected = Array.from(overlay.querySelectorAll('.fp-bulk-lot-check:checked'));
+        if (!selected.length) {
+            showNotification('Выберите хотя бы один лот для активации', true);
+            return;
+        }
+        const actBtn = $('fp-bulk-activate-btn');
+        const applyBtn = $('fp-bulk-apply-btn');
+        actBtn.disabled = true; applyBtn.disabled = true;
+        actBtn.textContent = 'Активируем...';
+        $('fp-bulk-progress').style.display = 'block';
+        $('fp-bulk-log').innerHTML = '';
+
+        let ok = 0, fail = 0, processed = 0;
+        const total = selected.length;
+
+        for (const cb of selected) {
+            const offerId = cb.dataset.offerId;
+            const nodeId  = cb.dataset.nodeId;
+            const lotLabel = cb.closest('label')?.querySelector('span')?.textContent || offerId;
+            $('fp-bulk-progress-text').textContent = `Активируем ${processed + 1}/${total}: ${lotLabel}`;
+
+            try {
+                const editData = await new Promise((resolve, reject) => {
+                    chrome.runtime.sendMessage({ action: 'getLotForExport', nodeId, offerId }, (res) => {
+                        if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+                        else if (res?.success) resolve(res.data);
+                        else reject(new Error(res?.error || 'Ошибка загрузки лота'));
+                    });
+                });
+                if (!editData || typeof editData !== 'object') throw new Error('Нет данных лота');
+
+                const formData = { ...editData, offer_id: offerId, active: 'on' };
+
+                const saveRes = await new Promise((resolve) => {
+                    chrome.runtime.sendMessage({ action: 'saveSingleLot', data: formData }, (res) => {
+                        if (chrome.runtime.lastError) resolve({ success: false, error: chrome.runtime.lastError.message });
+                        else resolve(res || { success: false, error: 'нет ответа' });
+                    });
+                });
+
+                if (saveRes && saveRes.success) { ok++; log(`✓ ${lotLabel} - активирован`); }
+                else { fail++; log(`✗ ${lotLabel}: ${saveRes?.error || 'ошибка'}`, true); }
+            } catch (e) {
+                fail++; log(`✗ ${lotLabel}: ${e.message}`, true);
+            }
+
+            processed++;
+            $('fp-bulk-progress-bar').style.width = `${(processed / total) * 100}%`;
+            await new Promise(r => setTimeout(r, 1200)); // антитроттлинг FunPay
+        }
+
+        $('fp-bulk-progress-bar').style.width = '100%';
+        $('fp-bulk-progress-bar').style.background = fail ? '#d99000' : '#4caf82';
+        $('fp-bulk-progress-text').textContent = `Готово. Активировано: ${ok}, ошибок: ${fail}, всего: ${total}.`;
+        showNotification(`Активировано: ${ok}/${total}${fail ? `, ошибок: ${fail}` : ''}`, fail > 0);
+
+        actBtn.disabled = false; applyBtn.disabled = false;
+        actBtn.textContent = 'Активировать';
     });
 }

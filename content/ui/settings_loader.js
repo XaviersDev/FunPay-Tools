@@ -283,12 +283,11 @@ async function loadSavedSettings() {
         'fpToolsTemplateSettings', 'enableCustomTheme', 'fpToolsTheme', 'aiModeActive',
         'autoBumpEnabled', 'autoBumpCooldown', 'fpToolsSmartBumpEnabled', 'fpToolsCursorFx', 'fpToolsCustomCursor',
         'fpToolsPopupPosition', 'fpToolsPopupSize', 'enableRedesignedHomepage', 'fpToolsPopupDragged',
-        'fpToolsAccounts', 'showSalesStats', 'hideBalance', 'viewSellersPromo', 'notificationSound', 'notificationVolume',
+        'fpToolsAccounts', 'showSalesStats', 'showFinanceStats', 'hideBalance', 'viewSellersPromo', 'notificationSound', 'notificationVolume',
         'fpToolsDiscord',
         'fpToolsSelectiveBumpEnabled', 'fpToolsSelectedBumpCategories', 'fpToolsBumpOnlyAutoDelivery',
         'autoReviewEnabled', 'reviewTemplates', 'greetingEnabled', 'greetingText', 'keywordsEnabled', 'keywords',
         'fpToolsIdentifierEnabled',
-        'fpToolsShowPaymentType',
         'fpToolsBuyerHistory',
         'fpToolsShowUnconfirmed',
         'fpToolsAutoRestoreEnabled',
@@ -418,6 +417,7 @@ async function loadSavedSettings() {
     cursorFx.updateCustomCursor(finalCustomCursorSettings);
 
     document.getElementById('showSalesStatsCheckbox').checked = settings.showSalesStats !== false;
+    { const _fs=document.getElementById('showFinanceStatsCheckbox'); if(_fs) _fs.checked = settings.showFinanceStats !== false; }
     document.getElementById('hideBalanceCheckbox').checked = settings.hideBalance === true;
     document.getElementById('viewSellersPromoCheckbox').checked = settings.viewSellersPromo !== false;
     // 2.8: FPT identifier toggle (default: enabled)
@@ -427,8 +427,6 @@ async function loadSavedSettings() {
     }
 
     // 2.9: New settings toggles
-    const paymentTypeEl = document.getElementById('fpToolsShowPaymentType');
-    if (paymentTypeEl) paymentTypeEl.checked = settings.fpToolsShowPaymentType !== false;
 
     const buyerHistoryEl = document.getElementById('fpToolsBuyerHistory');
     if (buyerHistoryEl) buyerHistoryEl.checked = settings.fpToolsBuyerHistory !== false;

@@ -14,7 +14,7 @@
 //   }
 //
 //   В response поддерживаются те же переменные, что и в других местах:
-//     {buyername} / {username} — имя собеседника (если удаётся определить)
+//     {buyername} / {username} - имя собеседника (если удаётся определить)
 //     {date} {time}
 //
 // Работает и в диалоге (.chat-form-input .form-control), и в общем чате категории
@@ -80,7 +80,7 @@
     }
 
     // Возвращает «текущий слэш-токен» у каретки: текст от последнего «/» в начале
-    // строки/слова до позиции каретки. Пустой результат — нет активного токена.
+    // строки/слова до позиции каретки. Пустой результат - нет активного токена.
     function getActiveToken(input) {
         const pos = input.selectionStart;
         if (pos == null) return null;
@@ -159,7 +159,7 @@
         // Показываем НАД полем ввода (поле чата обычно внизу экрана).
         const dropH = Math.min(dropdownEl.offsetHeight || 200, 260);
         let top = r.top + window.scrollY - dropH - 6;
-        if (top < window.scrollY + 6) top = r.bottom + window.scrollY + 6; // не влезло сверху — снизу
+        if (top < window.scrollY + 6) top = r.bottom + window.scrollY + 6; // не влезло сверху - снизу
         dropdownEl.style.left = (r.left + window.scrollX) + 'px';
         dropdownEl.style.top = top + 'px';
         dropdownEl.style.width = Math.max(r.width, 240) + 'px';
@@ -184,7 +184,7 @@
                 <span class="fpt-slash-trig">${escapeHtml(c.trigger)}</span>
                 <span class="fpt-slash-resp">${escapeHtml((c.response || '').replace(/\s+/g, ' ').slice(0, 90))}</span>
             </div>
-        `).join('') + `<div class="fpt-slash-hint">${keyHint} — вставить - ↑↓ выбрать - Esc закрыть</div>`;
+        `).join('') + `<div class="fpt-slash-hint">${keyHint} - вставить - ↑↓ выбрать - Esc закрыть</div>`;
 
         dropdownEl.querySelectorAll('.fpt-slash-item').forEach(item => {
             item.addEventListener('mousedown', (e) => {
@@ -217,7 +217,7 @@
     function commitCommand(input, command) {
         if (!command) return;
         const tok = getActiveToken(input);
-        // Если каретка уже не на токене (редкий случай) — заменяем по последнему «/».
+        // Если каретка уже не на токене (редкий случай) - заменяем по последнему «/».
         let start, end;
         if (tok) { start = tok.start; end = tok.end; }
         else {
@@ -231,7 +231,7 @@
     }
 
     // Первый Tab/Enter дописывает триггер целиком (как автодополнение),
-    // второй — разворачивает в ответ. Но если уже введён полный триггер —
+    // второй - разворачивает в ответ. Но если уже введён полный триггер -
     // сразу разворачиваем.
     function handleExpand(input) {
         const tok = getActiveToken(input);
@@ -246,9 +246,9 @@
         // Берём выбранный в дропдауне или первый.
         const chosen = (dropdownEl && dropItems[dropIndex]) ? dropItems[dropIndex] : matches[0];
 
-        // Если введён неполный триггер — сперва дополняем до полного триггера,
+        // Если введён неполный триггер - сперва дополняем до полного триггера,
         // оставляя дропдаун (чтобы было видно «/привет»), а вставку делаем сразу
-        // следующим нажатием. Для удобства: если совпадение ровно одно —
+        // следующим нажатием. Для удобства: если совпадение ровно одно -
         // разворачиваем сразу.
         if (matches.length === 1) {
             commitCommand(input, chosen);
@@ -257,7 +257,7 @@
 
         // Несколько совпадений: дополняем до выбранного триггера.
         replaceRange(input, tok.start, tok.end, chosen.trigger);
-        // После дополнения покажем, что теперь это точный триггер — обновим дропдаун.
+        // После дополнения покажем, что теперь это точный триггер - обновим дропдаун.
         const after = getActiveToken(input);
         if (after) {
             const m = findMatches(after.token);
@@ -315,7 +315,7 @@
         }
 
         // ENTER: разворачиваем ТОЛЬКО точный/единственный триггер, чтобы не мешать
-        // обычной отправке сообщения. Если развернули — гасим отправку.
+        // обычной отправке сообщения. Если развернули - гасим отправку.
         if (e.key === 'Enter' && !e.shiftKey && wantEnter) {
             const tok = getActiveToken(input);
             if (tok) {
@@ -327,7 +327,7 @@
                     commitCommand(input, exact || matches[0]);
                     return;
                 }
-                // Если открыт дропдаун с несколькими — Enter выбирает подсвеченный.
+                // Если открыт дропдаун с несколькими - Enter выбирает подсвеченный.
                 if (dropdownOpen) {
                     e.preventDefault();
                     e.stopPropagation();
@@ -347,7 +347,7 @@
 
     function init() {
         loadCfg();
-        // Делегирование на document — переживает SPA-перерисовки FunPay.
+        // Делегирование на document - переживает SPA-перерисовки FunPay.
         document.addEventListener('input', onInput, true);
         document.addEventListener('keydown', onKeyDown, true);
         document.addEventListener('blur', onBlur, true);

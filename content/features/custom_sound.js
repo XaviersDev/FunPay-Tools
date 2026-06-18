@@ -23,15 +23,30 @@ async function applyNotificationSound() {
     // 3.0: volume control
     audioPlayer.volume = vol;
 
-    if (selectedSound === 'default') {
-        const originalSrc = 'https://funpay.com/audio/chat_loud.mp3';
-        if (audioSource.src !== originalSrc) {
-            audioSource.src = originalSrc;
+    // FIX 2.8.2 (№6): раньше подменялся только дочерний <source>. Но FunPay часто
+    // проигрывает звук, выставляя audioPlayer.src НАПРЯМУЮ или уже забуферив
+    // оригинал - тогда наш <source> игнорировался и звук оставался «фпшным».
+    // Теперь: (1) вычисляем нужный src, (2) ставим его И на <source>, И на сам
+    // audioPlayer, (3) перехватываем play(), чтобы перед каждым воспроизведением
+    // принудительно ставить наш src и громкость (FunPay не сможет «вернуть своё»).
+    const setSrc = (newSrc) => {
+        if (!newSrc) return;
+        if (audioSource.src !== newSrc) audioSource.src = newSrc;
+        if (audioPlayer.src !== newSrc) {
+            audioPlayer.src = newSrc;
             audioPlayer.load();
         }
+    };
+
+    // запоминаем выбранный src на самом элементе, чтобы перехватчик play() знал что ставить
+    let chosenSrc = null;
+
+    if (selectedSound === 'default') {
+        chosenSrc = 'https://funpay.com/audio/chat_loud.mp3';
+        setSrc(chosenSrc);
     } else if (selectedSound === 'custom') {
         // Своя загруженная мелодия (обрезанный отрезок). Преобразуем data URL в
-        // blob: URL — он не попадает под ограничения CSP на data:-медиа.
+        // blob: URL - он не попадает под ограничения CSP на data:-медиа.
         if (fpToolsCustomSoundData) {
             try {
                 if (!window.__fptCustomSoundBlobUrl || window.__fptCustomSoundBlobSrc !== fpToolsCustomSoundData) {
@@ -41,28 +56,41 @@ async function applyNotificationSound() {
                     window.__fptCustomSoundBlobUrl = URL.createObjectURL(blob);
                     window.__fptCustomSoundBlobSrc = fpToolsCustomSoundData;
                 }
-                if (audioSource.src !== window.__fptCustomSoundBlobUrl) {
-                    audioSource.src = window.__fptCustomSoundBlobUrl;
-                    audioPlayer.load();
-                }
+                chosenSrc = window.__fptCustomSoundBlobUrl;
+                setSrc(chosenSrc);
             } catch (_) {
-                // если blob не удался — пробуем напрямую data URL
-                if (audioSource.src !== fpToolsCustomSoundData) { audioSource.src = fpToolsCustomSoundData; audioPlayer.load(); }
+                // если blob не удался - пробуем напрямую data URL
+                chosenSrc = fpToolsCustomSoundData;
+                setSrc(chosenSrc);
             }
         } else {
-            const originalSrc = 'https://funpay.com/audio/chat_loud.mp3';
-            if (audioSource.src !== originalSrc) { audioSource.src = originalSrc; audioPlayer.load(); }
+            chosenSrc = 'https://funpay.com/audio/chat_loud.mp3';
+            setSrc(chosenSrc);
         }
     } else {
         const soundFile = soundMap[selectedSound];
         if (soundFile) {
-            const newSrc = chrome.runtime.getURL(`sounds/${soundFile}`);
-            if (audioSource.src !== newSrc) {
-                audioSource.src = newSrc;
-                audioPlayer.load();
-            }
+            chosenSrc = chrome.runtime.getURL(`sounds/${soundFile}`);
+            setSrc(chosenSrc);
         }
     }
+
+    // FIX 2.8.2 (№6): перехват play() - гарантирует наш src/громкость при каждом
+    // воспроизведении, даже если FunPay переустановил источник между уведомлениями.
+    if (chosenSrc && !audioPlayer.__fptPlayPatched) {
+        audioPlayer.__fptPlayPatched = true;
+        const origPlay = audioPlayer.play.bind(audioPlayer);
+        audioPlayer.play = function () {
+            try {
+                const want = audioPlayer.__fptChosenSrc;
+                if (want && audioPlayer.src !== want) { audioPlayer.src = want; audioPlayer.load(); }
+                if (typeof audioPlayer.__fptVol === 'number') audioPlayer.volume = audioPlayer.__fptVol;
+            } catch (_) {}
+            return origPlay();
+        };
+    }
+    audioPlayer.__fptChosenSrc = chosenSrc;
+    audioPlayer.__fptVol = vol;
 }
 
 // 3.0: preview the currently-selected sound at the selected volume (used by the popup button).

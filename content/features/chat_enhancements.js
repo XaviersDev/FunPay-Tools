@@ -107,6 +107,39 @@
                     delete _drafts[chatId];
                     chrome.storage.local.set({ [DRAFT_KEY]: _drafts });
                 });
+
+                // FIX 2.8.2 (№4): FunPay отправляет сообщения через AJAX (runner),
+                // настоящего submit формы НЕ происходит → черновик не очищался и
+                // последнее отправленное сообщение «спавнилось» обратно в поле.
+                // Дополнительно ловим момент отправки: клик по кнопке отправки и
+                // нажатие Enter. После него поле очищается самим FunPay - как только
+                // оно стало пустым, удаляем черновик этого чата.
+                const clearDraftForActiveChat = () => {
+                    const chatId = getChatIdFromUrl();
+                    if (!chatId) return;
+                    clearTimeout(_draftTimer);   // отменяем отложенное сохранение
+                    delete _drafts[chatId];
+                    chrome.storage.local.set({ [DRAFT_KEY]: _drafts });
+                };
+
+                // ждём, пока FunPay очистит поле после отправки, затем чистим черновик
+                const scheduleClearAfterSend = () => {
+                    const chatId = getChatIdFromUrl();
+                    if (!chatId) return;
+                    let tries = 0;
+                    const iv = setInterval(() => {
+                        tries++;
+                        if (input.value.trim() === '') { clearTimeout(_draftTimer); delete _drafts[chatId]; chrome.storage.local.set({ [DRAFT_KEY]: _drafts }); clearInterval(iv); }
+                        else if (tries > 20) clearInterval(iv); // ~2с максимум
+                    }, 100);
+                };
+
+                const sendBtn = form?.querySelector('button[type="submit"], .chat-form-btn, .btn-chat-send');
+                sendBtn?.addEventListener('click', scheduleClearAfterSend, true);
+
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) scheduleClearAfterSend();
+                });
             }
         });
     }
@@ -140,6 +173,27 @@
     }
 
     // --- Init ---
+    // FIX 2.8.2 (№11): при открытии чата прокручиваем ленту сообщений к низу
+    // (к самым свежим), чтобы не приходилось скроллить вручную. Ждём появления
+    // сообщений и докручиваем несколько раз - FunPay подгружает их асинхронно.
+    function scrollChatToBottom() {
+        const list = document.querySelector('.chat-message-list, .chat-detail .chat-message-list, .chat-full .chat-message-list');
+        if (!list) return;
+        let tries = 0;
+        let lastH = -1;
+        const iv = setInterval(() => {
+            tries++;
+            const list2 = document.querySelector('.chat-message-list, .chat-detail .chat-message-list, .chat-full .chat-message-list');
+            if (!list2) { clearInterval(iv); return; }
+            // докручиваем, пока высота растёт (подгружаются сообщения)
+            if (list2.scrollHeight !== lastH) {
+                lastH = list2.scrollHeight;
+                list2.scrollTop = list2.scrollHeight;
+            }
+            if (tries > 12) clearInterval(iv); // ~1.8с
+        }, 150);
+    }
+
     function init() {
         initCtrlEnterSend();
 
@@ -150,6 +204,7 @@
         if (document.querySelector('.chat-form-input')) {
             initDraftSaving();
             initCharCounter();
+            scrollChatToBottom();
         }
 
         // Watch for chat form appearing (SPA routing)
@@ -161,6 +216,7 @@
                 _initDone = true;
                 initDraftSaving();
                 initCharCounter();
+                scrollChatToBottom();
             }
             if (_initDone && !document.querySelector('.chat-form-input')) {
                 _initDone = false;
@@ -170,7 +226,7 @@
             // chatId is used for saving.
             if (window.location.href !== _lastUrl) {
                 _lastUrl = window.location.href;
-                if (document.querySelector('.chat-form-input')) initDraftSaving();
+                if (document.querySelector('.chat-form-input')) { initDraftSaving(); scrollChatToBottom(); }
             }
         }).observe(root, { childList: true, subtree: true });
     }

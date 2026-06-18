@@ -78,26 +78,39 @@ async function displayPinnedLotsOnLoad() {
 
 function initializeLotManagement() {
     $(function() {
-        const isProfileSalesPage = window.location.pathname.includes('/users/') && !document.querySelector('.chat-profile-container');
+        const onUsersPage = window.location.pathname.includes('/users/');
+        const hasChatPanel = !!document.querySelector('.chat-profile-container');
         const isCategoryTradePage = window.location.pathname.includes('/lots/') && window.location.pathname.includes('/trade');
 
+        // Свой профиль = страница /users/ без чат-панели (на своём чата с собой нет).
+        const isOwnProfile = onUsersPage && !hasChatPanel;
+
+        // Определяем свой userId из шапки (.user-link-dropdown) и id просматриваемого профиля.
+        function getOwnUserId() {
+            const a = document.querySelector('.user-link-dropdown[href*="/users/"]');
+            const m = a && a.getAttribute('href') && a.getAttribute('href').match(/\/users\/(\d+)/);
+            if (m) return m[1];
+            try {
+                const raw = document.body?.dataset?.appData;
+                if (raw) { const d = JSON.parse(raw); return String((Array.isArray(d) ? d[0] : d)?.userId || '') || null; }
+            } catch (_) {}
+            return null;
+        }
+        const profileMatch = window.location.pathname.match(/\/users\/(\d+)\//);
+        const profileId = profileMatch ? profileMatch[1] : null;
+        const ownId = getOwnUserId();
+        // Чужой профиль = /users/N/ где N ≠ мой id (есть лоты для копирования).
+        const isForeignProfile = onUsersPage && profileId && ownId && profileId !== ownId;
+
+        // Страница активируется на: своём профиле, категории-trade, ИЛИ чужом профиле.
+        const isProfileSalesPage = isOwnProfile || isForeignProfile;
         if (!isProfileSalesPage && !isCategoryTradePage) return;
         if (document.getElementById('fp-tools-select-lots-btn')) return;
 
-        // FIX: Only show lot management on OWN profile page
-        if (isProfileSalesPage) {
-            try {
-                const raw = document.body?.dataset?.appData;
-                if (raw) {
-                    const d = JSON.parse(raw);
-                    const userId = String((Array.isArray(d) ? d[0] : d)?.userId || '');
-                    const profileMatch = window.location.pathname.match(/\/users\/(\d+)\//);
-                    if (profileMatch && userId && profileMatch[1] !== userId) return;
-                }
-            } catch (_) {}
-        }
+        const isForeignClone = isForeignProfile;
+        window.__fptForeignClone = isForeignClone;
 
-        if (isProfileSalesPage) {
+        if (isProfileSalesPage && !isForeignClone) {
             displayPinnedLotsOnLoad();
         }
 
@@ -117,9 +130,9 @@ function initializeLotManagement() {
             const offersHeader = $(Array.from(document.querySelectorAll('h5.mb10.text-bold')).find(h => h.textContent.trim() === 'Предложения' || h.textContent.trim() === 'Отзывы'));
             if (offersHeader.length) {
                 selectBtn.removeClass('btn-block').addClass('btn-xs');
-                reactivateBtn.removeClass('btn-block').addClass('btn-xs');
                 controlsContainer.addClass('fp-tools-selection-controls-profile');
-                offersHeader.append(selectBtn, reactivateBtn, controlsContainer.hide());
+                // На профилях кнопку «Включить лоты» не показываем — только «Выбрать».
+                offersHeader.append(selectBtn, controlsContainer.hide());
             }
         } else if (isCategoryTradePage) {
             $('body').addClass('fp-category-trade-page');
@@ -283,21 +296,92 @@ async function updatePinButtonsState() {
     }
 }
 
+// Копирование ОДНОГО чужого лота к себе (тот же конвейер, что и одиночное
+// клонирование): cloneGetSource (читает лот + подбирает поля категории) → cloneCreateLot.
+async function fptCloneOneForeign(offerId) {
+    const src = await chrome.runtime.sendMessage({ action: 'cloneGetSource', offerId });
+    if (!src || !src.success) throw new Error(src?.error || 'не удалось прочитать лот');
+    if (src.source?.isChips) throw new Error('лот из раздела валюты — пропущен');
+    if (!src.fields) throw new Error(src.formError || 'не удалось подобрать поля категории');
+
+    const s = src.source;
+    const fields = { ...src.fields };
+    fields['offer_id'] = '0';
+    fields['fields[summary][ru]'] = s.summary || '';
+    fields['fields[desc][ru]'] = s.description || '';
+    fields['fields[summary][en]'] = (s.enDiffers && s.summary_en) ? s.summary_en : '';
+    fields['fields[desc][en]'] = (s.enDiffers && s.desc_en) ? s.desc_en : '';
+    // Цена: округляем до 2 знаков (FunPay не принимает длинные дроби → «Invalid price»).
+    // Минимум на FunPay — 1, поэтому совсем мелкие цены поднимаем до 1.
+    const fmtPrice = (v) => {
+        let n = parseFloat(String(v).replace(',', '.'));
+        if (Number.isNaN(n) || n <= 0) return '';
+        if (n < 1) n = 1; // FunPay не даёт ставить меньше 1 в основной валюте
+        return (Math.round(n * 100) / 100).toString();
+    };
+    let priceStr = '';
+    if (s.finalPrice != null) priceStr = fmtPrice(s.finalPrice);
+    if (!priceStr && s.rawPrice) priceStr = fmtPrice(s.rawPrice);
+    if (priceStr) fields['price'] = priceStr;
+    fields['amount'] = (s.amount && /^\d+$/.test(s.amount)) ? s.amount : (fields['amount'] || '1');
+    fields['active'] = 'on';
+    fields['secrets'] = fields['secrets'] || '';
+    fields['fields[images]'] = fields['fields[images]'] || '';
+
+    const res = await chrome.runtime.sendMessage({ action: 'cloneCreateLot', fields, location: 'trade' });
+    if (!res || !res.success) throw new Error(res?.error || 'ошибка создания');
+    return res.newId;
+}
+
 function setupActionProcessing() {
     if ($('.actions').length === 0) {
         $(`
             <div class="actions">
                 <span class="log">Выберите действие</span>
                 <div>
+                    <button class="action-lot clone-lots" style="background:#7c5cff;display:none;">Копировать</button>
                     <button class="action-lot price-editor">Редактор цен</button>
                     <button class="action-lot pin-lot" style="background: #27ae60;">Закрепить</button>
                     <button class="action-lot unpin-lot" style="background: #c0392b;">Открепить</button>
                     <button class="action-lot dublicate">Дублировать</button>
+                    <button class="action-lot activate-lot" style="background: #4CAF50; display:none;">Включить</button>
                     <button class="action-lot deactivate-lot">Отключить</button>
                     <button class="action-lot delete-lot">Удалить</button>
                 </div>
             </div>
         `).appendTo('body').hide();
+
+        // В режиме копирования (чужой профиль) показываем только «Копировать»,
+        // прячем действия над своими лотами.
+        if (window.__fptForeignClone) {
+            $('.actions .action-lot').not('.clone-lots').hide();
+            $('.actions .clone-lots').show();
+        }
+    }
+
+    // FIX 2.8.8 (№6): обновляет счётчики на кнопках "Включить xN" / "Отключить xN".
+    // Активные лоты = .tc-item без .warning; неактивные = .tc-item.warning.
+    // Кнопка "Включить" показывается только если выбран хотя бы один НЕактивный лот,
+    // а "Отключить" считает только выбранные АКТИВНЫЕ (отключать уже отключённые нельзя).
+    function updateActivateDeactivateCounts() {
+        // На чужом профиле (режим копирования) кнопок включения/отключения нет —
+        // чужие лоты трогать нельзя, показываем только «Копировать».
+        if (window.__fptForeignClone) {
+            $('.actions .action-lot').not('.clone-lots').hide();
+            $('.actions .clone-lots').show();
+            return;
+        }
+        let activeSel = 0, inactiveSel = 0;
+        $('.tc-item .lot-box input:checked').each(function() {
+            const row = $(this).closest('.tc-item');
+            if (row.hasClass('warning')) inactiveSel++; else activeSel++;
+        });
+        const $act = $('.actions .activate-lot');
+        const $deact = $('.actions .deactivate-lot');
+        if (inactiveSel > 0) { $act.show().text('Включить x' + inactiveSel); }
+        else { $act.hide().text('Включить'); }
+        if (activeSel > 0) { $deact.show().text('Отключить x' + activeSel); }
+        else { $deact.hide().text('Отключить'); }
     }
 
     $(document).on('change', '.lot-box input', function() {
@@ -307,6 +391,7 @@ function setupActionProcessing() {
         const selectAllCheckbox = $('#fp-tools-select-all-lots');
 
         $('.actions').css('display', checkedLots > 0 ? 'flex' : 'none');
+        updateActivateDeactivateCounts();
         
         // Обновляем главный чекбокс "Выбрать все"
         if (totalLots > 0) {
@@ -492,6 +577,13 @@ function setupActionProcessing() {
             const lotName = $lotLink.find(".tc-desc-text").text().trim();
             const offerLink = $lotLink.attr('href');
 
+            // FIX 2.8.8 (№6): по статусу строки пропускаем неприменимые лоты:
+            //  - "deactivate" не трогает уже отключённые (.warning),
+            //  - "activate" не трогает уже активные (без .warning).
+            const isInactiveRow = $lotLink.hasClass('warning');
+            if (actionType === 'deactivate' && isInactiveRow) continue;
+            if (actionType === 'activate' && !isInactiveRow) continue;
+
             if (!offerLink) {
                 errorCount++;
                 continue;
@@ -526,6 +618,7 @@ function setupActionProcessing() {
             if (actionType === 'delete') actionText = 'Удаление';
             else if (actionType === 'duplicate') actionText = 'Дублирование';
             else if (actionType === 'deactivate') actionText = 'Отключение';
+            else if (actionType === 'activate') actionText = 'Включение';
             
             updateLog(`${actionText}: ${lotName}...`);
 
@@ -546,6 +639,9 @@ function setupActionProcessing() {
                         formData.set('active', 'on');
                     } else if (actionType === 'deactivate') {
                         formData.set('active', '0'); 
+                        formData.delete('deleted');
+                    } else if (actionType === 'activate') {
+                        formData.set('active', 'on');
                         formData.delete('deleted');
                     }
                 }
@@ -568,11 +664,19 @@ function setupActionProcessing() {
                         $clone.find('input[type="checkbox"]').prop('checked', false);
                         $clone.hide().insertAfter($lotLink).fadeIn(300);
                     } else if (actionType === 'deactivate') {
-                        $lotLink.css('opacity', '0.5');
+                        $lotLink.css('opacity', '0.5').addClass('warning');
                         const { fpToolsDeactivatedLots = [] } = await chrome.storage.local.get('fpToolsDeactivatedLots');
                         if (!fpToolsDeactivatedLots.some(lot => lot.offerId === offerId)) {
                             fpToolsDeactivatedLots.push({ offerId, nodeId, name: lotName, deactivatedAt: Date.now() });
                             await chrome.storage.local.set({ fpToolsDeactivatedLots });
+                        }
+                    } else if (actionType === 'activate') {
+                        // включили лот - обновляем строку и убираем его из списка отключённых
+                        $lotLink.css('opacity', '1').removeClass('warning');
+                        const { fpToolsDeactivatedLots = [] } = await chrome.storage.local.get('fpToolsDeactivatedLots');
+                        const filtered = fpToolsDeactivatedLots.filter(lot => String(lot.offerId) !== String(offerId));
+                        if (filtered.length !== fpToolsDeactivatedLots.length) {
+                            await chrome.storage.local.set({ fpToolsDeactivatedLots: filtered });
                         }
                     }
                     if (actionType !== 'delete') $(checkbox).prop('checked', false).trigger('change');
@@ -699,6 +803,39 @@ function setupActionProcessing() {
     $actionsBar.on('click', '.delete-lot', () => processSelectedLots('delete'));
     $actionsBar.on('click', '.dublicate', () => processSelectedLots('duplicate'));
     $actionsBar.on('click', '.deactivate-lot', () => processSelectedLots('deactivate'));
+    $actionsBar.on('click', '.activate-lot', () => processSelectedLots('activate'));
+
+    // Чужой профиль: копирование выбранных лотов к себе через клон-бэкенд.
+    $actionsBar.on('click', '.clone-lots', async function () {
+        const selected = $('.tc-item .lot-box input:checked').get();
+        if (!selected.length) { updateLog('Не выбрано ни одного лота.', true); return; }
+        const offerIds = selected.map(chk => {
+            const $a = $(chk).closest('a.tc-item');
+            const href = $a.attr('href') || '';
+            const m = href.match(/[?&]id=(\d+)/) || href.match(/offer=(\d+)/) || ($a.attr('data-offer') ? [null, $a.attr('data-offer')] : null);
+            return m ? m[1] : null;
+        }).filter(Boolean);
+        if (!offerIds.length) { updateLog('Не удалось определить ID лотов.', true); return; }
+        if (!confirm(`Скопировать ${offerIds.length} лот(ов) к себе? Они будут созданы на твоём аккаунте.`)) return;
+
+        toggleActions(true);
+        let ok = 0, fail = 0;
+        for (let i = 0; i < offerIds.length; i++) {
+            const id = offerIds[i];
+            updateLog(`Копирую ${i + 1}/${offerIds.length} (#${id})…`);
+            try {
+                await fptCloneOneForeign(id);
+                ok++;
+            } catch (e) {
+                fail++;
+                console.warn('FP Tools clone fail', id, e);
+            }
+        }
+        updateLog(`Готово: ${ok} создано, ${fail} с ошибкой.`, fail > 0);
+        if (typeof showNotification === 'function') showNotification(`Копирование: ${ok} ок, ${fail} ошибок`, fail > 0);
+        toggleActions(false);
+    });
+
     
     $(document).on('click', '.actions .price-editor', function() {
         $('#fp-price-editor-overlay').css('display', 'flex').hide().fadeIn(200);
@@ -751,11 +888,16 @@ async function reactivateLot(offerId, nodeId, button) {
             const { fpToolsDeactivatedLots = [] } = await chrome.storage.local.get('fpToolsDeactivatedLots');
             const updatedList = fpToolsDeactivatedLots.filter(lot => String(lot.offerId) !== String(offerId));
             await chrome.storage.local.set({ fpToolsDeactivatedLots: updatedList });
-            
+
+            // если этот лот виден на странице - обновляем его строку (снимаем неактивный вид)
+            document.querySelectorAll(`a.tc-item[data-offer="${offerId}"], .tc-item[data-offer="${offerId}"]`).forEach(el => {
+                el.classList.remove('warning');
+                el.style.opacity = '1';
+            });
             $(button).closest('.fp-reactivate-item').fadeOut(300, function() { 
                 $(this).remove();
                 if ($('.fp-reactivate-list').children().length === 0) {
-                    $('.fp-reactivate-list').html('<li style="text-align:center; color:#888;">Нет отключенных лотов (которые вы отключали через выбор лотов от расширения).</li>');
+                    $('.fp-reactivate-list').html('<li style="text-align:center; color:#888;">Пока нет отключенных лотов</li>');
                 }
             });
             if (typeof showNotification === 'function') showNotification('Лот включен!', false);
@@ -924,20 +1066,64 @@ function computeNewPrice(current, mode, value, round, min, max) {
 }
 
 async function showReactivationPopup() {
-    const { fpToolsDeactivatedLots = [] } = await chrome.storage.local.get('fpToolsDeactivatedLots');
+    let { fpToolsDeactivatedLots = [] } = await chrome.storage.local.get('fpToolsDeactivatedLots');
+
+    // FIX 2.8.8 (№6): синхронизация со статусом на странице. Если лот, который мы
+    // когда-то отключали через расширение, сейчас ВИДЕН на странице и АКТИВЕН
+    // (строка .tc-item без класса .warning) - значит пользователь включил его сам
+    // на FunPay. Убираем такой лот из списка отключённых, чтобы он не висел в меню.
+    const activeOnPage = new Set();
+    document.querySelectorAll('a.tc-item[data-offer], .tc-item[data-offer]').forEach(el => {
+        const oid = el.getAttribute('data-offer');
+        if (oid && !el.classList.contains('warning')) activeOnPage.add(String(oid));
+    });
+    const cleaned = fpToolsDeactivatedLots.filter(l => !(l && activeOnPage.has(String(l.offerId))));
+    if (cleaned.length !== fpToolsDeactivatedLots.length) {
+        fpToolsDeactivatedLots = cleaned;
+        await chrome.storage.local.set({ fpToolsDeactivatedLots: cleaned });
+    }
+
     const list = $('.fp-reactivate-list');
     list.empty();
-    
-    if (fpToolsDeactivatedLots.length === 0) {
-        list.html('<li style="text-align:center; color:#888;">Нет отключенных лотов. (которые вы отключали через выбор лотов от расширения)</li>');
+
+    // Собираем: отключённые через расширение + все неактивные (.warning) на странице.
+    const merged = new Map(); // offerId -> { offerId, nodeId, name, deactivatedAt }
+
+    fpToolsDeactivatedLots.forEach(lot => {
+        if (lot && lot.offerId != null) merged.set(String(lot.offerId), { ...lot });
+    });
+
+    document.querySelectorAll('a.tc-item.warning[data-offer], .tc-item.warning[data-offer]').forEach(el => {
+        const offerId = el.getAttribute('data-offer');
+        if (!offerId) return;
+        const href = el.getAttribute('href') || '';
+        const nodeMatch = href.match(/[?&]node=(\d+)/);
+        const nodeId = nodeMatch ? nodeMatch[1] : (el.getAttribute('data-node') || '');
+        const name = (el.querySelector('.tc-desc-text')?.textContent || '').trim() || ('Лот #' + offerId);
+        if (!merged.has(String(offerId))) {
+            merged.set(String(offerId), { offerId, nodeId, name, deactivatedAt: null });
+        } else {
+            const ex = merged.get(String(offerId));
+            if (!ex.name) ex.name = name;
+            if (!ex.nodeId) ex.nodeId = nodeId;
+        }
+    });
+
+    const items = Array.from(merged.values());
+
+    if (items.length === 0) {
+        list.html('<li style="text-align:center; color:#888;">Пока нет отключенных лотов</li>');
     } else {
-        fpToolsDeactivatedLots.sort((a, b) => b.deactivatedAt - a.deactivatedAt).forEach(lot => {
-            const date = new Date(lot.deactivatedAt).toLocaleString();
+        items.sort((a, b) => (b.deactivatedAt || 0) - (a.deactivatedAt || 0));
+        items.forEach(lot => {
+            const dateLine = lot.deactivatedAt
+                ? `Отключен: ${new Date(lot.deactivatedAt).toLocaleString()}`
+                : 'Неактивен на FunPay';
             const itemHtml = `
-                <li class="fp-reactivate-item" data-offer-id="${lot.offerId}" data-node-id="${lot.nodeId}">
+                <li class="fp-reactivate-item" data-offer-id="${lot.offerId}" data-node-id="${lot.nodeId || ''}">
                     <div class="fp-reactivate-info">
                         <div class="name">${lot.name}</div>
-                        <div class="date">Отключен: ${date}</div>
+                        <div class="date">${dateLine}</div>
                     </div>
                     <button class="fp-reactivate-btn">Включить</button>
                 </li>
@@ -945,6 +1131,8 @@ async function showReactivationPopup() {
             list.append(itemHtml);
         });
     }
-    
-    $('#fp-reactivate-popup-overlay').fadeIn(200);
+
+    // центрируем (overlay - flex-контейнер; fadeIn ставил display:block и окно
+    // уезжало в левый верхний угол).
+    $('#fp-reactivate-popup-overlay').css('display', 'flex').hide().fadeIn(200);
 }

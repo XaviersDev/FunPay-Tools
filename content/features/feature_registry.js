@@ -215,6 +215,35 @@ const FPT_FEATURE_REGISTRY = [
         selector: '#fp-tools-public-clone-btn',
         preview: { kind: 'html', html: '<div class="fpt-pv-buyrow"><span class="fpt-pv-fpbtn">Копировать лот</span><span class="fpt-pv-buybtn">Купить</span></div>' }
     },
+    {
+        id: 'multi_clone_foreign',
+        label: 'Копирование лотов на чужом профиле',
+        desc: 'На странице чужого профиля появляется кнопка «Выбрать» (как на своём): отмечаешь несколько лотов галочками и жмёшь «Копировать» — массовое серверное клонирование выбранных лотов к себе.',
+        group: 'Чужие лоты',
+        selector: '.actions .clone-lots',
+        preview: { kind: 'html', html: '<div class="fpt-pv-buyrow"><span class="fpt-pv-fpbtn" style="background:#7c5cff;color:#fff;">Копировать</span></div>' }
+    },
+
+    // ───────────── Заметки ─────────────
+    {
+        id: 'lot_notes_chat_btn',
+        label: 'Кнопка «Заметка» в чате',
+        desc: 'Тонкая кнопка «📝 Заметка» под панелью «Покупатель смотрит» в чате — показывается, если у просматриваемого лота есть твоя личная заметка. Клик открывает заметку.',
+        group: 'Заметки',
+        selector: '.fpt-chat-note-btn',
+        preview: { kind: 'html', html: '<div class="fpt-pv-fpbtn" style="color:#7c5cff;border-color:#7c5cff;">📝 Заметка</div>' }
+    },
+
+    // ───────────── Свои лоты ─────────────
+    {
+        id: 'lot_delete_btn',
+        label: 'Красная кнопка удаления лота',
+        desc: 'На странице своего лота кнопка «Редактировать предложение» становится компактной, а рядом появляется маленькая красная кнопка с мусоркой для быстрого удаления лота.',
+        group: 'Список лотов и профиль',
+        selector: '.fpt-lot-del-btn',
+        preview: { kind: 'html', html: '<div class="fpt-pv-buyrow"><span class="fpt-pv-fpbtn">Редактировать</span><span class="fpt-pv-buybtn" style="background:#ef4444;">🗑</span></div>' }
+    },
+
 
     // ───────────── Список лотов / профиль ─────────────
     {

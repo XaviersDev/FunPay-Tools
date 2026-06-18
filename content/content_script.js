@@ -246,7 +246,7 @@
             if (!document.getElementById('fpToolsGenerateImageBtn') && document.querySelector('.attachments-box')) {
                 initializeImageGenerator();
             }
-            if (!document.getElementById('fp-tools-ai-gen-btn-wrapper')) {
+            if (!document.getElementById('fp-tools-ai-gen-btn')) {
                 const header = document.querySelector('h1.page-header, h1.page-header.page-header-no-hr');
                 if (header && (header.textContent.includes('Добавление предложения') || header.textContent.includes('Редактирование предложения'))) {
                     createAIGeneratorUI();
@@ -426,6 +426,9 @@
         // immediately without opening the settings popup.
         addChatTemplateButtons();
         initializeExactPrice();
+        // FIX 2.8.4 (№9): применяем кастомные стили редактора сразу, не дожидаясь
+        // открытия меню FP Tools.
+        if (typeof injectMagicStickStylesEarly === 'function') injectMagicStickStylesEarly();
         setupAIChatFeature();
         initializeFontTools();
         applyHeaderPosition();
@@ -438,7 +441,6 @@
         initializeMarkAllAsRead();
         initializeFPTIdentifier();
         initializeBlacklist();
-        initializePaymentTypeBadges();
         initializeUnconfirmedBalanceDisplay();
         initializeSalesFilters();
         // Apply saved FP Tools button colour/size at load (panel itself builds with popup).
@@ -500,32 +502,6 @@
                 }
                 return true;
             }
-        });
-    }
-
-    // ── 2.9: Payment type badges in orders list ─────────────────────────────────
-    function initializePaymentTypeBadges() {
-        chrome.storage.local.get('fpToolsShowPaymentType', ({ fpToolsShowPaymentType }) => {
-            if (fpToolsShowPaymentType === false) return;
-            if (!window.location.pathname.includes('/orders/')) return;
-            const addBadges = () => {
-                document.querySelectorAll('a.tc-item:not(.fp-typed)').forEach(row => {
-                    row.classList.add('fp-typed');
-                    const isDeal = row.classList.contains('deal');
-                    // Only add badge if not already present
-                    const orderEl = row.querySelector('.tc-order');
-                    if (!orderEl || orderEl.querySelector('.fp-type-badge')) return;
-                    const badge = document.createElement('span');
-                    badge.className = 'fp-type-badge';
-                    badge.style.cssText = `display:inline-block;font-size:10px;font-weight:700;border-radius:3px;padding:1px 5px;margin-left:6px;vertical-align:middle;background:${isDeal ? 'rgba(76,175,130,0.15)' : 'rgba(192,38,211,0.15)'};color:${isDeal ? '#4caf82' : '#E9A8FF'};border:1px solid ${isDeal ? 'rgba(76,175,130,0.3)' : 'rgba(192,38,211,0.3)'};`;
-                    badge.textContent = isDeal ? 'Сделка' : 'Обычный';
-                    orderEl.appendChild(badge);
-                });
-            };
-            addBadges();
-            // Only watch the list container, not whole document
-            const listEl = document.querySelector('.order-list, #content');
-            if (listEl) new MutationObserver(addBadges).observe(listEl, { childList: true, subtree: false });
         });
     }
 
@@ -609,16 +585,17 @@
     }
 
     function applySalesPeriodFilter(days) {
-        chrome.storage.local.get('fpToolsSalesData', ({ fpToolsSalesData }) => {
-            if (!fpToolsSalesData) return;
+        (async () => {
+            const fpToolsSalesData = await FPTSalesDB.getAllAsArray();
+            if (!fpToolsSalesData.length) return;
             const cutoff = days >= 9999 ? 0 : Date.now() - days * 24 * 60 * 60 * 1000;
-            const filtered = Object.values(fpToolsSalesData).filter(o => o.orderDate >= cutoff);
+            const filtered = fpToolsSalesData.filter(o => o.orderDate >= cutoff);
             const total = filtered.reduce((s, o) => s + (o.price || 0), 0);
             const countEl = document.getElementById('fp-sales-count');
             const totalEl = document.getElementById('fp-sales-total');
             if (countEl) countEl.textContent = filtered.length;
             if (totalEl) totalEl.textContent = `${Math.round(total).toLocaleString('ru-RU')} ₽`;
-        });
+        })();
     }
 
     // ── 2.9: Reset buttons in settings_io page ────────────────────────────────

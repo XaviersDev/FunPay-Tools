@@ -29,7 +29,7 @@ function initializeFontTools() {
     const controlsHtml = `
         <div class="form-group fp-tools-font-controls">
             <div class="font-selector">
-                <label class="control-label">Шрифт</label>
+                <label class="control-label" style="color:#000;">Шрифт</label>
                 <select class="form-control" id="fpToolsFontSelect">
                     <option value="">Стандартный</option>
                     <option value="small">ᴨоᴨᴩобуй ϶ᴛоᴛ ɯᴩиɸᴛ</option>

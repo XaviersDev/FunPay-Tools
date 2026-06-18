@@ -238,15 +238,27 @@ function initOfferListFilter() {
     ];
 
     let active = 0;
+    const setActive = (btn) => {
+        // нейтральный «активный» вид в стиле кнопок FunPay: лёгкая обводка-акцент,
+        // без фиолетового фона/текста (раньше было #2A1830/#E9A8FF — мозолило на белой теме)
+        btn.style.borderColor = 'var(--fpt-text-muted, #8a90a0)';
+        btn.style.fontWeight = '800';
+        btn.style.opacity = '1';
+    };
+    const clearActive = (btn) => {
+        btn.style.borderColor = '';
+        btn.style.fontWeight = '700';
+        btn.style.opacity = '0.75';
+    };
     filters.forEach(({ label, fn }, i) => {
         const btn = document.createElement('button');
         btn.className = 'btn btn-default';
-        btn.style.cssText = 'padding:4px 10px;font-size:11px;font-weight:700;';
+        btn.style.cssText = 'padding:4px 10px;font-size:11px;font-weight:700;background:transparent;';
         btn.textContent = label;
-        if (i === 0) { btn.style.background = '#2A1830'; btn.style.color = '#E9A8FF'; }
+        if (i === 0) setActive(btn); else clearActive(btn);
         btn.addEventListener('click', () => {
-            bar.querySelectorAll('button').forEach(b => { b.style.background=''; b.style.color=''; });
-            btn.style.background = '#2A1830'; btn.style.color = '#E9A8FF';
+            bar.querySelectorAll('button').forEach(b => clearActive(b));
+            setActive(btn);
             active = i;
             offerBlocks.forEach(b => { b.style.display = fn(b) ? '' : 'none'; });
         });

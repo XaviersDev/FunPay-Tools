@@ -19,13 +19,15 @@ async function initializeAutoReviewUI() {
         bonusForReviewEnabled: fpToolsAutoReplies.bonusForReviewEnabled || false,
         bonusMode: fpToolsAutoReplies.bonusMode || 'single',
         singleBonusText: fpToolsAutoReplies.singleBonusText || '',
-        randomBonuses: fpToolsAutoReplies.randomBonuses || []
+        randomBonuses: fpToolsAutoReplies.randomBonuses || [],
+        bonusForReviewDelaySec: (fpToolsAutoReplies.bonusForReviewDelaySec ?? 4)
     };
 
     document.getElementById('bonusForReviewEnabled').checked = settings.bonusForReviewEnabled;
     const bonusModeRadio = document.querySelector(`input[name="bonusMode"][value="${settings.bonusMode}"]`);
     if (bonusModeRadio) bonusModeRadio.checked = true;
     document.getElementById('singleBonusText').value = settings.singleBonusText;
+    { const _d = document.getElementById('bonusForReviewDelaySec'); if (_d) _d.value = settings.bonusForReviewDelaySec; }
     
     const singleBonusContainer = document.getElementById('singleBonusContainer');
     const randomBonusContainer = document.getElementById('randomBonusContainer');
@@ -96,6 +98,7 @@ async function initializeAutoReviewUI() {
                 bonusForReviewEnabled: getChecked('bonusForReviewEnabled'),
                 bonusMode:             document.querySelector('input[name="bonusMode"]:checked')?.value || 'single',
                 singleBonusText:       getVal('singleBonusText'),
+                bonusForReviewDelaySec: Math.max(0, Math.min(60, parseFloat(getVal('bonusForReviewDelaySec') || '4') || 0)),
                 // 3.0: New order / confirm replies
                 newOrderReplyEnabled:     getChecked('newOrderReplyEnabled'),
                 newOrderReplyText:        getVal('newOrderReplyText'),

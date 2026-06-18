@@ -1,14 +1,32 @@
 // content/features/ui_enhancements.js
 
+// FP Tools: конфиг источника статистики. По умолчанию — продажи.
+// На странице покупок (/orders/) purchases.js переопределяет window.fptStatsCfg.
+function _fptCfg() {
+    return window.fptStatsCfg || {
+        updateAction: 'updateSales',
+        resetAction: 'resetSalesStorage',
+        collectingKey: 'fpToolsSalesCollecting',
+        lastUpdateKey: 'fpToolsSalesLastUpdate',
+        pathMatch: '/orders/trade',
+        title: 'Статистика продаж',
+        totalMoneyLabel: 'Всего заработано',
+        uniquePartyLabel: 'Уникальных покупателей',
+        topPartyLabel: '🏆 Самый активный покупатель:',
+        loadingTitle: 'Загружаем продажи…'
+    };
+}
+
 function getStatsBlockHTML() {
     return `
     <div class="fp-tools-stats-container">
         <div class="fp-stats-header">
-            <h1>Статистика продаж</h1>
+            <h1>${_fptCfg().title}</h1>
             <div class="fp-stats-controls">
                 <button type="button" class="btn btn-default" id="fpTools-stats-reset">Обновить</button>
                 <button type="button" class="btn btn-default fp-stats-search-toggle" id="fpTools-stats-search-toggle" title="Поиск по заказам"><span class="material-symbols-rounded" style="font-size:18px;vertical-align:-4px;">search</span></button>
                 <button type="button" class="btn btn-default fp-stats-filter-toggle" id="fpTools-stats-filter-toggle" title="Фильтры и сортировка"><span class="material-symbols-rounded" style="font-size:18px;vertical-align:-4px;">tune</span></button>
+                <button type="button" class="btn btn-default" id="fpTools-stats-accuracy" title="Почему цифры могут отличаться от FunPay" style="color:#f0a040;"><span class="material-symbols-rounded" style="font-size:18px;vertical-align:-4px;">info</span></button>
                 <select class="form-control" id="fpTools-stats-period">
                     <option value="today">За сегодня</option>
                     <option value="yesterday">За вчера</option>
@@ -62,14 +80,14 @@ function getStatsBlockHTML() {
             <div class="fp-stat-card stat-card-large stat-card-revenue">
                 <div class="stat-card-icon">💰</div>
                 <div class="stat-card-content">
-                    <div class="stat-card-label">Всего заработано</div>
+                    <div class="stat-card-label">${_fptCfg().totalMoneyLabel}</div>
                     <div class="stat-card-value" id="fpTools-stats-total-revenue">0 ₽</div>
                 </div>
             </div>
             <div class="fp-stat-card">
                 <div class="stat-card-icon">📦</div>
                 <div class="stat-card-content">
-                    <div class="stat-card-label">Всего заказов</div>
+                    <div class="stat-card-label">${_fptCfg().totalOrdersLabel || "Всего заказов"}</div>
                     <div class="stat-card-value" id="fpTools-stats-total-orders">0</div>
                 </div>
             </div>
@@ -97,14 +115,14 @@ function getStatsBlockHTML() {
             <div class="fp-stat-card stat-card-refund">
                 <div class="stat-card-icon">↩️</div>
                 <div class="stat-card-content">
-                    <div class="stat-card-label">Возвратов</div>
+                    <div class="stat-card-label">${_fptCfg().refundLabel || 'Возвраты'}</div>
                     <div class="stat-card-value" id="fpTools-stats-orders-refund">0</div>
                 </div>
             </div>
             <div class="fp-stat-card">
                 <div class="stat-card-icon">👥</div>
                 <div class="stat-card-content">
-                    <div class="stat-card-label">Уникальных покупателей</div>
+                    <div class="stat-card-label">${_fptCfg().uniquePartyLabel}</div>
                     <div class="stat-card-value" id="fpTools-stats-unique-customers">0</div>
                 </div>
             </div>
@@ -112,11 +130,11 @@ function getStatsBlockHTML() {
 
         <div class="fp-stats-details">
             <div class="fp-stat-detail-item">
-                <span class="detail-label">🏆 Самый активный покупатель:</span>
+                <span class="detail-label">${_fptCfg().topPartyLabel}</span>
                 <span class="detail-value" id="fpTools-stats-top-customer">-</span>
             </div>
             <div class="fp-stat-detail-item">
-                <span class="detail-label">💎 Самая дорогая продажа:</span>
+                <span class="detail-label">${_fptCfg().topDealLabel || "💎 Самая дорогая продажа:"}</span>
                 <span class="detail-value" id="fpTools-stats-top-sale">-</span>
             </div>
             <div class="fp-stat-detail-item">
@@ -148,6 +166,7 @@ async function calculateSalesStats(allOrders, startDate, endDate) {
     const stats = {
         totalOrders: 0, totalClosed: 0, totalPending: 0, totalRefunded: 0,
         totalRevenue: { RUB: 0, USD: 0, EUR: 0 },
+        refundedRevenue: { RUB: 0, USD: 0, EUR: 0 },
         averageCheck: { RUB: 0, USD: 0, EUR: 0 },
         uniqueBuyers: new Set(), mostPopularProduct: "", mostPopularCategory: "",
         mostActiveBuyer: { username: "", id: 0, count: 0 },
@@ -158,7 +177,9 @@ async function calculateSalesStats(allOrders, startDate, endDate) {
     const exchangeRates = { RUB: 0.011, USD: 1, EUR: 1.08 };
 
     // Учитываем глобальные фильтры статусов (общие со статистикой/диаграммами).
-    let flt = { stClosed: true, stPaid: true, stRefunded: true };
+    // Дефолт зависит от режима: на покупках возвраты по умолчанию выключены.
+    const _purchases = !!(window.fptStatsCfg);
+    let flt = { stClosed: true, stPaid: true, stRefunded: !_purchases };
     try { if (typeof window.fptGetStatsFilters === 'function') flt = window.fptGetStatsFilters(); } catch (_) {}
     const statusOk = (st) => {
         if (st === 'refunded') return flt.stRefunded !== false;
@@ -170,6 +191,13 @@ async function calculateSalesStats(allOrders, startDate, endDate) {
     for (const orderId in allOrders) {
         const order = allOrders[orderId];
         if ((startDate && order.orderDate < startDate) || (endDate && order.orderDate > endDate)) continue;
+
+        // Сумму возвратов считаем ВСЕГДА (даже если возвраты скрыты фильтром),
+        // чтобы было видно, сколько денег вернулось — это не входит в «потрачено».
+        if (order.orderStatus === "refunded" && validCurrencies.has(order.currency)) {
+            stats.refundedRevenue[order.currency] = (stats.refundedRevenue[order.currency] || 0) + (order.price || 0);
+        }
+
         if (!statusOk(order.orderStatus)) continue;
 
         stats.totalOrders++;
@@ -227,28 +255,104 @@ function formatRevenue(revenue) {
     return parts.length ? parts.join(' <span class="balances-delimiter">·</span> ') : "0 ₽ · 0 $ · 0 €";
 }
 
+// ===== FP Tools: красивый оверлей загрузки статистики =====
+function _fptStatsHost() {
+    // Контейнер, поверх которого показываем загрузку (блок карточек).
+    return document.getElementById('fpTools-stats-cards');
+}
+
+function showStatsLoading(opts) {
+    opts = opts || {};
+    const host = _fptStatsHost();
+    if (!host) return;
+    // Затеняем карточки и кладём оверлей сверху (внутри контейнера статистики).
+    const container = document.querySelector('.fp-tools-stats-container');
+    if (!container) return;
+
+    let overlay = document.getElementById('fpTools-stats-loading');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'fpTools-stats-loading';
+        overlay.className = 'fp-stats-loading';
+        overlay.innerHTML = `
+            <div class="fp-stats-spinner"></div>
+            <div class="fp-stats-loading-title">${_fptCfg().loadingTitle}</div>
+            <div class="fp-stats-loading-sub">Собираем историю заказов с FunPay. Это может занять несколько секунд — не закрывайте вкладку.</div>
+            <div class="fp-stats-loading-bar"></div>
+            <div class="fp-stats-loading-count" id="fpTools-stats-loading-count"></div>
+        `;
+        // Прячем сетку карточек на время загрузки, показываем оверлей вместо неё.
+        host.style.display = 'none';
+        host.parentElement.insertBefore(overlay, host);
+    }
+    const sub = overlay.querySelector('.fp-stats-loading-sub');
+    if (sub && opts.sub) sub.textContent = opts.sub;
+    updateStatsLoadingCount(opts.count);
+}
+
+function updateStatsLoadingCount(count) {
+    const el = document.getElementById('fpTools-stats-loading-count');
+    if (!el) return;
+    if (typeof count === 'number' && count > 0) {
+        el.textContent = `Загружено заказов: ${count.toLocaleString('ru-RU')}`;
+    } else {
+        el.textContent = 'Подключаемся к FunPay…';
+    }
+}
+
+function hideStatsLoading() {
+    const overlay = document.getElementById('fpTools-stats-loading');
+    if (overlay) overlay.remove();
+    const host = _fptStatsHost();
+    if (host) host.style.display = '';
+}
+
 async function displaySalesStats() {
     if (!document.getElementById("fpTools-stats-period")) return;
     
-    const { fpToolsSalesData } = await chrome.storage.local.get('fpToolsSalesData');
+    const fpToolsSalesData = await (window.fptOrdersDB || FPTSalesDB).getAllAsMap();
     if (!fpToolsSalesData || Object.keys(fpToolsSalesData).length === 0) {
-        document.getElementById("fpTools-stats-total-orders").textContent = "Нет данных (Нажмите 'Обновить')";
+        // База пуста. Если прямо сейчас идёт сбор — показываем красивую загрузку
+        // вместо пугающего «Нет данных».
+        let collecting = false;
+        try {
+            const _ck = _fptCfg().collectingKey;
+            const st = await chrome.storage.local.get(_ck);
+            collecting = !!st[_ck];
+        } catch (_) {}
+        if (collecting) {
+            showStatsLoading();
+        } else {
+            hideStatsLoading();
+            document.getElementById("fpTools-stats-total-orders").textContent = "Нет данных (Нажмите 'Обновить')";
+        }
         return;
     };
 
+    // Данные есть — убираем оверлей и рисуем как обычно.
+    hideStatsLoading();
+
     const period = document.getElementById("fpTools-stats-period").value;
     let startDate = null, endDate = null;
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const oneDay = 24 * 3600 * 1000;
+
+    // FIX 2.8.5: "сегодня"/"вчера" считаем по московскому дню (MSK, UTC+3),
+    // как день определяет сам FunPay, иначе границы суток у пользователя в другом
+    // часовом поясе не совпадали с датами заказов и в "сегодня" попадали вчерашние.
+    const MSK_OFFSET_MS = 3 * 60 * 60 * 1000;
+    const nowMs = Date.now();
+    // полночь текущего МSK-дня, выраженная в обычном (UTC-эпоха) таймстампе
+    const mskNow = nowMs + MSK_OFFSET_MS;
+    const mskMidnight = Math.floor(mskNow / oneDay) * oneDay;       // 00:00 MSK в "MSK-шкале"
+    const todayStart = mskMidnight - MSK_OFFSET_MS;                  // тот же момент в реальном таймстампе
 
     switch(period) {
         case "today": startDate = todayStart; break;
         case "yesterday": endDate = todayStart; startDate = endDate - oneDay; break;
-        case "24h": startDate = Date.now() - oneDay; break;
-        case "7d": startDate = Date.now() - 7 * oneDay; break;
-        case "30d": startDate = Date.now() - 30 * oneDay; break;
-        case "365d": startDate = Date.now() - 365 * oneDay; break;
+        case "24h": startDate = nowMs - oneDay; break;
+        case "7d": startDate = nowMs - 7 * oneDay; break;
+        case "30d": startDate = nowMs - 30 * oneDay; break;
+        case "365d": startDate = nowMs - 365 * oneDay; break;
     }
 
     const stats = await calculateSalesStats(fpToolsSalesData, startDate, endDate);
@@ -258,7 +362,13 @@ async function displaySalesStats() {
     document.getElementById("fpTools-stats-average-sale-price").innerHTML = formatRevenue(stats.averageCheck);
     document.getElementById("fpTools-stats-orders-closed").textContent = stats.totalClosed;
     document.getElementById("fpTools-stats-orders-pending").textContent = stats.totalPending;
-    document.getElementById("fpTools-stats-orders-refund").textContent = stats.totalRefunded;
+    if (window.fptStatsCfg) {
+        // Покупки: в карточке возвратов показываем СУММУ вернувшихся денег
+        // (она не входит в «Всего потрачено»), а не просто число заказов.
+        document.getElementById("fpTools-stats-orders-refund").innerHTML = formatRevenue(stats.refundedRevenue);
+    } else {
+        document.getElementById("fpTools-stats-orders-refund").textContent = stats.totalRefunded;
+    }
     document.getElementById("fpTools-stats-unique-customers").textContent = stats.uniqueBuyers;
     document.getElementById("fpTools-stats-top-customer").textContent = stats.mostActiveBuyer.username || "-";
     document.getElementById("fpTools-stats-top-customer").onclick = () => { if(stats.mostActiveBuyer.id) window.open(`https://funpay.com/users/${stats.mostActiveBuyer.id}/`); };
@@ -293,6 +403,85 @@ async function displaySalesStats() {
             }
         } catch(_) { unconfEl.textContent = "-"; }
     }
+
+    // FIX 2.8.6: авто-детектор неполной/неточной статистики. Раньше про неточность
+    // говорил только маленький значок в шапке, который никто не замечал. Теперь,
+    // если данные похожи на неполные, показываем заметный баннер с кнопкой действия.
+    try { await _maybeShowInaccuracyBanner(fpToolsSalesData); } catch (_) {}
+}
+
+// Показывает баннер "данные могут быть неполными", если обнаружены признаки:
+//  1) сумма "за месяц" совпадает с "за всё время" (история не докачана), ИЛИ
+//  2) самый старый заказ в кэше новее ~31 дня (а значит "за всё время" урезано).
+async function _maybeShowInaccuracyBanner(allOrders) {
+    const host = document.querySelector('.fp-stats-cards-wrap, #fpTools-stats-cards, .fp-stats-body') 
+        || document.getElementById('fpTools-stats-total-orders')?.closest('.fp-stats-section')
+        || document.querySelector('.fp-stats-header')?.parentElement;
+    if (!host || !allOrders) return;
+
+    // если пользователь скрыл баннер в этой сессии - не мешаем
+    if (sessionStorage.getItem('fptStatsBannerDismissed') === '1') return;
+
+    const ids = Object.keys(allOrders);
+    if (ids.length === 0) return;
+
+    const oneDay = 24 * 3600 * 1000;
+    const now = Date.now();
+
+    // суммы за 30 дней и за всё время (closed+paid, по всем валютам в рублёвом эквиваленте)
+    const rate = { RUB: 1, USD: 90, EUR: 98 };
+    let sum30 = 0, sumAll = 0, oldest = Infinity;
+    for (const id of ids) {
+        const o = allOrders[id];
+        if (!o) continue;
+        if (typeof o.orderDate === 'number') oldest = Math.min(oldest, o.orderDate);
+        if (o.orderStatus === 'closed' || o.orderStatus === 'paid') {
+            const v = (o.price || 0) * (rate[o.currency] || 0);
+            sumAll += v;
+            if (o.orderDate >= now - 30 * oneDay) sum30 += v;
+        }
+    }
+
+    const monthEqualsAll = sumAll > 0 && Math.abs(sumAll - sum30) < 1;     // месяц == всё время
+    const historyShallow = oldest !== Infinity && oldest > now - 31 * oneDay; // старее 31д нет
+
+    if (!monthEqualsAll && !historyShallow) {
+        const ex = document.getElementById('fpt-stats-inaccuracy-banner');
+        if (ex) ex.remove();
+        return;
+    }
+
+    if (document.getElementById('fpt-stats-inaccuracy-banner')) return;
+
+    const banner = document.createElement('div');
+    banner.id = 'fpt-stats-inaccuracy-banner';
+    // Парсинговые цвета: непрозрачный фон карточки + янтарная рамка/иконка как
+    // акцент предупреждения. Текст основной - читается и на светлой, и на тёмной теме.
+    banner.style.cssText = 'display:flex;align-items:center;gap:12px;margin:0 0 14px;padding:12px 16px;background:var(--fp-bg-card, #1e1e1e);border:1px solid #f0a040;border-left:4px solid #f0a040;border-radius:10px;color:var(--fp-text-primary, #e0e0e0);font-size:13px;line-height:1.45;';
+    banner.innerHTML = `
+        <span class="material-symbols-rounded" style="color:#f0a040;font-size:22px;flex-shrink:0;">warning</span>
+        <div style="flex:1;">
+            <b style="color:#f0a040;">Похоже, данные неполные.</b>
+            ${historyShallow ? 'Расширение ещё не докачало старые заказы - "за всё время" сейчас показывает только часть истории. ' : ''}
+            ${monthEqualsAll ? '"За месяц" и "за всё время" совпадают, хотя вы торгуете дольше - значит старые заказы не загружены. ' : ''}
+            Нажмите "Пересобрать", чтобы дотянуть всю доступную историю.
+        </div>
+        <button id="fpt-stats-banner-rebuild" class="btn btn-default" style="padding:6px 12px;flex-shrink:0;">Пересобрать</button>
+        <button id="fpt-stats-banner-x" title="Скрыть" style="background:none;border:none;color:var(--fp-text-secondary, #a0a0a0);font-size:20px;cursor:pointer;flex-shrink:0;line-height:1;">×</button>
+    `;
+    host.prepend(banner);
+
+    banner.querySelector('#fpt-stats-banner-x').addEventListener('click', () => {
+        sessionStorage.setItem('fptStatsBannerDismissed', '1');
+        banner.remove();
+    });
+    banner.querySelector('#fpt-stats-banner-rebuild').addEventListener('click', async () => {
+        banner.querySelector('#fpt-stats-banner-rebuild').textContent = 'Сбор...';
+        try {
+            await chrome.runtime.sendMessage({ action: 'resetSalesStorage' });
+            await chrome.runtime.sendMessage({ action: 'updateSales' });
+        } catch (_) {}
+    });
 }
 
 // Позволяет другим модулям (панель фильтров) пересчитать карточки.
@@ -300,8 +489,70 @@ if (typeof window !== 'undefined') {
     window.fptRefreshStatsCards = function () { try { displaySalesStats(); } catch (_) {} };
 }
 
+// Попап "Стойте, это не точные данные!" - честно объясняет, почему сумма в FP Tools
+// может отличаться от того, что пользователь видит/ожидает, и как это исправить.
+function _showStatsAccuracyPopup(lastUpd, ordersCount, updateBtn) {
+    document.getElementById('fpt-stats-accuracy-overlay')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'fpt-stats-accuracy-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;';
+
+    const box = document.createElement('div');
+    box.id = 'fpt-stats-accuracy-box';
+    // Парсинговые цвета (как окно копирования лота): свой непрозрачный фон + тёмный
+    // скрим оверлея, поэтому окно нормально читается и на светлой, и на тёмной теме
+    // FunPay, не сливаясь с фоном. Переменные --fp-* адаптируются к теме страницы.
+    box.style.cssText = 'max-width:440px;width:100%;background:var(--fp-bg-card, #1e1e1e);border:1px solid var(--fp-border-color, #333);border-radius:14px;padding:18px 20px;color:var(--fp-text-primary, #e0e0e0);font-size:13px;line-height:1.5;box-shadow:0 12px 48px rgba(0,0,0,.45);max-height:88vh;overflow:auto;scrollbar-width:none;-ms-overflow-style:none;';
+
+    const infoLine = (lastUpd || ordersCount)
+        ? `<div style="margin:12px 0;padding:10px 12px;background:var(--fp-bg-main, rgba(0,0,0,.15));border:1px solid var(--fp-border-color, #333);border-radius:8px;font-size:13px;color:var(--fp-text-secondary, #a0a0a0);">
+                Загружено заказов в кэше: <b style="color:var(--fp-text-primary,#e0e0e0);">${ordersCount}</b>${lastUpd ? `<br>Последнее обновление: <b style="color:var(--fp-text-primary,#e0e0e0);">${lastUpd}</b>` : ''}
+           </div>`
+        : '';
+
+    box.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+            <span class="material-symbols-rounded" style="color:#f0a040;font-size:26px;">warning</span>
+            <h3 style="margin:0;font-size:18px;color:var(--fp-text-primary, #e0e0e0);">Стойте, это не точные данные?</h3>
+        </div>
+        <p style="margin:10px 0;color:var(--fp-text-secondary, #a0a0a0);">
+            Статистика собирается из вашей истории заказов на FunPay и считается на стороне расширения.
+            Поэтому цифры могут немного отличаться от того, что вы ожидаете. Основные причины:
+        </p>
+        <ul style="margin:10px 0;padding-left:18px;color:var(--fp-text-primary, #c2c5db);">
+            <li style="margin-bottom:7px;"><b>"Оплаченные" (в ожидании) входят в сумму.</b> Заказы со статусом "оплачен, но не подтверждён" учитываются в "Всего заработано". Деньги по ним ещё не получены и могут уйти в возврат. Чтобы увидеть только реально завершённое - в фильтрах оставьте лишь "Закрытые".</li>
+            <li style="margin-bottom:7px;"><b>Часовой пояс.</b> День заказа определяется по Москве (как на FunPay). "За сегодня/вчера" теперь считается по МSK - если ваш пояс другой, границы суток всё равно совпадут с FunPay.</li>
+            <li style="margin-bottom:7px;"><b>Глубина истории.</b> Если "За месяц" и "За всё время" совпадают - значит расширение ещё не докачало старые заказы (или FunPay отдаёт ограниченную историю). Нажмите "Пересобрать", чтобы дотянуть всю доступную историю.</li>
+            <li style="margin-bottom:7px;"><b>Возвраты и валюты.</b> Возвраты и заказы в разных валютах считаются по своим правилам - переключайте фильтры статусов, чтобы сверить.</li>
+        </ul>
+        ${infoLine}
+        <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end;">
+            <button id="fpt-acc-rebuild" class="btn btn-default" style="padding:7px 14px;">Пересобрать данные</button>
+            <button id="fpt-acc-close" class="btn" style="padding:7px 14px;background:var(--fp-accent, #1b75bb);border-color:var(--fp-accent, #1b75bb);color:#fff;">Понятно</button>
+        </div>
+    `;
+
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    const close = () => overlay.remove();
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+    box.querySelector('#fpt-acc-close').addEventListener('click', close);
+    box.querySelector('#fpt-acc-rebuild').addEventListener('click', async () => {
+        close();
+        if (updateBtn && chrome.runtime?.id) {
+            updateBtn.disabled = true;
+            updateBtn.textContent = "Обновление...";
+            showStatsLoading({ sub: 'Пересобираем историю заказов с FunPay…' });
+            await chrome.runtime.sendMessage({ action: _fptCfg().resetAction });
+            await chrome.runtime.sendMessage({ action: _fptCfg().updateAction });
+        }
+    });
+}
+
 function initializeSalesStatistics() {
-    if (!window.location.pathname.includes('/orders/trade')) return;
+    if (!window.location.pathname.includes(_fptCfg().pathMatch)) return;
     const ordersTable = document.querySelector('.orders-table');
     if (!ordersTable || document.getElementById('fpTools-stats-period')) return;
 
@@ -321,13 +572,36 @@ function initializeSalesStatistics() {
         if (!chrome.runtime?.id) return; // Защита от недействительного контекста
         updateBtn.disabled = true;
         updateBtn.textContent = "Обновление...";
-        await chrome.runtime.sendMessage({ action: 'resetSalesStorage' });
-        await chrome.runtime.sendMessage({ action: 'updateSales' });
+        showStatsLoading({ sub: 'Обновляем историю заказов с FunPay…' });
+        await chrome.runtime.sendMessage({ action: _fptCfg().resetAction });
+        await chrome.runtime.sendMessage({ action: _fptCfg().updateAction });
+    });
+
+    // Кнопка "почему цифры могут отличаться" - объясняет расхождения и даёт пересобрать данные.
+    const accuracyBtn = document.getElementById("fpTools-stats-accuracy");
+    accuracyBtn?.addEventListener('click', async () => {
+        let lastUpd = '';
+        let ordersCount = 0;
+        try {
+            const _luk = _fptCfg().lastUpdateKey;
+            const fpToolsSalesLastUpdate = (await chrome.storage.local.get(_luk))[_luk];
+            ordersCount = await (window.fptOrdersDB || FPTSalesDB).count();
+            if (fpToolsSalesLastUpdate) lastUpd = new Date(fpToolsSalesLastUpdate).toLocaleString();
+        } catch (_) {}
+        _showStatsAccuracyPopup(lastUpd, ordersCount, updateBtn);
     });
     
     displaySalesStats();
     if (chrome.runtime?.id) {
-        chrome.runtime.sendMessage({ action: 'updateSales' });
+        // При первом заходе, если база ещё пустая, сразу показываем красивую загрузку,
+        // не дожидаясь первого commit'а — чтобы юзер не увидел «Нет данных».
+        (async () => {
+            try {
+                const c = await (window.fptOrdersDB || FPTSalesDB).count();
+                if (!c) showStatsLoading();
+            } catch (_) {}
+        })();
+        chrome.runtime.sendMessage({ action: _fptCfg().updateAction });
     }
 
     // Несколько режимов отображения статистики (графики/диаграммы/детально/полный).
@@ -353,14 +627,26 @@ function initializeSalesStatistics() {
         const statsBlock = document.getElementById('fpTools-stats-reset');
         if (!statsBlock) return; // И если блока статистики больше нет на странице
 
-        if (changes.fpToolsSalesData) {
-            console.log("FP Tools: Sales data updated, refreshing stats display.");
-            displaySalesStats();
+        // Пока идёт сбор — на каждом commit'е обновляем живой счётчик в оверлее.
+        if (changes[_fptCfg().lastUpdateKey]) {
+            (async () => {
+                try {
+                    const _ck2 = _fptCfg().collectingKey;
+                    const collecting = (await chrome.storage.local.get(_ck2))[_ck2];
+                    if (collecting && document.getElementById('fpTools-stats-loading')) {
+                        const c = await (window.fptOrdersDB || FPTSalesDB).count();
+                        updateStatsLoadingCount(c);
+                    }
+                } catch (_) {}
+            })();
         }
-        
-        // Когда приходит любое обновление, связанное с продажами, считаем, что процесс закончен
-        if (changes.fpToolsSalesLastUpdate) {
-            console.log("FP Tools: Update finished, re-enabling button.");
+
+        // Флаг сбора переключился в false → процесс завершён: прячем оверлей,
+        // рисуем карточки и возвращаем кнопку в исходное состояние.
+        if (changes[_fptCfg().collectingKey] && changes[_fptCfg().collectingKey].newValue === false) {
+            console.log("FP Tools: Сбор завершён, показываем статистику.");
+            hideStatsLoading();
+            displaySalesStats();
             const updateBtn = document.getElementById("fpTools-stats-reset");
             if (updateBtn) {
                 updateBtn.disabled = false;

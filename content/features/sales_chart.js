@@ -5,15 +5,17 @@ function renderSalesChart(containerId) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
-    chrome.storage.local.get(['fpToolsSalesData', 'fpToolsSalesChartPeriod'], ({ fpToolsSalesData, fpToolsSalesChartPeriod }) => {
-        if (!fpToolsSalesData || !Object.keys(fpToolsSalesData).length) {
+    (async () => {
+        const fpToolsSalesData = await (window.fptOrdersDB || FPTSalesDB).getAllAsArray();
+        const { fpToolsSalesChartPeriod } = await chrome.storage.local.get('fpToolsSalesChartPeriod');
+        if (!fpToolsSalesData.length) {
             container.innerHTML = '<p style="color:var(--fpt-text-muted);font-size:12px;text-align:center;padding:20px;">Нет данных о продажах</p>';
             return;
         }
 
         const period = fpToolsSalesChartPeriod || 30;
         const cutoff = Date.now() - period * 24 * 60 * 60 * 1000;
-        const orders = Object.values(fpToolsSalesData).filter(o => o.orderDate >= cutoff && o.orderStatus === 'closed');
+        const orders = fpToolsSalesData.filter(o => o.orderDate >= cutoff && o.orderStatus === 'closed');
 
         if (!orders.length) {
             container.innerHTML = '<p style="color:var(--fpt-text-muted);font-size:12px;text-align:center;padding:20px;">Нет продаж за выбранный период</p>';
@@ -43,8 +45,14 @@ function renderSalesChart(containerId) {
 
         // Build SVG
         let bars = '';
-        let xLabels = '';
         let yLabels = '';
+
+        // X-подписи. Рисуем по минимальному пиксельному интервалу. Последнюю дату
+        // ("сегодня") рисуем всегда; если предыдущая подпись оказывается ближе
+        // MIN_LABEL_GAP - удаляем её, чтобы метки не наезжали друг на друга.
+        const MIN_LABEL_GAP = 42;
+        let _lastLabelX = -Infinity;
+        const _xLabelParts = []; // { x, svg }
 
         days.forEach((day, i) => {
             const x = PAD.l + (i / Math.max(days.length - 1, 1)) * chartW;
@@ -59,12 +67,24 @@ function renderSalesChart(containerId) {
                 </rect>
             `;
 
-            // X label: show every Nth day
-            if (i === 0 || i === days.length - 1 || i % Math.max(1, Math.floor(days.length / 5)) === 0) {
-                const label = day.slice(5); // MM-DD
-                xLabels += `<text x="${x}" y="${H - 4}" text-anchor="middle" font-size="9" fill="var(--fpt-text-muted)">${label}</text>`;
+            const isLast = i === days.length - 1;
+            const label = day.slice(5); // MM-DD
+
+            if (isLast) {
+                const tx = Math.min(x, W - PAD.r);
+                // Удаляем ВСЕ предыдущие подписи, что ближе порога к последней
+                // (а не только одну) - так гарантированно не будет наложения.
+                while (_xLabelParts.length && (tx - _xLabelParts[_xLabelParts.length - 1].x) < MIN_LABEL_GAP) {
+                    _xLabelParts.pop();
+                }
+                _xLabelParts.push({ x: tx, svg: `<text x="${tx}" y="${H - 4}" text-anchor="end" font-size="9" fill="var(--fpt-text-muted)">${label}</text>` });
+                _lastLabelX = tx;
+            } else if (x - _lastLabelX >= MIN_LABEL_GAP) {
+                _xLabelParts.push({ x, svg: `<text x="${x}" y="${H - 4}" text-anchor="middle" font-size="9" fill="var(--fpt-text-muted)">${label}</text>` });
+                _lastLabelX = x;
             }
         });
+        const xLabels = _xLabelParts.map(p => p.svg).join('');
 
         // Y axis labels
         const ySteps = 3;
@@ -85,7 +105,7 @@ function renderSalesChart(containerId) {
         container.innerHTML = `
             <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;">
                 <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--fpt-text-muted);">
-                    Продажи (последние ${period} дней)
+                    ${((window.fptStatsCfg && window.fptStatsCfg.chartHeading) || 'Продажи')} (последние ${period} дней)
                 </span>
                 <span style="font-size:12px;color:var(--fpt-text);font-weight:600;">
                     ${Math.round(totalRevenue).toLocaleString('ru-RU')} ₽ · ${totalCount} заказов
@@ -103,7 +123,7 @@ function renderSalesChart(containerId) {
                 <span>Пик: <strong style="color:var(--fpt-text);">${maxCount} заказов</strong></span>
             </div>
         `;
-    });
+    })();
 }
 
 function initSalesChart() {

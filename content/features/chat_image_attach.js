@@ -646,6 +646,55 @@
         return { name: el ? el.textContent.trim() : '' };
     }
 
+    // FIX 2.8.1: надёжная отправка одного сообщения в background с таймаутом и ретраем.
+    // В MV3 service worker может «уснуть» (~30 c простоя) ровно между отправкой и
+    // ответом - тогда sendMessage зависает и спиннер крутится ВЕЧНО. Здесь мы
+    // ограничиваем ожидание, при таймауте/обрыве будим воркер и повторяем.
+    function sendMessageWithTimeout(msg, timeoutMs) {
+        return new Promise((resolve) => {
+            let done = false;
+            const timer = setTimeout(() => {
+                if (done) return;
+                done = true;
+                resolve({ ok: false, error: 'timeout', _timeout: true });
+            }, timeoutMs);
+            try {
+                chrome.runtime.sendMessage(msg, (resp) => {
+                    if (done) return;
+                    done = true;
+                    clearTimeout(timer);
+                    if (chrome.runtime.lastError) {
+                        resolve({ ok: false, error: chrome.runtime.lastError.message || 'port closed', _disconnected: true });
+                    } else {
+                        resolve(resp || { ok: false, error: 'empty response', _empty: true });
+                    }
+                });
+            } catch (e) {
+                if (done) return;
+                done = true;
+                clearTimeout(timer);
+                resolve({ ok: false, error: e.message, _threw: true });
+            }
+        });
+    }
+
+    async function sendImageReliable(payload) {
+        // до 3 попыток: первый таймаут часто = спящий воркер, который как раз
+        // просыпается от нашего же сообщения, поэтому вторая попытка обычно проходит.
+        const TIMEOUTS = [20000, 25000, 30000];
+        let last = null;
+        for (let attempt = 0; attempt < TIMEOUTS.length; attempt++) {
+            const resp = await sendMessageWithTimeout(payload, TIMEOUTS[attempt]);
+            last = resp;
+            if (resp && resp.ok) return resp;
+            // повторяем только при «инфраструктурных» сбоях (воркер уснул/обрыв порта),
+            // но НЕ при явной ошибке самого FunPay (там ретрай бессмысленен).
+            if (!(resp && (resp._timeout || resp._disconnected || resp._empty))) return resp;
+            await new Promise(r => setTimeout(r, 400));
+        }
+        return last || { ok: false, error: 'не удалось связаться с фоновым процессом' };
+    }
+
     async function doSend() {
         if (!modalEl) return;
         const text = (modalEl.querySelector('#fptTgMsg').value || '').trim();
@@ -664,18 +713,22 @@
 
         try {
             for (let i = 0; i < imgs.length; i++) {
-                const resp = await chrome.runtime.sendMessage({
+                const resp = await sendImageReliable({
                     action: 'fptSendImage', chatId, dataUrl: imgs[i].dataUrl, chatName
                 });
                 if (resp && resp.ok) markTileSent(group, i);
                 else { markTileError(group, i); notify('Не удалось отправить изображение: ' + ((resp && resp.error) || 'ошибка'), true); }
                 await new Promise(r => setTimeout(r, 250));
             }
-            if (text) await chrome.runtime.sendMessage({ action: 'fptSendChatText', chatId, text });
-            finishPendingGroup(group);
+            if (text) await sendImageReliable({ action: 'fptSendChatText', chatId, text });
         } catch (e) {
             console.error('FP Tools: ошибка отправки', e);
             notify('Ошибка при отправке: ' + e.message, true);
+        } finally {
+            // FIX 2.8.1: временный пузырь снимаем ВСЕГДА (даже при исключении),
+            // чтобы спиннер никогда не «завис» навсегда. FunPay сам дорисует
+            // реальные сообщения; уже отправленные не теряются.
+            finishPendingGroup(group);
         }
     }
 

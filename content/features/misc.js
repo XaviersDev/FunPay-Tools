@@ -288,6 +288,7 @@ function initializeToolsPopup() {
             const settingsToSave = {
                 // Общие настройки
                 showSalesStats: document.getElementById('showSalesStatsCheckbox').checked,
+                showFinanceStats: document.getElementById('showFinanceStatsCheckbox')?.checked !== false,
                 hideBalance: document.getElementById('hideBalanceCheckbox').checked,
                 viewSellersPromo: document.getElementById('viewSellersPromoCheckbox').checked,
                 notificationSound: selectedSound ? selectedSound.value : 'default',
@@ -315,7 +316,6 @@ function initializeToolsPopup() {
                 fpToolsIdentifierEnabled: document.getElementById('fptIdentifierEnabled')?.checked !== false,
 
                 // 2.9: New toggles
-                fpToolsShowPaymentType:  document.getElementById('fpToolsShowPaymentType')?.checked !== false,
                 fpToolsBuyerHistory:     document.getElementById('fpToolsBuyerHistory')?.checked !== false,
                 fpToolsShowUnconfirmed:  document.getElementById('fpToolsShowUnconfirmed')?.checked !== false
             };

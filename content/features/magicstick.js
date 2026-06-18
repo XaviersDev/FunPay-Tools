@@ -383,9 +383,14 @@ class MagicStickStyler {
         this.ui.dynamicStyleTag.id = 'fp-tools-magic-stick-dynamic-styles';
         document.head.appendChild(this.ui.dynamicStyleTag);
         
-        this.ui.persistentStyleTag = document.createElement('style');
-        this.ui.persistentStyleTag.id = 'fp-tools-magic-stick-persistent-styles';
-        document.head.appendChild(this.ui.persistentStyleTag);
+        // FIX 2.8.4 (№9): если ранняя инъекция уже создала тег персистентных стилей,
+        // переиспользуем его, а не плодим дубликат с тем же id.
+        this.ui.persistentStyleTag = document.getElementById('fp-tools-magic-stick-persistent-styles');
+        if (!this.ui.persistentStyleTag) {
+            this.ui.persistentStyleTag = document.createElement('style');
+            this.ui.persistentStyleTag.id = 'fp-tools-magic-stick-persistent-styles';
+            document.head.appendChild(this.ui.persistentStyleTag);
+        }
         
         document.body.appendChild(this.ui.highlightEl);
         document.body.appendChild(this.ui.panelEl);
@@ -624,4 +629,35 @@ function initializeMagicStickStyler() {
         window.fpToolsMagicStickInstance = new MagicStickStyler();
         window.fpToolsMagicStickInstance.init();
     }
+}
+
+// FIX 2.8.4 (№9): кастомные стили пользователя (сделанные через режим редактора)
+// раньше применялись только ПОСЛЕ открытия меню FP Tools, потому что инъекция
+// жила внутри init() редактора, который запускался по клику. Здесь мы инжектим
+// сохранённые стили СРАЗУ при загрузке страницы - независимо от меню и без UI.
+async function injectMagicStickStylesEarly() {
+    try {
+        const data = await chrome.storage.local.get('fpToolsLiveStyles');
+        const savedStyles = data.fpToolsLiveStyles || {};
+        if (!savedStyles || !Object.keys(savedStyles).length) return;
+
+        let cssText = '';
+        for (const selector in savedStyles) {
+            cssText += `${selector} {\n`;
+            for (const prop in savedStyles[selector]) {
+                cssText += `  ${prop}: ${savedStyles[selector][prop]} !important;\n`;
+            }
+            cssText += '}\n';
+        }
+
+        // Тот же id, что использует редактор - когда меню откроется и редактор
+        // проинициализируется, он просто переиспользует/обновит этот же тег.
+        let styleEl = document.getElementById('fp-tools-magic-stick-persistent-styles');
+        if (!styleEl) {
+            styleEl = document.createElement('style');
+            styleEl.id = 'fp-tools-magic-stick-persistent-styles';
+            (document.head || document.documentElement).appendChild(styleEl);
+        }
+        styleEl.textContent = cssText;
+    } catch (_) { /* no-op */ }
 }

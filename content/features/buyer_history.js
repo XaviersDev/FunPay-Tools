@@ -8,8 +8,7 @@ async function loadBuyerHistory(buyerUsername) {
     if (cached && Date.now() - cached.t < 5 * 60 * 1000) return cached.orders;
 
     try {
-        const data = await chrome.storage.local.get('fpToolsSalesData');
-        const allOrders = data.fpToolsSalesData ? Object.values(data.fpToolsSalesData) : [];
+        const allOrders = await FPTSalesDB.getAllAsArray();
         const localOrders = allOrders
             .filter(o => o.buyerUsername && o.buyerUsername.toLowerCase() === buyerUsername.toLowerCase())
             .sort((a, b) => (b.orderDate || 0) - (a.orderDate || 0))

@@ -3,9 +3,7 @@
 
 // ── 1. Unconfirmed balance display ──────────────────────────────────────────
 async function initUnconfirmedBalance() {
-    const { fpToolsShowUnconfirmed, fpToolsSalesData } = await chrome.storage.local.get([
-        'fpToolsShowUnconfirmed', 'fpToolsSalesData'
-    ]);
+    const { fpToolsShowUnconfirmed } = await chrome.storage.local.get(['fpToolsShowUnconfirmed']);
     if (fpToolsShowUnconfirmed === false) return;
 
     // Find the sales statistics block added by misc.js
@@ -13,7 +11,7 @@ async function initUnconfirmedBalance() {
     if (!statsBlock) return;
 
     // Calculate from stored data
-    const orders = Object.values(fpToolsSalesData || {});
+    const orders = await FPTSalesDB.getAllAsArray();
     const pending = orders.filter(o => o.orderStatus === 'paid');
     if (!pending.length) return;
 
@@ -87,11 +85,10 @@ function initSalesFilter() {
 }
 
 async function applySalesPeriodFilter(days) {
-    const { fpToolsSalesData } = await chrome.storage.local.get('fpToolsSalesData');
-    if (!fpToolsSalesData) return;
+    const all = await FPTSalesDB.getAllAsArray();
+    if (!all.length) return;
 
     const cutoff = days >= 99999 ? 0 : Date.now() - days * 86400000;
-    const all    = Object.values(fpToolsSalesData);
     const filt   = all.filter(o => o.orderDate >= cutoff);
 
     const total    = filt.reduce((s, o) => s + (o.price || 0), 0);
@@ -211,7 +208,6 @@ function initReviewRequestButtons() {
     obs.observe(document.getElementById('content') || document.body, { childList: true, subtree: true });
 }
 
-// ── 4. Payment type labels - handled by content_script.js initializePaymentTypeBadges ──
 
 // ── Init all ─────────────────────────────────────────────────────────────────
 function initOrderEnhancements() {

@@ -147,7 +147,7 @@ function renderCloneReview() {
         formWarn = `<div class="fp-cw-warn">Не удалось построить форму категории${st.formError ? ': ' + escapeHtmlClone(st.formError) : ''}.</div>`;
     }
     if (!st.source.enDiffers && (st.source.summary_ru || st.source.desc_ru)) {
-        formWarn += `<div class="fp-cw-warn">У лота нет отдельного английского текста - вкладка EN заполнена русским. Если категория требует валидный английский, FunPay может отклонить - отредактируйте EN или оставьте пустым.</div>`;
+        formWarn += `<div class="fp-cw-warn">У лота нет отдельного английского текста - вкладка EN заполнена русским. Если категория требует валидный английский, FunPay может отклонить - отредактируйте EN или оставьте пустым.<div style="margin-top:8px;"><button type="button" class="fp-cw-btn-secondary" id="fp-cw-translate-en">Перевести</button></div></div>`;
     }
 
     const canCreate = !!st.fields && !st.source.isChips && !!st.source.nodeId;
@@ -246,6 +246,45 @@ function renderCloneReview() {
         closeCloneWizard();
     });
 
+    // Кнопка «Перевести» под предупреждением о EN — то же, что родная кнопка
+    // перевода в форме редактирования лота: RU → EN через background (translateLotText).
+    const translateBtn = document.getElementById('fp-cw-translate-en');
+    if (translateBtn) {
+        translateBtn.addEventListener('click', async () => {
+            const ruTitle = document.getElementById('fp-cw-summary-ru')?.value || '';
+            const ruDesc = document.getElementById('fp-cw-desc-ru')?.value || '';
+            if (!ruTitle.trim() && !ruDesc.trim()) {
+                showNotification('Нечего переводить — русские поля пусты.', true);
+                return;
+            }
+            const origLabel = translateBtn.textContent;
+            translateBtn.textContent = 'Перевожу...';
+            translateBtn.disabled = true;
+            try {
+                const result = await chrome.runtime.sendMessage({
+                    action: 'translateLotText',
+                    data: { title: ruTitle, description: ruDesc, buyerMessage: '' }
+                });
+                if (result && result.success) {
+                    const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
+                    setVal('fp-cw-summary-en', result.data.title);
+                    setVal('fp-cw-desc-en', result.data.description);
+                    // переключаемся на вкладку EN, чтобы перевод сразу было видно
+                    const enTab = document.querySelector('.fp-cw-tab[data-tab="en"]');
+                    if (enTab) enTab.click();
+                    showNotification('Текст переведён на английский.', false);
+                } else {
+                    throw new Error((result && result.error) || 'Неизвестная ошибка перевода.');
+                }
+            } catch (e) {
+                showNotification(`Ошибка перевода: ${e.message}`, true);
+            } finally {
+                translateBtn.textContent = origLabel;
+                translateBtn.disabled = false;
+            }
+        });
+    }
+
     const createBtn = document.getElementById('fp-cw-create');
     if (createBtn && canCreate) createBtn.addEventListener('click', executeCloneCreate);
 }
@@ -294,12 +333,17 @@ async function executeCloneCreate() {
     fields['fields[desc][ru]'] = descRu;
     fields['fields[desc][en]'] = descEn;
     
-    const fp = st.source.finalPrice;
-    if (fp != null && !Number.isNaN(fp) && fp > 0) {
-        fields['price'] = String(fp);
-    } else if (st.source.rawPrice) {
-        fields['price'] = String(st.source.rawPrice);
-    }
+    // Цена: округляем до 2 знаков (длинные дроби → «Invalid price»), минимум 1.
+    const fmtPrice = (v) => {
+        let n = parseFloat(String(v).replace(',', '.'));
+        if (Number.isNaN(n) || n <= 0) return '';
+        if (n < 1) n = 1;
+        return (Math.round(n * 100) / 100).toString();
+    };
+    let priceStr = '';
+    if (st.source.finalPrice != null) priceStr = fmtPrice(st.source.finalPrice);
+    if (!priceStr && st.source.rawPrice) priceStr = fmtPrice(st.source.rawPrice);
+    if (priceStr) fields['price'] = priceStr;
     fields['amount'] = (st.source.amount && /^\d+$/.test(st.source.amount)) ? st.source.amount : (fields['amount'] || '1');
     fields['active'] = 'on';
     fields['secrets'] = fields['secrets'] || '';
@@ -652,7 +696,7 @@ function setupImportWizardLogic(overlay) {
         item.classList.add('active');
 
         if (currentTab === 'my') {
-            loadLotPreviewForImport(item.dataset.offerId, previewEl);
+            loadLotPreviewForImport(item.dataset.offerId, previewEl, true);
         } else {
             if (globalStep === 'game') {
                 globalGameUrl = item.dataset.url;
@@ -674,7 +718,7 @@ function setupImportWizardLogic(overlay) {
                     renderGlobalItems(lots, 'lot');
                 } catch (err) { listEl.innerHTML = `<div class="fp-cw-err">Ошибка: ${err.message}</div>`; }
             } else if (globalStep === 'lot') {
-                loadLotPreviewForImport(item.dataset.offerId, previewEl);
+                loadLotPreviewForImport(item.dataset.offerId, previewEl, false);
             }
         }
     });
@@ -737,13 +781,55 @@ function setupImportWizardLogic(overlay) {
     }
 }
 
-async function loadLotPreviewForImport(offerId, previewEl) {
+async function loadLotPreviewForImport(offerId, previewEl, isOwn = true) {
     if (!offerId) return;
+
+    // FIX 2.9.3: чипс-лоты (валюта/платина и т.п.) - другой тип предложения. У них
+    // НЕТ формы offerEdit с описанием/сообщением покупателю/автовыдачей: только
+    // наличие и цена за единицу, привязанные к серверу/платформе. Импортировать там
+    // по сути нечего. Чипс легко узнать по составному id (с дефисами), напр.
+    // "15858540-35-37-10046-0". Показываем дружелюбное пояснение вместо ошибки.
+    if (/-/.test(String(offerId))) {
+        previewEl.innerHTML = `
+            <div style="margin:auto; text-align:center; max-width:340px; color:var(--cw-muted, #999); font-size:13px; line-height:1.5;">
+                <div style="font-size:30px; margin-bottom:10px;">💱</div>
+                <div style="color:var(--cw-color, #ddd); font-weight:600; margin-bottom:6px;">Это лот валюты (chips)</div>
+                Такие предложения (платина, валюта, голда и т.п.) устроены иначе:
+                в них нет описания, сообщения покупателю или автовыдачи - только
+                наличие и цена за единицу для конкретного сервера. Импортировать здесь нечего.
+            </div>`;
+        return;
+    }
+
     previewEl.innerHTML = '<div class="fp-cw-loader"></div><p class="fp-cw-muted" style="text-align:center;">Анализирую лот...</p>';
     try {
-        const resp = await chrome.runtime.sendMessage({ action: 'cloneGetSource', offerId });
-        if (!resp || !resp.success) throw new Error(resp?.error || 'Не удалось получить данные лота.');
-        renderImportPreviewPanel(resp.source, previewEl);
+        let source;
+        if (isOwn) {
+            // FIX 2.9.1: СВОИ лоты читаем через getOwnLotFull (форма offerEdit владельца) -
+            // там есть сообщение покупателю, товары автовыдачи и цена, и не меняется локаль.
+            const resp = await chrome.runtime.sendMessage({ action: 'getOwnLotFull', offerId });
+            if (!resp || !resp.success) {
+                // мягкий фолбэк: если форму разобрать не удалось (нестандартный лот) -
+                // не пугаем красной ошибкой, а поясняем по-человечески.
+                previewEl.innerHTML = `
+                    <div style="margin:auto; text-align:center; max-width:340px; color:var(--cw-muted, #999); font-size:13px; line-height:1.5;">
+                        <div style="font-size:30px; margin-bottom:10px;">🤔</div>
+                        <div style="color:var(--cw-color, #ddd); font-weight:600; margin-bottom:6px;">Не удалось прочитать этот лот</div>
+                        Похоже, у него нестандартная форма (например, валюта или особая категория),
+                        и импортировать из него нечего. Попробуйте другой лот.
+                    </div>`;
+                return;
+            }
+            source = resp.source;
+        } else {
+            // FIX 2.9.2: ЧУЖИЕ лоты - как было в 2.8: через cloneGetSource (публичная
+            // страница лота). offerEdit для чужого лота недоступен, поэтому getOwnLotFull
+            // тут НЕЛЬЗЯ. У чужих лотов нет payment_msg/secrets - это нормально.
+            const resp = await chrome.runtime.sendMessage({ action: 'cloneGetSource', offerId });
+            if (!resp || !resp.success) throw new Error(resp?.error || 'Не удалось получить данные лота.');
+            source = resp.source;
+        }
+        renderImportPreviewPanel(source, previewEl);
     } catch (e) {
         previewEl.innerHTML = `<div class="fp-cw-error">Ошибка: ${escapeHtmlClone(e.message)}</div>`;
     }
@@ -765,6 +851,13 @@ function renderImportPreviewPanel(src, previewEl) {
             <label style="display:flex; align-items:center; gap:6px; cursor:pointer; color:var(--cw-color); font-size:13px;">
                 <input type="checkbox" id="fp-iw-opt-price" checked style="${invincibleCheckbox}"> Цена
             </label>
+            ${src.isOwn ? `
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer; color:var(--cw-color); font-size:13px;">
+                <input type="checkbox" id="fp-iw-opt-paymsg" checked style="${invincibleCheckbox}"> Сообщение покупателю
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer; color:var(--cw-color); font-size:13px;">
+                <input type="checkbox" id="fp-iw-opt-secrets" ${src.autoDelivery ? 'checked' : ''} style="${invincibleCheckbox}"> Автовыдача
+            </label>` : ''}
         </div>
 
         <div class="fp-cw-tabs" style="margin-bottom:15px; display:inline-flex;">
@@ -776,14 +869,23 @@ function renderImportPreviewPanel(src, previewEl) {
             <label class="fp-cw-mini">Краткое описание (RU)</label>
             <textarea class="fp-cw-input" id="fp-iw-val-title-ru" rows="2" readonly>${escapeHtmlClone(src.summary_ru)}</textarea>
             <label class="fp-cw-mini">Подробное описание (RU)</label>
-            <textarea class="fp-cw-input" id="fp-iw-val-desc-ru" rows="8" readonly>${escapeHtmlClone(src.desc_ru)}</textarea>
+            <textarea class="fp-cw-input" id="fp-iw-val-desc-ru" rows="6" readonly>${escapeHtmlClone(src.desc_ru)}</textarea>
+            ${src.isOwn ? `<label class="fp-cw-mini">Сообщение покупателю после оплаты (RU)</label>
+            <textarea class="fp-cw-input" id="fp-iw-val-paymsg-ru" rows="4" readonly>${escapeHtmlClone(src.payment_msg_ru || '')}</textarea>` : ''}
         </div>
         <div class="fp-iw-pane" data-iw-pane="en" style="display:none;">
             <label class="fp-cw-mini">Short description (EN)</label>
             <textarea class="fp-cw-input" id="fp-iw-val-title-en" rows="2" readonly>${escapeHtmlClone(src.summary_en)}</textarea>
             <label class="fp-cw-mini">Detailed description (EN)</label>
-            <textarea class="fp-cw-input" id="fp-iw-val-desc-en" rows="8" readonly>${escapeHtmlClone(src.desc_en)}</textarea>
+            <textarea class="fp-cw-input" id="fp-iw-val-desc-en" rows="6" readonly>${escapeHtmlClone(src.desc_en)}</textarea>
+            ${src.isOwn ? `<label class="fp-cw-mini">Message to the buyer after payment (EN)</label>
+            <textarea class="fp-cw-input" id="fp-iw-val-paymsg-en" rows="4" readonly>${escapeHtmlClone(src.payment_msg_en || '')}</textarea>` : ''}
         </div>
+
+        ${src.secrets ? `
+        <label class="fp-cw-mini" style="margin-top:12px;">Товары автовыдачи (${(String(src.secrets).split('\n').filter(Boolean).length)} шт.)</label>
+        <textarea class="fp-cw-input" id="fp-iw-val-secrets" rows="4" readonly>${escapeHtmlClone(src.secrets)}</textarea>
+        ` : ''}
 
         <div style="margin-top:15px; display:flex; align-items:center; gap:10px;">
             <label class="fp-cw-mini" style="margin:0;">Оригинальная цена:</label>
@@ -810,12 +912,22 @@ function renderImportPreviewPanel(src, previewEl) {
         const doTitle = previewEl.querySelector('#fp-iw-opt-title').checked;
         const doDesc = previewEl.querySelector('#fp-iw-opt-desc').checked;
         const doPrice = previewEl.querySelector('#fp-iw-opt-price').checked;
+        const doPayMsg = previewEl.querySelector('#fp-iw-opt-paymsg')?.checked;
+        const doSecrets = previewEl.querySelector('#fp-iw-opt-secrets')?.checked;
 
         if (doTitle) setFormField('summary', src.summary_ru, src.summary_en);
         if (doDesc) setFormField('desc', src.desc_ru, src.desc_en);
+        if (doPayMsg) setFormField('payment_msg', src.payment_msg_ru || '', src.payment_msg_en || '');
         if (doPrice && src.rawPrice) {
             const priceInp = document.querySelector('input[name="price"]');
             if (priceInp) { priceInp.value = src.rawPrice; priceInp.dispatchEvent(new Event('input', { bubbles: true })); }
+        }
+        if (doSecrets && src.secrets) {
+            // включаем галку автовыдачи и подставляем товары
+            const autoChk = document.querySelector('input[name="auto_delivery"]');
+            if (autoChk && !autoChk.checked) { autoChk.checked = true; autoChk.dispatchEvent(new Event('change', { bubbles: true })); }
+            const secretsTa = document.querySelector('textarea[name="secrets"]');
+            if (secretsTa) { secretsTa.value = src.secrets; secretsTa.dispatchEvent(new Event('input', { bubbles: true })); }
         }
 
         showNotification('Данные успешно импортированы в форму!', false);
@@ -848,7 +960,6 @@ function initializeLotCloning() {
     if (!document.querySelector('.fp-tools-clone-btn')) {
         const cloneButton = createElement('button', { class: 'btn btn-default fp-tools-clone-btn' }, {}, 'Копировать');
         actionsContainer.appendChild(cloneButton);
-
         const popupMenu = createElement('div', { class: 'fp-clone-popup' }, {}, `
             <h3>Клонирование лота</h3>
             <button id="fullClone">Скопировать полностью</button>

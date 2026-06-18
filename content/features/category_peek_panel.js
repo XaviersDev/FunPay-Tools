@@ -2,10 +2,10 @@
 // =============================================================================
 // Кнопка на странице создания/редактирования лота, открывающая боковую панель:
 //   • до 30 свежих лотов из той же категории (скролл внутри панели)
-//   • если у категории есть чат — последние сообщения из него
+//   • если у категории есть чат - последние сообщения из него
 //
 // Цвета берём из живой палитры расширения (--fpt-*), как меню копирования/импорта
-// (а не фиксированные). Парсинг категории и чата — по реальной разметке FunPay
+// (а не фиксированные). Парсинг категории и чата - по реальной разметке FunPay
 // (.tc-item для лотов, .chat-msg-item для чата).
 //
 // Отключается переключателем в разделе «Что тебе нужно» (id: lot_category_peek).
@@ -28,7 +28,7 @@
         } catch (_) { return true; }
     }
 
-    // node категории берём из формы/ссылок/URL — так же, как делает клонирование лота.
+    // node категории берём из формы/ссылок/URL - так же, как делает клонирование лота.
     function getCategoryNode() {
         const back = document.querySelector('a.btn[href*="/lots/"], a[href*="/lots/"][href$="/trade"], .page-header a[href*="/lots/"]');
         if (back) {
@@ -39,7 +39,7 @@
         if (params.get('node')) return params.get('node');
         const nodeInput = document.querySelector('input[name="node_id"]');
         if (nodeInput && nodeInput.value) return nodeInput.value;
-        // запасной вариант — из любой ссылки вида /lots/123/ на странице
+        // запасной вариант - из любой ссылки вида /lots/123/ на странице
         const any = document.querySelector('a[href*="/lots/"]');
         if (any) { const m = any.getAttribute('href').match(/\/lots\/(\d+)/); if (m) return m[1]; }
         return null;
@@ -74,7 +74,7 @@
         .fpt-peek-body{ flex:1; overflow-y:auto; padding:12px 14px; }
         .fpt-peek-section-title{ font-size:11px; text-transform:uppercase; letter-spacing:.6px;
             color:var(--pk-muted); font-weight:700; margin:4px 0 8px; display:flex; align-items:center; gap:6px; }
-        /* список лотов: без ограничения видимых — весь скролл внутри панели */
+        /* список лотов: без ограничения видимых - весь скролл внутри панели */
         .fpt-peek-lots{ display:flex; flex-direction:column; gap:8px;
             padding-right:4px; margin-bottom:18px; }
         .fpt-peek-lot{ display:block; text-decoration:none; background:var(--pk-surface);
@@ -182,7 +182,7 @@
                 continue;
             }
             const authorEl = item.querySelector('.chat-msg-author-link');
-            // у «слепленных» сообщений автора нет — наследуем предыдущего
+            // у «слепленных» сообщений автора нет - наследуем предыдущего
             let author = authorEl ? authorEl.textContent.trim() : lastAuthor;
             let authorHref = authorEl ? (authorEl.getAttribute('href') || lastAuthorHref) : lastAuthorHref;
             if (authorEl) { lastAuthor = author; lastAuthorHref = authorHref; }
@@ -242,7 +242,7 @@
                     </div>
                     <div class="fpt-peek-lot-seller-row">
                         ${av}
-                        <span class="fpt-peek-lot-seller">${escapeHtml(l.sellerName || '—')}</span>
+                        <span class="fpt-peek-lot-seller">${escapeHtml(l.sellerName || '-')}</span>
                         ${stars}${reviews}
                     </div>
                     ${l.serverName ? `<div class="fpt-peek-lot-server">${escapeHtml(l.serverName)}</div>` : ''}
@@ -287,7 +287,7 @@
 
         body.innerHTML = `<div class="fpt-peek-loader">Загрузка…</div>`;
         try {
-            // Контент-скрипт на funpay.com — запрос same-origin, куки идут автоматически.
+            // Контент-скрипт на funpay.com - запрос same-origin, куки идут автоматически.
             const resp = await fetch(`https://funpay.com/lots/${node}/`, { credentials: 'include' });
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             const html = await resp.text();
@@ -321,7 +321,7 @@
         if (!node) return;
         currentNode = node;
 
-        // ждём появления контейнера действий (его создаёт lot_cloning); если нет —
+        // ждём появления контейнера действий (его создаёт lot_cloning); если нет -
         // создаём свой рядом с заголовком.
         const place = () => {
             if (document.getElementById('fpt-peek-toggle')) return true;
