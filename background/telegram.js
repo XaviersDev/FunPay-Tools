@@ -4,7 +4,7 @@
 //
 // ВАЖНО (Chrome Web Store): мы используем ТОЛЬКО официальный Telegram Bot API по
 // HTTPS (api.telegram.org). Это передача данных, а не загрузка/исполнение
-// удалённого кода (RHC), поэтому политика CWS это допускает — точно так же, как
+// удалённого кода (RHC), поэтому политика CWS это допускает - точно так же, как
 // уже работающие в расширении вебхуки Discord. Никакой код не подгружается извне.
 //
 // Хранилище: chrome.storage.local.fpToolsTelegram = {
@@ -18,7 +18,7 @@
 // }
 //
 // Экспортирует функции, которые вызываются из background.js (alarms + onChanged).
-// Реальную выборку чатов/заказов и поднятие лотов выполняет background.js —
+// Реальную выборку чатов/заказов и поднятие лотов выполняет background.js -
 // чтобы не дублировать auth/runner-логику, telegram.js дергает переданные
 // колбэки (deps).
 // =============================================================================
@@ -107,12 +107,12 @@ async function handleTelegramCommand(text, cfg) {
 
     if (cmd === '/start' || cmd === '/help') {
         await tgSendMessage(
-            '<b>FP Tools — управление</b>\n\n' +
-            '/status — статус и баланс\n' +
-            '/chats — непрочитанные чаты\n' +
-            '/sales — статистика продаж\n' +
-            '/online — поддержать онлайн\n' +
-            '/help — это сообщение\n\n' +
+            '<b>FP Tools - управление</b>\n\n' +
+            '/status - статус и баланс\n' +
+            '/chats - непрочитанные чаты\n' +
+            '/sales - статистика продаж\n' +
+            '/online - поддержать онлайн\n' +
+            '/help - это сообщение\n\n' +
             'Уведомления о новых заказах и сообщениях приходят автоматически (если включены в расширении).'
         );
         return;
@@ -129,9 +129,9 @@ async function handleTelegramCommand(text, cfg) {
             if (info) {
                 await tgSendMessage(
                     `<b>FP Tools статус</b>\n` +
-                    `Пользователь: ${tgEscape(info.username || '—')}\n` +
-                    `Баланс: ${tgEscape(info.balance || '—')}\n` +
-                    `Активных продаж/заказов: ${tgEscape(String(info.activeOrders ?? '—'))}`
+                    `Пользователь: ${tgEscape(info.username || '-')}\n` +
+                    `Баланс: ${tgEscape(info.balance || '-')}\n` +
+                    `Активных продаж/заказов: ${tgEscape(String(info.activeOrders ?? '-'))}`
                 );
             } else {
                 await tgSendMessage('Не удалось получить статус (нет авторизации на FunPay?).');
@@ -179,7 +179,7 @@ async function handleTelegramCommand(text, cfg) {
         }
 
         if (cmd.startsWith('/')) {
-            await tgSendMessage('Неизвестная команда. /help — список команд.');
+            await tgSendMessage('Неизвестная команда. /help - список команд.');
         }
     } catch (e) {
         await tgSendMessage('Ошибка выполнения команды: ' + tgEscape(e.message));
@@ -252,8 +252,8 @@ async function telegramNotifyNewOrders(orders) {
             await tgSendMessage(
                 `🛒 <b>Новый заказ</b>\n` +
                 `${tgEscape(o.title || '')}\n` +
-                `Покупатель: ${tgEscape(o.buyer || '—')}\n` +
-                `Сумма: ${tgEscape(o.price || '—')}`,
+                `Покупатель: ${tgEscape(o.buyer || '-')}\n` +
+                `Сумма: ${tgEscape(o.price || '-')}`,
                 o.link ? { reply_markup: { inline_keyboard: [[{ text: 'Открыть заказ', url: o.link }]] } } : undefined
             );
         }
@@ -283,6 +283,22 @@ async function telegramPollOnce() {
             limit: 20,
             allowed_updates: ['message']
         });
+
+        // КРИТИЧНО: при неверном/протухшем токене Telegram отвечает 401 Unauthorized.
+        // Раньше мы просто выходили и через секунду долбили снова — бесконечный спам
+        // 401 в Network. Теперь при ошибке авторизации ВЫКЛЮЧАЕМ опрос целиком, чтобы
+        // не флудить (пользователь заново введёт корректный токен в настройках).
+        if (upd && upd.ok === false) {
+            const code = upd.error_code;
+            if (code === 401 || code === 404) {
+                console.warn('FP Tools: Telegram токен недействителен (', code, ') — опрос остановлен.');
+                await tgSet({ enabled: false });
+                stopTelegramPolling();
+                return;
+            }
+            // прочие ошибки (429/5xx) — просто пропускаем тик, не спамим
+            return;
+        }
         if (!upd.ok || !Array.isArray(upd.result) || !upd.result.length) return;
 
         let maxId = cfg.lastUpdateId || 0;
@@ -292,7 +308,7 @@ async function telegramPollOnce() {
             if (!msg || !msg.text) continue;
             // принимаем команды только из настроенного chatId (безопасность)
             if (cfg.chatId && String(msg.chat.id) !== String(cfg.chatId)) {
-                // если chatId ещё не настроен — примем первый и зафиксируем
+                // если chatId ещё не настроен - примем первый и зафиксируем
                 if (!cfg.chatId) await tgSet({ chatId: String(msg.chat.id) });
                 else continue;
             }
@@ -304,6 +320,11 @@ async function telegramPollOnce() {
     } finally {
         _polling = false;
     }
+}
+
+function stopTelegramPolling() {
+    if (_fastPollTimer) { clearTimeout(_fastPollTimer); _fastPollTimer = null; }
+    try { chrome.alarms.clear(TELEGRAM_ALARM); } catch (_) {}
 }
 
 // ── Жизненный цикл ────────────────────────────────────────────────────────────
@@ -331,12 +352,12 @@ async function scheduleFastPoll() {
     if (_fastPollTimer) { clearTimeout(_fastPollTimer); _fastPollTimer = null; }
     const cfg = await tgGet();
     if (!cfg.enabled || !cfg.token) return;
-    const sec = Math.max(1, Math.min(60, cfg.pollInterval || 1));
+    const sec = Math.max(5, Math.min(60, cfg.pollInterval || 5));
     const tick = async () => {
         const c = await tgGet();
         if (!c.enabled || !c.token) { _fastPollTimer = null; return; }
         try { await telegramPollOnce(); } catch (_) {}
-        const s = Math.max(1, Math.min(60, c.pollInterval || 1));
+        const s = Math.max(5, Math.min(60, c.pollInterval || 5));
         _fastPollTimer = setTimeout(tick, s * 1000);
     };
     _fastPollTimer = setTimeout(tick, sec * 1000);

@@ -2167,18 +2167,20 @@ body.funpay-redesigned .promo-games {
 
 .set-exact-price {
     font-size: 13px;
-    color: #a0a0a0;
+    color: #7a7a8a;
     cursor: pointer;
     margin-top: 8px;
     padding: 5px 0;
-    border-bottom: 1px dashed #a0a0a0;
+    border-bottom: 1px dashed #9a9aa8;
     display: inline-block;
     transition: all 0.2s ease;
 }
 
 .set-exact-price:hover {
-    color: #fff;
-    border-bottom-color: #fff;
+    /* FIX 2.8.4 (№7): раньше ховер уводил текст в #fff - на белом фоне FunPay
+       ссылка пропадала. Используем акцентный цвет, видимый на любом фоне. */
+    color: #C026D3;
+    border-bottom-color: #C026D3;
 }
 
 .fp-tools-user-status {
@@ -2239,7 +2241,12 @@ body.funpay-redesigned .promo-games {
     grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
     gap: 10px;
     padding: 15px;
-    background-color: rgba(0, 0, 0, 0.2);
+    /* FIX 2.8.4 (№7): на белом фоне FunPay панель и символы сливались
+       (фон rgba(0,0,0,.2) и символы rgba(255,255,255,.1) были почти невидимы).
+       Даём непрозрачный нейтральный фон и явную рамку - читается и на светлой,
+       и на тёмной теме. */
+    background-color: #2b2d3a;
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 8px;
     margin-top: 10px;
 }
@@ -2249,7 +2256,8 @@ body.funpay-redesigned .promo-games {
     justify-content: center;
     align-items: center;
     height: 40px;
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(255, 255, 255, 0.14);
+    color: #f0f0f5;
     border-radius: 5px;
     cursor: pointer;
     font-size: 18px;
@@ -2257,7 +2265,7 @@ body.funpay-redesigned .promo-games {
 }
 
 .fp-tools-symbol-char:hover {
-    background-color: rgba(255, 255, 255, 0.2);
+    background-color: rgba(255, 255, 255, 0.28);
     transform: scale(1.1);
 }
 
@@ -3589,10 +3597,20 @@ body.funpay-redesigned .promo-games {
 .fp-reactivate-item {
     display: flex;
     align-items: center;
-    padding: 10px;
+    padding: 12px 15px;
     border-radius: 6px;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     background: rgba(255,255,255,0.05);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+.fp-reactivate-item:hover {
+    background: rgba(255,255,255,0.08);
+}
+.fp-reactivate-item.active {
+    background-color: rgba(0, 153, 255, 0.15);
+    border-color: #0099ff;
 }
 .fp-reactivate-info {
     flex-grow: 1;
@@ -6928,21 +6946,21 @@ a.contact-item:hover {
     flex: 1;
     max-width: 340px;
     padding: 7px 12px;
-    background: rgba(14, 15, 22, 0.85);
-    border: 1px solid #1e2030;
+    background: transparent;
+    border: 1px solid var(--fpt-border, #c9ccd6);
     border-radius: 8px;
-    color: #d8dae8;
+    color: inherit;
     font-size: 13px;
     font-family: Inter, 'Segoe UI', sans-serif;
     outline: none;
     transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-#fp-lot-search-input::placeholder { color: #3d4260; }
+#fp-lot-search-input::placeholder { color: var(--fpt-text-muted, #9aa0b0); opacity: 0.8; }
 
 #fp-lot-search-input:focus {
-    border-color: rgba(192,38,211,0.5);
-    box-shadow: 0 0 0 3px rgba(192,38,211,0.1);
+    border-color: var(--fpt-text-muted, #8a90a0);
+    box-shadow: 0 0 0 2px rgba(120,124,140,0.15);
 }
 
 #fp-lot-search-count {
@@ -7408,14 +7426,14 @@ a.contact-item:hover {
     width:min(360px,72vw);
     border-radius:12px;
     overflow:hidden;
-    background:#0e0e13;
+    background:transparent;
 }
 .fpt-album-tile{
     position:relative;
     aspect-ratio:1/1;
     overflow:hidden;
     cursor:zoom-in;
-    background:#15151b;
+    background:transparent;
 }
 .fpt-album-tile img{
     width:100%;height:100%;object-fit:cover;display:block;
@@ -8195,7 +8213,7 @@ textarea.fp-cw-input { line-height:1.4; }
 .fpt-sec-spin-btns button:hover{color:var(--fpt-accent,#C026D3);background:var(--fpt-accent-soft,rgba(192,38,211,0.18));}
 .fpt-sec-spin-btns button:first-child{border-bottom:1px solid var(--fpt-border,rgba(128,128,128,0.3));}
 
-/* === 3.1: redesigned multi-account items (popup is always dark — фиксированная палитра) === */
+/* === 3.1: redesigned multi-account items (popup is always dark - фиксированная палитра) === */
 .fpt-acc-item{
     display:flex;align-items:center;gap:12px;padding:10px 12px;margin-bottom:8px;
     background:#1a1c26;border:1px solid #22253a;
@@ -8251,3 +8269,83 @@ textarea.fp-cw-input { line-height:1.4; }
     border-radius:6px;padding:2px 8px;font-size:12px;font-family:'JetBrains Mono','Consolas',monospace;
 }
 .fpt-tg-cmd-list li span{color:#9099b8;font-size:12.5px;}
+
+/* FIX 2.8.8 (№1): скрываем скроллбар у попапа точности статистики (Chrome/WebKit) */
+#fpt-stats-accuracy-box::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
+/* ===== FP Tools: оверлей загрузки статистики продаж ===== */
+.fp-stats-loading {
+    position: relative;
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 40px 20px;
+    text-align: center;
+    animation: fpStatsFadeIn .25s ease;
+}
+.fp-stats-loading .fp-stats-spinner {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    border: 4px solid rgba(255,255,255,0.15);
+    border-top-color: #ff6d15;
+    animation: fpStatsSpin .8s linear infinite;
+}
+.fpt-custom-theme-off .fp-stats-loading .fp-stats-spinner {
+    border: 4px solid rgba(0,0,0,0.10);
+    border-top-color: #ff6d15;
+}
+.fp-stats-loading .fp-stats-loading-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: #fff;
+    letter-spacing: .2px;
+}
+.fpt-custom-theme-off .fp-stats-loading .fp-stats-loading-title { color: #1a1a1a; }
+.fp-stats-loading .fp-stats-loading-sub {
+    font-size: 13px;
+    color: rgba(255,255,255,0.6);
+    max-width: 360px;
+    line-height: 1.5;
+}
+.fpt-custom-theme-off .fp-stats-loading .fp-stats-loading-sub { color: #666; }
+.fp-stats-loading .fp-stats-loading-count {
+    font-size: 13px;
+    color: #ff6d15;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    min-height: 18px;
+}
+/* Прогресс-полоска «дышит», пока идёт сбор (длительность неизвестна) */
+.fp-stats-loading .fp-stats-loading-bar {
+    width: 220px;
+    max-width: 70%;
+    height: 4px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: rgba(255,255,255,0.12);
+}
+.fpt-custom-theme-off .fp-stats-loading .fp-stats-loading-bar { background: rgba(0,0,0,0.08); }
+.fp-stats-loading .fp-stats-loading-bar::after {
+    content: "";
+    display: block;
+    width: 40%;
+    height: 100%;
+    border-radius: 4px;
+    background: linear-gradient(90deg, transparent, #ff6d15, transparent);
+    animation: fpStatsSlide 1.2s ease-in-out infinite;
+}
+@keyframes fpStatsSpin { to { transform: rotate(360deg); } }
+@keyframes fpStatsSlide {
+    0%   { transform: translateX(-120%); }
+    100% { transform: translateX(320%); }
+}
+@keyframes fpStatsFadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+/* Лёгкое затухание блока карточек, когда показываем загрузку поверх */
+.fp-stats-dimmed { opacity: .35; pointer-events: none; transition: opacity .2s ease; }

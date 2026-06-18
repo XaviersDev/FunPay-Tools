@@ -19,6 +19,15 @@ function isBotMarked(text) {
 
 async function fetchWithRetry(url, options, { retries = 4, baseDelay = 800 } = {}) {
     let lastErr;
+    // FIX 2.8.1: браузер ИГНОРИРУЕТ заголовок Cookie в fetch() (forbidden header),
+    // поэтому полагаемся на реальные куки активной сессии. Для funpay.com принудительно
+    // включаем credentials:'include' - иначе у части пользователей golden_key/PHPSESSID
+    // не прикладывались и автоответы/раннер работали "через раз".
+    const _opts = (options && typeof options === 'object') ? { ...options } : {};
+    if (/^https:\/\/(?:[a-z0-9-]+\.)?funpay\.com\//i.test(String(url)) && !_opts.credentials) {
+        _opts.credentials = 'include';
+    }
+    options = _opts;
     for (let attempt = 0; attempt <= retries; attempt++) {
         try {
             const res = await fetch(url, options);
@@ -94,7 +103,7 @@ async function getAuth() {
         const cookieStr = phpsessid
             ? `golden_key=${golden_key}; PHPSESSID=${phpsessid}`
             : `golden_key=${golden_key}`;
-        const res = await fetch('https://funpay.com/', { headers: { cookie: cookieStr } });
+        const res = await fetch('https://funpay.com/', { credentials: 'include', headers: { cookie: cookieStr } });
         const text = await res.text();
         const m = text.match(/<body[^>]*data-app-data="([^"]+)"/);
         if (m) {
@@ -410,12 +419,41 @@ async function handleReview(msg, auth, settings) {
             else if (settings.bonusMode === 'random' && settings.randomBonuses?.length)
                 bonusText = settings.randomBonuses[Math.floor(Math.random() * settings.randomBonuses.length)];
             if (bonusText?.trim()) {
+                // FIX 2.8.2 (№1): задержка перед отправкой подарка за отзыв.
+                // Ответ на отзыв (sendReviewReply) и подарок (сообщение в чат) шли
+                // встык - в некоторых случаях FunPay глотал
+                // ОТВЕТ НА ОТЗЫВ, если сразу после него летело сообщение. Пауза
+                // настраивается (bonusForReviewDelaySec), по умолчанию 4 секунды.
+                const delaySec = Number(settings.bonusForReviewDelaySec);
+                const delayMs = (Number.isFinite(delaySec) && delaySec >= 0 ? delaySec : 4) * 1000;
+                if (delayMs > 0) await new Promise(r => setTimeout(r, delayMs));
                 try { await sendReplyContent(msg.chatId, applyVariables(bonusText, vars), auth); }
                 catch (e) { console.error(`FP Tools AR: ошибка бонуса #${orderId}`, e.message); }
             }
         }
     } catch (e) {
         console.error(`FP Tools AR: ошибка обработки отзыва #${orderId}`, e.message);
+    }
+}
+
+// FIX 2.8.2 (№12): проверка, что в заказе Я - ПРОДАВЕЦ. Кэшируем результат по
+// orderId, чтобы не дёргать страницу заказа повторно в одном цикле.
+const _sellerCheckCache = new Map();
+async function verifyIAmSeller(orderId, auth) {
+    if (!orderId) return true; // нет orderId - не блокируем (старое поведение)
+    if (_sellerCheckCache.has(orderId)) return _sellerCheckCache.get(orderId);
+    try {
+        const res = await fetchWithRetry(`https://funpay.com/orders/${orderId}/`, { headers: { cookie: `golden_key=${auth.golden_key}` } });
+        if (!res.ok) return true; // не смогли проверить - не ломаем автоответы
+        const html = await res.text();
+        const info = await parseViaOffscreen(html, 'parseOrderParticipants');
+        // iAmSeller === false → это МОЯ покупка, блокируем. null/undefined → не уверены, пропускаем.
+        const ok = !(info && info.iAmSeller === false);
+        _sellerCheckCache.set(orderId, ok);
+        if (_sellerCheckCache.size > 300) _sellerCheckCache.clear();
+        return ok;
+    } catch (e) {
+        return true; // при ошибке - не блокируем
     }
 }
 
@@ -675,13 +713,21 @@ async function _runAutoResponderCycleInner() {
 
             if (msgType === 'DEAR_VENDORS') {
                 await notifyDearVendors(msg);
-            } else if (msgType === 'ORDER_PURCHASED') {
-                await handleOrderPurchased(msg, auth, fresh);
-                await handleAutoDelivery(msg, auth, fresh);
-            } else if (msgType === 'ORDER_CONFIRMED') {
-                await handleOrderConfirmed(msg, auth, fresh);
-            } else if (msgType === 'NEW_FEEDBACK' || msgType === 'FEEDBACK_CHANGED') {
-                await handleReview(msg, auth, fresh);
+            } else if (msgType === 'ORDER_PURCHASED' || msgType === 'ORDER_CONFIRMED'
+                       || msgType === 'NEW_FEEDBACK' || msgType === 'FEEDBACK_CHANGED') {
+                // FIX 2.8.2 (№12): не реагируем на собственные покупки.
+                const _oid = (msg.messageText.match(RX.ORDER_ID) || [])[1] || null;
+                const iAmSeller = await verifyIAmSeller(_oid, auth);
+                if (!iAmSeller) {
+                    console.log(`FP Tools AR: пропуск события по заказу #${_oid} - это моя покупка, не реагируем.`);
+                } else if (msgType === 'ORDER_PURCHASED') {
+                    await handleOrderPurchased(msg, auth, fresh);
+                    await handleAutoDelivery(msg, auth, fresh);
+                } else if (msgType === 'ORDER_CONFIRMED') {
+                    await handleOrderConfirmed(msg, auth, fresh);
+                } else {
+                    await handleReview(msg, auth, fresh);
+                }
             } else if (msgType === 'NON_SYSTEM' && !isSameText) {
                 await handleGreeting(msg, auth, fresh);
                 await handleKeywords(msg, auth, fresh);

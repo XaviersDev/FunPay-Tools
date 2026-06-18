@@ -1,67 +1,9 @@
 /* css/ai_creator.css */
 
-#fp-tools-ai-gen-btn-wrapper {
-    position: relative;
-}
-
+/* FIX 2.9.1: кнопка ИИ-генерации - обычный клон "Импорт" (btn btn-default).
+   Без теней, градиентов, трансформаций и частиц. */
 .fp-tools-ai-gen-btn {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 25px;
-    background: linear-gradient(145deg, #2c2c3e, #1a1a24);
-    border: 1px solid #4a4a6a;
-    border-radius: 50px;
-    color: #e3e3e3;
-    font-size: 16px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    position: relative;
-    z-index: 9990;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-}
-
-.fp-tools-ai-gen-btn:hover {
-    transform: translateY(-3px) scale(1.05);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5), 0 0 20px rgba(140, 130, 255, 0.5);
-    border-color: #8c82ff;
-    text-shadow: 0 0 10px #8c82ff;
-}
-
-.fp-tools-ai-gen-btn svg {
-    transition: transform 0.3s ease;
-}
-
-.fp-tools-ai-gen-btn:hover svg {
-    transform: rotate(360deg) scale(1.1);
-}
-
-.fp-tools-ai-gen-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(5px);
-    z-index: 9988;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.4s ease, visibility 0.4s ease;
-    pointer-events: none;
-}
-
-.fp-tools-ai-gen-overlay.active {
-    opacity: 1;
-    visibility: visible;
-}
-
-#fp-tools-ai-gen-canvas {
-    position: fixed;
-    z-index: 10005;
-    pointer-events: none;
-    transition: opacity 0.4s ease;
+    box-shadow: none !important;
 }
 
 /* Modal Styles */
@@ -89,11 +31,13 @@
 }
 
 .fp-tools-ai-gen-modal-content {
-    background: rgba(20, 20, 20, 0.9);
-    backdrop-filter: blur(25px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 20px;
-    box-shadow: 0 0 100px rgba(149, 0, 255, 0.2), 0 0 30px rgba(0, 247, 255, 0.3);
+    --cw-bg: #1e1e1e; --cw-color: #e0e0e0; --cw-accent: #1b75bb;
+    --cw-border: rgba(255,255,255,0.12); --cw-subtle: rgba(255,255,255,0.05);
+    --cw-muted: rgba(255,255,255,0.55); --cw-field-bg: rgba(255,255,255,0.05);
+    background: var(--cw-bg);
+    border: 1px solid var(--cw-border);
+    border-radius: 14px;
+    box-shadow: 0 12px 48px rgba(0,0,0,0.45);
     width: 90vw;
     max-width: 550px;
     animation: ai-modal-slide-up 0.4s cubic-bezier(0.25, 1, 0.5, 1);
@@ -109,18 +53,18 @@
     justify-content: space-between;
     align-items: center;
     padding: 15px 25px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid var(--cw-border, rgba(255,255,255,0.12));
 }
-.fp-tools-ai-gen-modal-header h3 { margin: 0; font-size: 18px; color: #eee; }
-.fp-tools-ai-gen-modal-header .close-btn { background: none; border: none; font-size: 28px; color: #888; cursor: pointer; transition: color 0.2s; }
-.fp-tools-ai-gen-modal-header .close-btn:hover { color: #fff; }
+.fp-tools-ai-gen-modal-header h3 { margin: 0; font-size: 18px; color: var(--cw-color, #e0e0e0); }
+.fp-tools-ai-gen-modal-header .close-btn { background: none; border: none; font-size: 28px; color: var(--cw-muted, #888); cursor: pointer; transition: color 0.2s; }
+.fp-tools-ai-gen-modal-header .close-btn:hover { color: var(--cw-color, #fff); }
 
 .fp-tools-ai-gen-modal-body {
     padding: 25px;
 }
 .fp-tools-ai-gen-modal-body p {
     font-size: 14px;
-    color: #aaa;
+    color: var(--cw-muted, #aaa);
     margin-top: 0;
     margin-bottom: 20px;
     line-height: 1.5;
@@ -129,17 +73,17 @@
     display: block;
     margin-bottom: 8px;
     font-size: 14px;
-    color: #ccc;
+    color: var(--cw-color, #ccc);
 }
 .fp-tools-ai-gen-modal-body input[type="text"],
 .fp-tools-ai-gen-modal-body textarea {
     width: 100%;
     box-sizing: border-box;
-    background: rgba(255, 255, 255, 0.1);
-    border: none;
+    background: var(--cw-field-bg, rgba(255,255,255,0.06));
+    border: 1px solid var(--cw-border, rgba(255,255,255,0.12));
     border-radius: 10px;
     padding: 12px;
-    color: #fff;
+    color: var(--cw-color, #fff);
     font-size: 14px;
     margin-bottom: 15px;
     resize: vertical;
@@ -148,7 +92,7 @@
 .fp-tools-ai-gen-modal-body input[type="text"]:focus,
 .fp-tools-ai-gen-modal-body textarea:focus {
     outline: none;
-    box-shadow: 0 0 0 2px rgba(149, 0, 255, 0.5);
+    box-shadow: 0 0 0 2px var(--cw-accent, #1b75bb);
     background: rgba(255, 255, 255, 0.15);
 }
 
@@ -200,15 +144,15 @@
 .fp-tools-ai-gen-modal-footer {
     padding: 15px 25px;
     text-align: right;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid var(--cw-border, rgba(255,255,255,0.12));
 }
 
 .fp-tools-ai-gen-modal-footer .submit-btn {
-    background: linear-gradient(45deg, #8A2BE2, #4169E1);
-    color: white;
+    background: var(--cw-accent, #1b75bb);
+    color: #fff;
     border: none;
     padding: 12px 25px;
-    border-radius: 50px;
+    border-radius: 8px;
     font-weight: bold;
     cursor: pointer;
     transition: all 0.3s ease;
@@ -217,8 +161,7 @@
     box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
 }
 .fp-tools-ai-gen-modal-footer .submit-btn:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 25px rgba(138, 43, 226, 0.4);
+    filter: brightness(1.08);
 }
 .submit-btn:disabled {
     opacity: 0.6;

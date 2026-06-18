@@ -1,5 +1,8 @@
 // background/background.js - FunPay Tools 2.8
 
+import './sales_db.js'; // FP Tools: IndexedDB-хранилище заказов (self.FPTSalesDB)
+import './purchases_db.js'; // FP Tools: IndexedDB-хранилище покупок (self.FPTPurchasesDB)
+import './finance_db.js'; // FP Tools: IndexedDB-хранилище финансов (self.FPTFinanceDB)
 import { fetchAIResponse, fetchAILotGeneration, fetchAITranslation, fetchAIImageGeneration } from './ai.js';
 import { BUMP_ALARM_NAME, startAutoBump, stopAutoBump, runBumpCycle } from './autobump.js';
 import { runAutoResponderCycle, resetAutoResponderState } from './autoresponder.js';
@@ -10,6 +13,32 @@ import {
     telegramValidateAndResolve, telegramNotifyNewMessages, telegramNotifyNewOrders, tgSendMessage
 } from './telegram.js';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// FIX 2.8.1 - НАДЁЖНАЯ ОТПРАВКА КУКОВ.
+// Браузер ИГНОРИРУЕТ заголовок Cookie, выставленный вручную в fetch() (forbidden
+// header). Раньше многие запросы к funpay.com слали только ручной cookie и
+// работали лишь у пользователей, чьи куки случайно подхватывались браузером -
+// отсюда «у меня картинки/автоответы работают, а у людей нет».
+// Оборачиваем глобальный fetch так, чтобы для ВСЕХ запросов к funpay.com по
+// умолчанию подставлялись реальные куки активной сессии (credentials:'include').
+// Прочие домены (api.telegram.org, *.workers.dev, CDN и т.д.) не затрагиваются.
+// Совместимо с подменой golden_key в fptSnapshotForKey (она и так грузит главную
+// с credentials:'include' из cookie-jar).
+(function () {
+    const _origFetch = self.fetch.bind(self);
+    self.fetch = function (input, init) {
+        try {
+            const url = (typeof input === 'string') ? input
+                      : (input && input.url) ? input.url : '';
+            if (/^https:\/\/(?:[a-z0-9-]+\.)?funpay\.com\//i.test(url)) {
+                init = init ? { ...init } : {};
+                if (!init.credentials) init.credentials = 'include';
+            }
+        } catch (_) {}
+        return _origFetch(input, init);
+    };
+})();
+
 const OFFSCREEN_DOCUMENT_PATH = 'offscreen/offscreen.html';
 const DISCORD_LOG_ALARM_NAME = 'fpToolsDiscordCheck';
 const AUTO_RESPONDER_ALARM_NAME = 'fpToolsAutoResponder';
@@ -18,34 +47,73 @@ const IMPORT_PROCESS_KEY = 'fpToolsLotImportProcess';
 const RETRY_LIMIT = 5;
 const RETRY_DELAY = 5000; // 5 секунд
 
-// --- ФИНАЛЬНАЯ, ИСПРАВЛЕННАЯ ФУНКЦИЯ СБОРА СТАТИСТИКИ БЕЗ ОГРАНИЧЕНИЙ ---
+// Защита от ПАРАЛЛЕЛЬНЫХ циклов сбора. Если открыть пару вкладок /orders/ или
+// перезагрузить страницу, каждый запуск дёргал свой цикл — два цикла разом удваивают
+// нагрузку. Эти флаги не дают запуститься второму циклу.
+let _salesCycleRunning = false;
+let _purchasesCycleRunning = false;
+let _financeCycleRunning = false;
+
+// fetch с мягким ретраем на серверные ошибки FunPay (502/503/504/429). Когда у FunPay
+// «лежит» бэкенд (а это бывает — в чате жалуются, что сайт падает), один и тот же
+// запрос через секунду часто проходит. Это НЕ замедляет обычную работу: ретрай
+// включается только при ошибке сервера.
+async function fptFetchResilient(url, options, { retries = 3, baseDelay = 700 } = {}) {
+    let lastErr;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+            const res = await fetch(url, options);
+            if (res.status === 429 || res.status >= 500) {
+                lastErr = new Error(`HTTP ${res.status}`);
+            } else {
+                return res;
+            }
+        } catch (e) {
+            lastErr = e; // network error / Failed to fetch
+        }
+        if (attempt < retries) {
+            await new Promise(r => setTimeout(r, baseDelay * Math.pow(2, attempt) + Math.random() * 300));
+        }
+    }
+    throw lastErr || new Error('fptFetchResilient: исчерпаны попытки');
+}
+
+// --- СБОР СТАТИСТИКИ ПРОДАЖ (IndexedDB) ---
+// Данные хранятся в IndexedDB (self.FPTSalesDB), а не в chrome.storage.local,
+// поэтому квота ~10 МБ больше не упирается на ~18800 заказах. Между страницами —
+// небольшая вежливая пауза, чтобы FunPay не банил IP за флуд.
 async function runSalesUpdateCycle() {
+    if (_salesCycleRunning) { console.log("FP Tools: цикл продаж уже идёт — пропуск повторного запуска."); return; }
+    _salesCycleRunning = true;
     console.log("FP Tools: Запуск полного цикла сбора статистики продаж...");
     try {
+        await chrome.storage.local.set({ fpToolsSalesCollecting: true });
+        // Однократно переносим старые данные из storage.local в IndexedDB
+        // (и освобождаем квоту). Безопасно вызывать каждый раз — отработает один раз.
+        await FPTSalesDB.migrateFromLocalStorage();
+
         const auth = await getAuthDetailsForBackground();
         if (!auth.golden_key) throw new Error("Не удалось получить golden_key для сбора статистики.");
 
-        let {
-            fpToolsSalesData: savedOrders = {},
-            fpToolsFirstOrderId: firstOrderId,
-            fpToolsLastOrderId: lastOrderId
-        } = await chrome.storage.local.get(['fpToolsSalesData', 'fpToolsFirstOrderId', 'fpToolsLastOrderId']);
+        let firstOrderId = await FPTSalesDB.getMeta('firstOrderId');
+        let lastOrderId = await FPTSalesDB.getMeta('lastOrderId');
 
         const fetchAndParseSales = async (continueToken = null) => {
             const url = 'https://funpay.com/orders/trade';
             const body = continueToken ? new URLSearchParams({ 'continue': continueToken }) : null;
             const options = {
                 method: 'POST',
+                credentials: 'include',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'Cookie': `golden_key=${auth.golden_key}` },
                 body: body
             };
-            // 3.0: 429-aware retry. FunPay rate-limits stats pagination; on 429/5xx we back off
-            // and retry instead of throwing and killing the whole cycle.
+            // 429/5xx-aware retry: если FunPay всё-таки притормозит — откатываемся и
+            // пробуем снова, но НЕ держим паузу на каждой успешной странице.
             let response;
-            for (let attempt = 0; attempt < 4; attempt++) {
+            for (let attempt = 0; attempt < 5; attempt++) {
                 response = await fetch(url, options);
                 if (response.status === 429 || response.status >= 500) {
-                    await new Promise(r => setTimeout(r, 3000 * (attempt + 1) + Math.random() * 1000));
+                    await new Promise(r => setTimeout(r, 1500 * (attempt + 1) + Math.random() * 500));
                     continue;
                 }
                 break;
@@ -55,15 +123,16 @@ async function runSalesUpdateCycle() {
             return await parseHtmlViaOffscreen(html, 'parseSalesPage');
         };
 
-        const saveSalesData = async (orders, firstId, lastId) => {
-            await chrome.storage.local.set({
-                fpToolsSalesData: orders,
-                fpToolsFirstOrderId: firstId,
-                fpToolsLastOrderId: lastId,
-                fpToolsSalesLastUpdate: Date.now()
-            });
+        const commitMeta = async (firstId, lastId) => {
+            if (firstId !== undefined) await FPTSalesDB.setMeta('firstOrderId', firstId);
+            if (lastId !== undefined) await FPTSalesDB.setMeta('lastOrderId', lastId);
+            const now = Date.now();
+            await FPTSalesDB.setMeta('lastUpdate', now);
+            // Маленькое зеркало для UI, который читает дату из storage.local — это байты, не мегабайты.
+            await chrome.storage.local.set({ fpToolsSalesLastUpdate: now });
         };
 
+        // --- Догрузка НОВЫХ заказов сверху (инкрементально) ---
         if (firstOrderId) {
             let continueToken = null;
             let newOrdersFoundInCycle = true;
@@ -75,71 +144,362 @@ async function runSalesUpdateCycle() {
                 const newOrders = (knownOrderIndex !== -1) ? orders.slice(0, knownOrderIndex) : orders;
 
                 if (newOrders.length > 0) {
-                    newOrders.forEach(o => savedOrders[o.orderId] = o);
+                    await FPTSalesDB.putOrders(newOrders);
                     firstOrderId = newOrders[0].orderId;
-                    await saveSalesData(savedOrders, firstOrderId, lastOrderId);
+                    await commitMeta(firstOrderId, undefined);
                     console.log(`FP Tools: Добавлено ${newOrders.length} новых заказов сверху.`);
                 } else {
                     newOrdersFoundInCycle = false;
                 }
 
                 if (knownOrderIndex !== -1 || !nextOrderId) break;
-                
                 continueToken = nextOrderId;
-                await new Promise(resolve => setTimeout(resolve, 1200)); // 3.0: slower to avoid 429
             }
         }
 
+        // --- Догрузка СТАРЫХ заказов вниз / первичная инициализация ---
         let continueToken = lastOrderId;
-        if (!firstOrderId) { 
+        let _emptyPages = 0;
+        const MAX_EMPTY_PAGES = 5;
+        const _seenTokens = new Set();
+        if (lastOrderId) _seenTokens.add(lastOrderId);
+
+        if (!firstOrderId) {
             const { nextOrderId, orders } = await fetchAndParseSales(null);
             if (orders && orders.length > 0) {
-                orders.forEach(o => savedOrders[o.orderId] = o);
+                await FPTSalesDB.putOrders(orders);
                 firstOrderId = orders[0].orderId;
                 lastOrderId = orders[orders.length - 1].orderId;
-                await saveSalesData(savedOrders, firstOrderId, lastOrderId);
+                await commitMeta(firstOrderId, lastOrderId);
                 console.log(`FP Tools: Инициализация статистики с ${orders.length} заказами.`);
                 continueToken = nextOrderId;
             } else {
-                continueToken = null; 
+                continueToken = null;
             }
         }
-        
+
+        // Множество уже известных orderId грузим ОДИН раз в память (а не с диска
+        // на каждой странице) — иначе на 65к заказов проверки тормозили бы.
+        const _knownIds = new Set(Object.keys(await FPTSalesDB.getAllAsMap()));
+
         while (continueToken) {
             const { nextOrderId, orders } = await fetchAndParseSales(continueToken);
             if (!orders || orders.length === 0) {
                 console.log("FP Tools: Достигнут конец истории заказов.");
                 break;
             }
-            
-            let newOrdersOnPageCount = 0;
-            orders.forEach(order => {
-                if (!savedOrders[order.orderId]) {
-                    savedOrders[order.orderId] = order;
-                    newOrdersOnPageCount++;
-                }
-            });
 
-            if (newOrdersOnPageCount > 0) {
-                lastOrderId = orders[orders.length - 1].orderId;
-                await saveSalesData(savedOrders, firstOrderId, lastOrderId);
-                console.log(`FP Tools: Добавлено ${newOrdersOnPageCount} старых заказов. Всего: ${Object.keys(savedOrders).length}.`);
-            } else {
-                console.log("FP Tools: Все старые заказы уже были загружены. Остановка.");
-                break;
+            // Какие из заказов на странице — новые для базы.
+            let newOrdersOnPageCount = 0;
+            const toPut = [];
+            for (const order of orders) {
+                if (!_knownIds.has(order.orderId)) { toPut.push(order); _knownIds.add(order.orderId); newOrdersOnPageCount++; }
             }
 
+            if (newOrdersOnPageCount > 0) {
+                await FPTSalesDB.putOrders(toPut);
+                lastOrderId = orders[orders.length - 1].orderId;
+                await commitMeta(undefined, lastOrderId);
+                const total = await FPTSalesDB.count();
+                console.log(`FP Tools: Добавлено ${newOrdersOnPageCount} старых заказов. Всего: ${total}.`);
+                _emptyPages = 0;
+            } else {
+                _emptyPages++;
+                lastOrderId = orders[orders.length - 1].orderId;
+                await commitMeta(undefined, lastOrderId);
+                console.log(`FP Tools: Страница без новых заказов (${_emptyPages}/${MAX_EMPTY_PAGES}).`);
+                if (_emptyPages >= MAX_EMPTY_PAGES) {
+                    console.log("FP Tools: Несколько страниц подряд без новых заказов - остановка.");
+                    break;
+                }
+            }
+
+            if (!nextOrderId || nextOrderId === continueToken || _seenTokens.has(nextOrderId)) {
+                console.log("FP Tools: continue-токен не меняется/повторяется - конец пагинации.");
+                break;
+            }
+            _seenTokens.add(nextOrderId);
+            if (_seenTokens.size > 5000) _seenTokens.clear();
+
             continueToken = nextOrderId;
-            await new Promise(resolve => setTimeout(resolve, 1200)); // 3.0: slower to avoid 429
         }
 
     } catch (e) {
         console.error(`FP Tools: Ошибка в цикле сбора статистики: ${e.message}`);
     } finally {
+        _salesCycleRunning = false;
         console.log("FP Tools: Сбор статистики продаж завершен.");
-        await chrome.storage.local.set({ fpToolsSalesLastUpdate: Date.now() });
+        await chrome.storage.local.set({
+            fpToolsSalesLastUpdate: Date.now(),
+            fpToolsSalesCollecting: false
+        });
     }
 }
+
+async function runFinanceUpdateCycle() {
+    if (_financeCycleRunning) { console.log("FP Tools: цикл финансов уже идёт — пропуск."); return; }
+    _financeCycleRunning = true;
+    console.log("FP Tools: Запуск сбора статистики финансов...");
+    try {
+        await chrome.storage.local.set({ fpToolsFinanceCollecting: true });
+        const auth = await getAuthDetailsForBackground();
+        if (!auth.golden_key) throw new Error("Не удалось получить golden_key для сбора финансов.");
+        const userId = auth.userId;
+
+        const fetchPage = async (continueToken) => {
+            const url = 'https://funpay.com/users/transactions';
+            const params = new URLSearchParams();
+            if (userId) params.set('user_id', String(userId));
+            params.set('filter', ''); // все операции
+            if (continueToken) params.set('continue', continueToken);
+            const options = {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Cookie': `golden_key=${auth.golden_key}`
+                },
+                body: params
+            };
+            let response;
+            for (let attempt = 0; attempt < 5; attempt++) {
+                response = await fetch(url, options);
+                if (response.status === 429 || response.status >= 500) {
+                    await new Promise(r => setTimeout(r, 1500 * (attempt + 1) + Math.random() * 500));
+                    continue;
+                }
+                break;
+            }
+            if (!response.ok) throw new Error(`Ошибка сети (финансы): ${response.status}`);
+            const html = await response.text();
+            return await parseHtmlViaOffscreen(html, 'parseFinancePage');
+        };
+
+        // Финансовых операций немного — собираем целиком заново каждый раз.
+        await FPTFinanceDB.clearAll();
+        let continueToken = null;
+        const seenIds = new Set();        // все id операций, что уже сохранили
+        const seenTokens = new Set();     // continue-токены, что уже использовали
+        let lastFirstId = null;           // id первой операции прошлой страницы (детект зацикливания)
+        const MAX_PAGES = 600;            // жёсткий предохранитель
+
+        for (let page = 0; page < MAX_PAGES; page++) {
+            // защита от повторного использования того же токена (зацикливание)
+            if (continueToken && seenTokens.has(continueToken)) {
+                console.log("FP Tools: финансы — повтор continue-токена, останавливаемся.");
+                break;
+            }
+            if (continueToken) seenTokens.add(continueToken);
+
+            const { nextId, txns } = await fetchPage(continueToken);
+            if (!txns || txns.length === 0) break;
+
+            // оставляем только НОВЫЕ операции (которых ещё не видели)
+            const fresh = txns.filter(t => t.id && !seenIds.has(t.id));
+            for (const t of fresh) seenIds.add(t.id);
+
+            if (fresh.length > 0) {
+                await FPTFinanceDB.putOrders(fresh);
+                await chrome.storage.local.set({ fpToolsFinanceCount: seenIds.size });
+                const dts = txns.map(t => t.date).filter(Boolean);
+                if (dts.length) {
+                    const newest = new Date(Math.max(...dts)).toISOString().slice(0, 10);
+                    const oldest = new Date(Math.min(...dts)).toISOString().slice(0, 10);
+                    console.log(`FP Tools: финансы стр.${page + 1} — ${txns.length} операц. (новых ${fresh.length}), ${newest}…${oldest}, всего уникальных ${seenIds.size}`);
+                }
+            }
+
+            // Если страница не принесла ни одной новой операции — дальше идти бессмысленно.
+            if (fresh.length === 0) {
+                console.log("FP Tools: финансы — страница без новых операций, конец.");
+                break;
+            }
+
+            // Детект зацикливания по содержимому: та же «первая» операция, что и раньше.
+            const firstId = txns[0].id;
+            if (firstId && firstId === lastFirstId) {
+                console.log("FP Tools: финансы — та же страница повторилась, конец.");
+                break;
+            }
+            lastFirstId = firstId;
+
+            // нет следующего токена ИЛИ он совпал с текущим → конец
+            if (!nextId || nextId === continueToken) break;
+            continueToken = nextId;
+        }
+
+        const total = seenIds.size;
+
+        const now = Date.now();
+        await FPTFinanceDB.setMeta('lastUpdate', now);
+        await chrome.storage.local.set({ fpToolsFinanceLastUpdate: now });
+        console.log(`FP Tools: Финансы собраны, операций: ${total}.`);
+    } catch (e) {
+        console.error(`FP Tools: Ошибка в цикле сбора финансов: ${e.message}`);
+    } finally {
+        _financeCycleRunning = false;
+        await chrome.storage.local.set({
+            fpToolsFinanceLastUpdate: Date.now(),
+            fpToolsFinanceCollecting: false
+        });
+    }
+}
+
+async function runPurchasesUpdateCycle() {
+    if (_purchasesCycleRunning) { console.log("FP Tools: цикл покупок уже идёт — пропуск."); return; }
+    _purchasesCycleRunning = true;
+    console.log("FP Tools: Запуск полного цикла сбора статистики покупок...");
+    try {
+        await chrome.storage.local.set({ fpToolsPurchasesCollecting: true });
+        // Однократно переносим старые данные из storage.local в IndexedDB
+        // (и освобождаем квоту). Безопасно вызывать каждый раз — отработает один раз.
+        await FPTPurchasesDB.migrateFromLocalStorage();
+
+        const auth = await getAuthDetailsForBackground();
+        if (!auth.golden_key) throw new Error("Не удалось получить golden_key для сбора статистики.");
+
+        let firstOrderId = await FPTPurchasesDB.getMeta('firstOrderId');
+        let lastOrderId = await FPTPurchasesDB.getMeta('lastOrderId');
+
+        const fetchAndParseSales = async (continueToken = null) => {
+            const url = 'https://funpay.com/orders/';
+            const body = continueToken ? new URLSearchParams({ 'continue': continueToken }) : null;
+            const options = {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'Cookie': `golden_key=${auth.golden_key}` },
+                body: body
+            };
+            // 429/5xx-aware retry: если FunPay всё-таки притормозит — откатываемся и
+            // пробуем снова, но НЕ держим паузу на каждой успешной странице.
+            let response;
+            for (let attempt = 0; attempt < 5; attempt++) {
+                response = await fetch(url, options);
+                if (response.status === 429 || response.status >= 500) {
+                    await new Promise(r => setTimeout(r, 1500 * (attempt + 1) + Math.random() * 500));
+                    continue;
+                }
+                break;
+            }
+            if (!response.ok) throw new Error(`Ошибка сети: ${response.status}`);
+            const html = await response.text();
+            return await parseHtmlViaOffscreen(html, 'parseSalesPage');
+        };
+
+        const commitMeta = async (firstId, lastId) => {
+            if (firstId !== undefined) await FPTPurchasesDB.setMeta('firstOrderId', firstId);
+            if (lastId !== undefined) await FPTPurchasesDB.setMeta('lastOrderId', lastId);
+            const now = Date.now();
+            await FPTPurchasesDB.setMeta('lastUpdate', now);
+            // Маленькое зеркало для UI, который читает дату из storage.local — это байты, не мегабайты.
+            await chrome.storage.local.set({ fpToolsPurchasesLastUpdate: now });
+        };
+
+        // --- Догрузка НОВЫХ покупок сверху (инкрементально) ---
+        if (firstOrderId) {
+            let continueToken = null;
+            let newOrdersFoundInCycle = true;
+            while (newOrdersFoundInCycle) {
+                const { nextOrderId, orders } = await fetchAndParseSales(continueToken);
+                if (!orders || orders.length === 0) break;
+
+                const knownOrderIndex = orders.findIndex(o => o.orderId === firstOrderId);
+                const newOrders = (knownOrderIndex !== -1) ? orders.slice(0, knownOrderIndex) : orders;
+
+                if (newOrders.length > 0) {
+                    await FPTPurchasesDB.putOrders(newOrders);
+                    firstOrderId = newOrders[0].orderId;
+                    await commitMeta(firstOrderId, undefined);
+                    console.log(`FP Tools: Добавлено ${newOrders.length} новых покупок сверху.`);
+                } else {
+                    newOrdersFoundInCycle = false;
+                }
+
+                if (knownOrderIndex !== -1 || !nextOrderId) break;
+                continueToken = nextOrderId;
+            }
+        }
+
+        // --- Догрузка СТАРЫХ заказов вниз / первичная инициализация ---
+        let continueToken = lastOrderId;
+        let _emptyPages = 0;
+        const MAX_EMPTY_PAGES = 5;
+        const _seenTokens = new Set();
+        if (lastOrderId) _seenTokens.add(lastOrderId);
+
+        if (!firstOrderId) {
+            const { nextOrderId, orders } = await fetchAndParseSales(null);
+            if (orders && orders.length > 0) {
+                await FPTPurchasesDB.putOrders(orders);
+                firstOrderId = orders[0].orderId;
+                lastOrderId = orders[orders.length - 1].orderId;
+                await commitMeta(firstOrderId, lastOrderId);
+                console.log(`FP Tools: Инициализация статистики с ${orders.length} заказами.`);
+                continueToken = nextOrderId;
+            } else {
+                continueToken = null;
+            }
+        }
+
+        // Множество уже известных orderId грузим ОДИН раз в память (а не с диска
+        // на каждой странице) — иначе на 65к заказов проверки тормозили бы.
+        const _knownIds = new Set(Object.keys(await FPTPurchasesDB.getAllAsMap()));
+
+        while (continueToken) {
+            const { nextOrderId, orders } = await fetchAndParseSales(continueToken);
+            if (!orders || orders.length === 0) {
+                console.log("FP Tools: Достигнут конец истории заказов.");
+                break;
+            }
+
+            // Какие из заказов на странице — новые для базы.
+            let newOrdersOnPageCount = 0;
+            const toPut = [];
+            for (const order of orders) {
+                if (!_knownIds.has(order.orderId)) { toPut.push(order); _knownIds.add(order.orderId); newOrdersOnPageCount++; }
+            }
+
+            if (newOrdersOnPageCount > 0) {
+                await FPTPurchasesDB.putOrders(toPut);
+                lastOrderId = orders[orders.length - 1].orderId;
+                await commitMeta(undefined, lastOrderId);
+                const total = await FPTPurchasesDB.count();
+                console.log(`FP Tools: Добавлено ${newOrdersOnPageCount} старых покупок. Всего: ${total}.`);
+                _emptyPages = 0;
+            } else {
+                _emptyPages++;
+                lastOrderId = orders[orders.length - 1].orderId;
+                await commitMeta(undefined, lastOrderId);
+                console.log(`FP Tools: Страница без новых покупок (${_emptyPages}/${MAX_EMPTY_PAGES}).`);
+                if (_emptyPages >= MAX_EMPTY_PAGES) {
+                    console.log("FP Tools: Несколько страниц подряд без новых покупок - остановка.");
+                    break;
+                }
+            }
+
+            if (!nextOrderId || nextOrderId === continueToken || _seenTokens.has(nextOrderId)) {
+                console.log("FP Tools: continue-токен не меняется/повторяется - конец пагинации.");
+                break;
+            }
+            _seenTokens.add(nextOrderId);
+            if (_seenTokens.size > 5000) _seenTokens.clear();
+
+            continueToken = nextOrderId;
+        }
+
+    } catch (e) {
+        console.error(`FP Tools: Ошибка в цикле сбора статистики: ${e.message}`);
+    } finally {
+        _purchasesCycleRunning = false;
+        console.log("FP Tools: Сбор статистики покупок завершен.");
+        await chrome.storage.local.set({
+            fpToolsPurchasesLastUpdate: Date.now(),
+            fpToolsPurchasesCollecting: false
+        });
+    }
+}
+
 
 
 // --- НИЖЕ ИДЕТ ОСТАЛЬНОЙ КОД ФАЙЛА, ОН ОСТАЕТСЯ БЕЗ ИЗМЕНЕНИЙ ---
@@ -163,6 +523,7 @@ async function sendChatImageInBackground(chatId, dataUrl, chatName) {
     fd.append('file_id', '0');
     const upRes = await fetch('https://funpay.com/file/addChatImage', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'cookie': cookieStr, 'x-requested-with': 'XMLHttpRequest' },
         body: fd
     });
@@ -180,6 +541,7 @@ async function sendChatImageInBackground(chatId, dataUrl, chatName) {
     };
     const sendRes = await fetch('https://funpay.com/runner/', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest', 'cookie': cookieStr },
         body: new URLSearchParams(payload)
     });
@@ -226,6 +588,7 @@ async function getAuthDetailsForBackground() {
     console.log("FP Tools: Не удалось получить appData от вкладок, делаю прямой запрос к FunPay...");
     try {
         const response = await fetch("https://funpay.com/", {
+            credentials: 'include',
             headers: { "cookie": `golden_key=${golden_key}` }
         });
         if (!response.ok) throw new Error(`Статус ответа: ${response.status}`);
@@ -261,13 +624,13 @@ async function tgFetchOrders(limit) {
         const auth = await getAuthDetailsForBackground();
         if (!auth.golden_key) return [];
         // credentials:'include' заставляет браузер приложить настоящие cookie
-        // активной сессии (ручной заголовок Cookie браузер игнорирует — forbidden header).
+        // активной сессии (ручной заголовок Cookie браузер игнорирует - forbidden header).
         const resp = await fetch('https://funpay.com/orders/trade', {
             credentials: 'include',
             cache: 'no-store'
         });
         if (!resp.ok) return [];
-        // Если нас разлогинило/редиректнуло на страницу входа — не считаем это заказами.
+        // Если нас разлогинило/редиректнуло на страницу входа - не считаем это заказами.
         if (/\/account\/login/.test(resp.url)) return [];
         const html = await resp.text();
         const orders = await parseHtmlViaOffscreen(html, 'parseOrdersDetailed');
@@ -305,7 +668,7 @@ async function tgFetchProfileInfo() {
     }
 }
 
-// Получить список чатов (для команды /chats) — переиспользуем runner как Discord.
+// Получить список чатов (для команды /chats) - переиспользуем runner как Discord.
 async function tgFetchChatList() {
     try {
         const auth = await getAuthDetailsForBackground();
@@ -351,9 +714,7 @@ async function tgRunBump() {
 // Сводка продаж для команды /sales.
 async function tgSalesSummary() {
     try {
-        const { fpToolsSalesData } = await chrome.storage.local.get('fpToolsSalesData');
-        if (!fpToolsSalesData) return null;
-        const all = Object.values(fpToolsSalesData);
+        const all = await FPTSalesDB.getAllAsArray();
         if (!all.length) return null;
         const now = Date.now(), day = 864e5;
         const t0 = new Date(); const todayStart = new Date(t0.getFullYear(), t0.getMonth(), t0.getDate()).getTime();
@@ -428,7 +789,7 @@ async function runTelegramCheckCycle() {
         try {
             const { fpToolsDiscord } = await chrome.storage.local.get('fpToolsDiscord');
             const discordActive = fpToolsDiscord && fpToolsDiscord.enabled && fpToolsDiscord.webhookUrl;
-            // Если Discord активен — он уже кормит Telegram внутри runDiscordCheckCycle.
+            // Если Discord активен - он уже кормит Telegram внутри runDiscordCheckCycle.
             if (!discordActive) {
                 const chats = await tgFetchChatList();
                 if (chats.length) await telegramNotifyNewMessages(chats);
@@ -468,7 +829,7 @@ async function parseHtmlViaOffscreen(html, action, extra = {}) {
     });
 }
 
-async function cloneBuildFieldsInternal(auth, nodeId, attributes) {
+async function cloneBuildFieldsInternal(auth, nodeId, attributes, attributePairs) {
     if (!nodeId) throw new Error('Неизвестна подкатегория (node) лота.');
     
     const editUrl = `https://funpay.com/lots/offerEdit?node=${nodeId}&setlocale=en`;
@@ -479,7 +840,7 @@ async function cloneBuildFieldsInternal(auth, nodeId, attributes) {
     // ВОЗВРАЩАЕМ русский язык вашему аккаунту
     await fetch(`https://funpay.com/?setlocale=ru`, { headers: { 'Cookie': `golden_key=${auth.golden_key}` } });
     
-    const fields = await parseHtmlViaOffscreen(html, 'solveCloneForm', { attributes: attributes || [] });
+    const fields = await parseHtmlViaOffscreen(html, 'solveCloneForm', { attributes: attributes || [], attributePairs: attributePairs || [] });
     if (!fields) throw new Error('Не удалось разобрать форму категории.');
     fields.node_id = String(nodeId);
     fields.offer_id = '0';
@@ -500,7 +861,7 @@ async function cloneCalcNetPrice(auth, nodeId, buyerPrice, currencyCode) {
     };
     const base = 100; // как в плагине
     const body = new URLSearchParams({ nodeId: String(nodeId), price: String(base) });
-    const r = await fetch('https://funpay.com/lots/calc', { method: 'POST', headers, body });
+    const r = await fptFetchResilient('https://funpay.com/lots/calc', { method: 'POST', headers, body });
     if (!r.ok) return null;
     const j = await r.json();
     if (!j || j.error) return null;
@@ -605,6 +966,7 @@ async function runDiscordCheckCycle() {
             : `golden_key=${auth.golden_key}`;
         const response = await fetch("https://funpay.com/runner/", {
             method: "POST",
+            credentials: 'include',
             headers: {
                 "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
                 "x-requested-with": "XMLHttpRequest",
@@ -775,7 +1137,7 @@ async function processNextLotImport() {
 //
 // ВАЖНО: браузер игнорирует заголовок Cookie, выставленный вручную в fetch()
 // (это forbidden header). Поэтому единственный надёжный способ получить главную
-// страницу ПОД КОНКРЕТНЫМ аккаунтом — временно подменить cookie golden_key,
+// страницу ПОД КОНКРЕТНЫМ аккаунтом - временно подменить cookie golden_key,
 // сделать запрос с credentials:'include', затем вернуть исходную cookie.
 //
 // Все вызовы сериализуются (очередь), чтобы параллельные снимки не затирали
@@ -789,7 +1151,7 @@ function fptSnapshotForKey(key) {
         let original = null;
         try { original = await chrome.cookies.get({ url: 'https://funpay.com', name: 'golden_key' }); } catch (_) {}
 
-        // Если ключ совпадает с активным — просто грузим главную как есть.
+        // Если ключ совпадает с активным - просто грузим главную как есть.
         if (original && original.value === key) {
             try {
                 const resp = await fetch('https://funpay.com/', { credentials: 'include', cache: 'no-store' });
@@ -883,6 +1245,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 };
                 const res = await fetch('https://funpay.com/runner/', {
                     method: 'POST',
+                    credentials: 'include',
                     headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest', 'cookie': cookieStr },
                     body: new URLSearchParams(payload)
                 });
@@ -932,7 +1295,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
             // Несколько источников по очереди. raw github отдаёт актуальное
             // сразу после коммита и не кэшируется как CDN, поэтому он первый.
-            // Дальше — оба репозитория через оба способа, на всякий случай.
+            // Дальше - оба репозитория через оба способа, на всякий случай.
             const sources = [
                 `https://raw.githubusercontent.com/XaviersDev/FunPayTools-Site/main/donaters.json?t=${bust}`,
                 `https://raw.githubusercontent.com/XaviersDev/FunPay-Tools/main/donaters.json?t=${bust}`,
@@ -952,7 +1315,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     const res = await fetch(url, fetchOpts);
                     if (!res.ok) { lastErr = new Error(`HTTP ${res.status} @ ${url}`); continue; }
                     const json = await res.json();
-                    // Принимаем только непустой объект — отсекаем битые/пустые ответы.
+                    // Принимаем только непустой объект - отсекаем битые/пустые ответы.
                     if (json && typeof json === 'object' && Object.keys(json).length > 0) {
                         sendResponse({ success: true, data: json });
                         return;
@@ -1031,6 +1394,54 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true;
     }
 
+    // FIX 2.9.1: импорт СВОИХ лотов. Раньше превью своих лотов шло через cloneGetSource,
+    // который читает ПУБЛИЧНУЮ страницу (без payment_msg/secrets) и переключает локаль.
+    // Здесь читаем форму offerEdit владельца НАПРЯМУЮ (одна загрузка, без смены локали) -
+    // там есть ВСЁ: цена, сообщение покупателю (ru/en), товары автовыдачи, галка автовыдачи.
+    if (request.action === 'getOwnLotFull') {
+        (async () => {
+            try {
+                const auth = await getAuthDetailsForBackground();
+                if (!auth.golden_key) throw new Error('Не авторизован (нет golden_key).');
+                const offerId = request.offerId;
+                if (!offerId) throw new Error('Не передан ID лота.');
+
+                // node не обязателен: offerEdit?offer=ID сам отдаёт нужную форму
+                const editUrl = request.nodeId
+                    ? `https://funpay.com/lots/offerEdit?node=${request.nodeId}&offer=${offerId}`
+                    : `https://funpay.com/lots/offerEdit?offer=${offerId}`;
+                const resp = await fetch(editUrl, { headers: { 'Cookie': `golden_key=${auth.golden_key}` } });
+                if (!resp.ok) throw new Error(`Ошибка загрузки лота: ${resp.status}`);
+                const html = await resp.text();
+                const data = await parseHtmlViaOffscreen(html, 'parseLotEditPage');
+                if (!data) throw new Error('Не удалось разобрать форму лота.');
+
+                // Формируем source для превью импорта из полного набора полей формы.
+                const g = (k) => (data[k] != null ? data[k] : '');
+                const source = {
+                    isOwn: true,
+                    offerId: String(offerId),
+                    nodeId: data.node_id || request.nodeId || '',
+                    summary_ru: g('fields[summary][ru]'),
+                    summary_en: g('fields[summary][en]'),
+                    desc_ru: g('fields[desc][ru]'),
+                    desc_en: g('fields[desc][en]'),
+                    payment_msg_ru: g('fields[payment_msg][ru]'),
+                    payment_msg_en: g('fields[payment_msg][en]'),
+                    rawPrice: g('price'),
+                    amount: g('amount'),
+                    secrets: g('secrets'),
+                    autoDelivery: !!data.auto_delivery,
+                    fullData: data    // полный набор для вставки/импорта без потерь
+                };
+                sendResponse({ success: true, source });
+            } catch (e) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
     // =====================================================================================
     // 3.0 SERVER-SIDE LOT CLONING - фоновые обработчики
     // -------------------------------------------------------------------------------------
@@ -1051,7 +1462,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 const ck = { 'Cookie': `golden_key=${auth.golden_key}` };
 
                 // 1) ФОРСИРУЕМ РУССКИЙ язык для сбора названий и описаний
-                const ruResp = await fetch(`https://funpay.com/lots/offer?id=${offerId}&setlocale=ru`, { headers: ck });
+                let ruResp;
+                try {
+                    ruResp = await fptFetchResilient(`https://funpay.com/lots/offer?id=${offerId}&setlocale=ru`, { headers: ck });
+                } catch (_) {
+                    throw new Error('FunPay не отвечает (похоже, временные неполадки сайта — 502/таймаут). Попробуйте ещё раз через минуту.');
+                }
+                if (ruResp.status >= 500) throw new Error(`FunPay вернул ошибку сервера (${ruResp.status}) — это со стороны FunPay. Повторите позже.`);
                 if (!ruResp.ok) throw new Error(`Ошибка загрузки лота: ${ruResp.status}`);
                 const ruHtml = await ruResp.text();
                 const ru = await parseHtmlViaOffscreen(ruHtml, 'parsePublicLotForClone');
@@ -1072,16 +1489,44 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 // ВОЗВРАЩАЕМ РУССКИЙ ЯЗЫК НА АККАУНТ, чтобы не сломать юзеру сайт
                 await fetch(`https://funpay.com/?setlocale=ru`, { headers: ck });
 
-                // Цена берётся ИЗ СПИСКА ЛОТОВ ПРОДАВЦА...
+                // Цена.
+                // 1) ЛУЧШИЙ источник: data-factors на странице покупки (цена продавца нетто).
+                //    parsePublicLotForClone уже положил её в ru.price + ru.priceIsSellerNet.
                 let rawPrice = '';
                 let priceCurrency = '';
-                if (ru.sellerId) {
+                let priceAlreadyNet = false;
+                if (ru.price && ru.priceIsSellerNet) {
+                    rawPrice = String(ru.price);
+                    priceCurrency = ru.priceCurrencyHint || 'rub';
+                    priceAlreadyNet = true;
+                }
+
+                // 2) Иначе — цена из списка лотов продавца (это цена ПОКУПАТЕЛЯ, нужен пересчёт).
+                if (!rawPrice && ru.sellerId) {
                     try {
                         const upResp = await fetch(`https://funpay.com/users/${ru.sellerId}/`, { headers: ck });
                         if (upResp.ok) {
                             const upHtml = await upResp.text();
                             const pr = await parseHtmlViaOffscreen(upHtml, 'parseSellerLotPrice', { offerId });
                             if (pr && pr.price) { rawPrice = pr.price; priceCurrency = pr.currency || ''; }
+                        }
+                    } catch (_) {}
+                }
+
+                // 3) FALLBACK для СВОИХ лотов: цена из формы offerEdit (input[name=price]) —
+                //    это тоже цена продавца нетто. И заодно точный node_id формы.
+                if (!rawPrice || true) { // всегда пробуем offerEdit ради точного node_id
+                    try {
+                        const edResp = await fptFetchResilient(
+                            `https://funpay.com/lots/offerEdit?offer=${offerId}&location=offer&setlocale=ru`,
+                            { headers: ck });
+                        if (edResp.ok) {
+                            const edHtml = await edResp.text();
+                            const pr = await parseHtmlViaOffscreen(edHtml, 'parseOfferEditPrice');
+                            if (pr) {
+                                if (!rawPrice && pr.price) { rawPrice = pr.price; priceCurrency = pr.currency || priceCurrency; priceAlreadyNet = true; }
+                                if (pr.nodeId && /^\d+$/.test(pr.nodeId)) ru.nodeId = pr.nodeId;
+                            }
                         }
                     } catch (_) {}
                 }
@@ -1095,21 +1540,37 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     enDiffers: !!((en && en.summary && en.summary !== ru.summary) || (en && en.description && en.description !== ru.description)),
                     rawPrice,
                     priceCurrency,
-                    matchAttributes: (en && en.attributes && en.attributes.length) ? en.attributes : ru.attributes
+                    matchAttributes: Array.from(new Set([
+                        ...((en && en.attributes) || []),
+                        ...(ru.attributes || [])
+                    ].map(a => String(a).toLowerCase()))),
+                    // пары заголовок→значение для заполнения свободных текстовых полей
+                    // (RU-пары приоритетнее: на RU-форме заголовки полей по-русски)
+                    matchPairs: [
+                        ...((ru && ru.attributePairs) || []),
+                        ...((en && en.attributePairs) || [])
+                    ]
                 };
 
                 let fields = null;
                 let formError = null;
                 if (source.nodeId && !source.isChips) {
                     try {
-                        fields = await cloneBuildFieldsInternal(auth, source.nodeId, source.matchAttributes);
+                        fields = await cloneBuildFieldsInternal(auth, source.nodeId, source.matchAttributes, source.matchPairs);
 
                         if (rawPrice) {
-                            try {
-                                const net = await cloneCalcNetPrice(auth, source.nodeId, parseFloat(rawPrice), priceCurrency);
-                                source.finalPrice = (net != null && !Number.isNaN(net)) ? net : parseFloat(rawPrice);
-                            } catch (_) {
-                                source.finalPrice = parseFloat(rawPrice);
+                            const rawNum = parseFloat(String(rawPrice).replace(',', '.'));
+                            if (priceAlreadyNet) {
+                                // цена уже нетто (продавца) — берём как есть
+                                source.finalPrice = (!Number.isNaN(rawNum) && rawNum > 0) ? rawNum : null;
+                            } else {
+                                try {
+                                    const net = await cloneCalcNetPrice(auth, source.nodeId, rawNum, priceCurrency);
+                                    // если пересчёт дал мусор (<=0 или NaN) — используем исходную цену
+                                    source.finalPrice = (net != null && !Number.isNaN(net) && net > 0) ? net : ((!Number.isNaN(rawNum) && rawNum > 0) ? rawNum : null);
+                                } catch (_) {
+                                    source.finalPrice = (!Number.isNaN(rawNum) && rawNum > 0) ? rawNum : null;
+                                }
                             }
                         }
                     } catch (e) {
@@ -1206,16 +1667,24 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
                 const body = new URLSearchParams(payload);
                 // POST в EN-локали - ровно как в плагине: method("post", "lots/offerSave", ..., locale="en")
-                const response = await fetch('https://funpay.com/en/lots/offerSave', {
-                    method: 'POST',
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                        'Accept': 'application/json, text/javascript, */*; q=0.01',
-                        'Cookie': `golden_key=${auth.golden_key}`
-                    },
-                    body
-                });
+                let response;
+                try {
+                    response = await fptFetchResilient('https://funpay.com/en/lots/offerSave', {
+                        method: 'POST',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                            'Accept': 'application/json, text/javascript, */*; q=0.01',
+                            'Cookie': `golden_key=${auth.golden_key}`
+                        },
+                        body
+                    });
+                } catch (netErr) {
+                    throw new Error('FunPay не отвечает (возможно, у сайта временные неполадки — 502/таймаут). Лот мог НЕ создаться. Подождите минуту и проверьте список лотов перед повторной попыткой.');
+                }
+                if (response.status >= 500) {
+                    throw new Error(`FunPay вернул ошибку сервера (${response.status}). Это проблема на стороне FunPay, не расширения. Лот мог не создаться — проверьте список лотов перед повтором.`);
+                }
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const rawText = await response.text();
                 let result;
@@ -1475,25 +1944,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             try {
                 if (!request.key) throw new Error('Пустой ключ аккаунта.');
 
-                // --- FIX (multi-account login) ---
-                // Прежняя реализация ломала вход по нескольким причинам:
-                //   1. chrome.cookies.set НЕ умеет ставить httpOnly — этот флаг
-                //      нельзя задать через API, и его передача приводит к тому, что
-                //      запись куки молча проваливается (или ведёт себя непредсказуемо).
-                //   2. FunPay ставит golden_key на домен ".funpay.com" (host-wide,
-                //      с ведущей точкой). Запись с domain:"funpay.com" создаёт ОТДЕЛЬНУЮ
-                //      host-only куку, которая конфликтует с уже существующей доменной.
-                //      В итоге сервер видит рассинхрон и разлогинивает пользователя.
-                // Решение: сначала полностью удаляем все варианты golden_key и сессию,
-                // затем ставим новый golden_key на домен ".funpay.com" БЕЗ httpOnly.
+                // --- Логика входа повторяет то, что делает cookie-editor ---
+                // Кук-эдитор просто МЕНЯЕТ значение golden_key и НЕ трогает PHPSESSID —
+                // FunPay сам перепривязывает сессию к новому ключу на следующем запросе.
+                // Прошлые версии УДАЛЯЛИ PHPSESSID и так роняли в пустую сессию.
+                //
+                // Важные детали, без которых вход не срабатывал:
+                //  1. FunPay ставит golden_key как httpOnly на домен ".funpay.com".
+                //     chrome.cookies.set НЕ может пометить куку httpOnly, поэтому если
+                //     просто записать новую — она будет ОТДЕЛЬНОЙ (non-httpOnly), а сервер
+                //     продолжит видеть старую httpOnly → пустая/старая сессия.
+                //     Поэтому СНАЧАЛА удаляем все существующие golden_key (remove умеет
+                //     убирать и httpOnly-куки), и только потом ставим новую.
+                //  2. domain ставим как у FunPay — с ведущей точкой ".funpay.com".
 
-                // 1) Удаляем PHPSESSID — пусть FunPay выдаст свежую сессию под новый ключ.
-                for (const url of ['https://funpay.com', 'https://funpay.com/']) {
-                    try { await chrome.cookies.remove({ url, name: 'PHPSESSID' }); } catch (_) {}
-                }
-
-                // 2) Удаляем ВСЕ существующие golden_key (и host-only, и доменные варианты),
-                //    чтобы не было конфликта двух кук с одинаковым именем.
+                // 1) Снимаем все варианты golden_key (host-only и доменные, вкл. httpOnly).
                 try {
                     const existing = await chrome.cookies.getAll({ name: 'golden_key', domain: 'funpay.com' });
                     for (const c of existing) {
@@ -1509,10 +1974,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     }
                 } catch (_) {}
 
-                // 3) Ставим новый golden_key так же, как это делает сам FunPay:
-                //    domain ".funpay.com" (host-wide), secure, без httpOnly.
-                const setResult = await chrome.cookies.set({
-                    url: 'https://funpay.com',
+                // 2) Ставим новый golden_key так же, как FunPay: domain ".funpay.com",
+                //    secure, path "/", долгий срок. PHPSESSID НЕ трогаем — пусть FunPay
+                //    перепривяжет сессию сам (как при смене ключа в cookie-editor).
+                let setResult = await chrome.cookies.set({
+                    url: 'https://funpay.com/',
                     name: 'golden_key',
                     value: request.key,
                     domain: '.funpay.com',
@@ -1522,11 +1988,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     expirationDate: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60)
                 });
 
+                // Подстраховка: некоторые сборки Chrome капризничают с domain+url.
+                // Пробуем host-only вариант, если доменный не записался.
+                if (!setResult) {
+                    setResult = await chrome.cookies.set({
+                        url: 'https://funpay.com/',
+                        name: 'golden_key',
+                        value: request.key,
+                        path: '/',
+                        secure: true,
+                        sameSite: 'lax',
+                        expirationDate: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60)
+                    });
+                }
+
                 if (!setResult) {
                     throw new Error('Не удалось записать куку аккаунта (cookies.set вернул null).');
                 }
 
-                // 4) Перезагружаем вкладку, на которой нажали «Войти».
+                // 3) Перезагружаем вкладку — FunPay выдаст/перепривяжет сессию под новый ключ.
                 const tabId = sender.tab && sender.tab.id;
                 if (tabId != null) chrome.tabs.reload(tabId);
                 sendResponse({ success: true });
@@ -1584,16 +2064,131 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     
     // SALES STATS HANDLERS
+    if (request.action === 'getSalesOrders') {
+        (async () => {
+            try {
+                await FPTSalesDB.migrateFromLocalStorage(); // на случай первого запуска
+                const orders = await FPTSalesDB.getAllAsArray();
+                sendResponse({ success: true, orders });
+            } catch (e) {
+                sendResponse({ success: false, error: e.message, orders: [] });
+            }
+        })();
+        return true;
+    }
+    if (request.action === 'getSalesCount') {
+        (async () => {
+            try {
+                await FPTSalesDB.migrateFromLocalStorage();
+                const c = await FPTSalesDB.count();
+                sendResponse({ success: true, count: c });
+            } catch (e) {
+                sendResponse({ success: false, error: e.message, count: 0 });
+            }
+        })();
+        return true;
+    }
     if (request.action === 'updateSales') {
         runSalesUpdateCycle().then(() => sendResponse({success: true})).catch(e => sendResponse({success: false, error: e.message}));
         return true;
     }
     if (request.action === 'resetSalesStorage') {
-        chrome.storage.local.remove([
-            'fpToolsSalesData', 'fpToolsFirstOrderId', 'fpToolsLastOrderId', 'fpToolsSalesLastUpdate'
-        ]).then(() => sendResponse({success: true}));
+        (async () => {
+            try {
+                await FPTSalesDB.clearAll();
+                await FPTSalesDB.setMeta('migratedFromLocal', true); // не тянуть старьё обратно
+                await chrome.storage.local.remove([
+                    'fpToolsSalesData', 'fpToolsFirstOrderId', 'fpToolsLastOrderId', 'fpToolsSalesLastUpdate'
+                ]);
+                sendResponse({ success: true });
+            } catch (e) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
         return true;
     }
+
+    // PURCHASES STATS HANDLERS (зеркало продаж, отдельная база покупок)
+    if (request.action === 'getPurchaseOrders') {
+        (async () => {
+            try {
+                const orders = await FPTPurchasesDB.getAllAsArray();
+                sendResponse({ success: true, orders });
+            } catch (e) {
+                sendResponse({ success: false, error: e.message, orders: [] });
+            }
+        })();
+        return true;
+    }
+    if (request.action === 'getPurchaseCount') {
+        (async () => {
+            try {
+                const c = await FPTPurchasesDB.count();
+                sendResponse({ success: true, count: c });
+            } catch (e) {
+                sendResponse({ success: false, error: e.message, count: 0 });
+            }
+        })();
+        return true;
+    }
+    if (request.action === 'updatePurchases') {
+        runPurchasesUpdateCycle().then(() => sendResponse({success: true})).catch(e => sendResponse({success: false, error: e.message}));
+        return true;
+    }
+    if (request.action === 'resetPurchasesStorage') {
+        (async () => {
+            try {
+                await FPTPurchasesDB.clearAll();
+                await chrome.storage.local.remove(['fpToolsPurchasesLastUpdate']);
+                sendResponse({ success: true });
+            } catch (e) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    // FINANCE STATS HANDLERS (отдельная база финансов)
+    if (request.action === 'getFinanceTxns') {
+        (async () => {
+            try {
+                const txns = await FPTFinanceDB.getAllAsArray();
+                sendResponse({ success: true, txns });
+            } catch (e) {
+                sendResponse({ success: false, error: e.message, txns: [] });
+            }
+        })();
+        return true;
+    }
+    if (request.action === 'getFinanceCount') {
+        (async () => {
+            try {
+                const c = await FPTFinanceDB.count();
+                sendResponse({ success: true, count: c });
+            } catch (e) {
+                sendResponse({ success: false, error: e.message, count: 0 });
+            }
+        })();
+        return true;
+    }
+    if (request.action === 'updateFinance') {
+        runFinanceUpdateCycle().then(() => sendResponse({ success: true })).catch(e => sendResponse({ success: false, error: e.message }));
+        return true;
+    }
+    if (request.action === 'resetFinanceStorage') {
+        (async () => {
+            try {
+                await FPTFinanceDB.clearAll();
+                await chrome.storage.local.remove(['fpToolsFinanceLastUpdate', 'fpToolsFinanceCount']);
+                sendResponse({ success: true });
+            } catch (e) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+
 
     // IMPORT & GLOBAL SEARCH HANDLERS
     if (request.action === 'getUserLotsList') {
@@ -1690,10 +2285,45 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 }
 
                 if (request.action === 'supportGetTickets') {
-                    const r = await sfetchSupport(`${supportBase}/tickets?status=all&order=last_answered&page=1`);
-                    const html = await r.text();
-                    const tickets = await parseHtmlViaOffscreen(html, 'parseSupportTickets');
-                    sendResponse({ success: true, tickets: tickets || [] });
+                    // FIX 2.9.1: грузим заявки ДВУМЯ наборами - status=all И status=active,
+                    // постранично, затем объединяем по id. Причина: в выдаче status=all
+                    // FunPay может показывать открытые заявки не на первой странице
+                    // (порядок last_answered), и при ранней остановке пагинации активная
+                    // заявка терялась - фильтр "Актуальные" оказывался пустым. Отдельная
+                    // загрузка status=active гарантирует, что все открытые заявки в кэше.
+                    const all = [];
+                    const seen = new Set();
+                    const MAX_PAGES = 30;
+
+                    const loadStatus = async (status) => {
+                        for (let page = 1; page <= MAX_PAGES; page++) {
+                            let pageTickets = null;
+                            try {
+                                const r = await sfetchSupport(`${supportBase}/tickets?status=${status}&order=last_answered&page=${page}`);
+                                const html = await r.text();
+                                pageTickets = await parseHtmlViaOffscreen(html, 'parseSupportTickets');
+                            } catch (pageErr) {
+                                if (page === 1 && status === 'all') throw pageErr;
+                                break;
+                            }
+                            if (!pageTickets || !pageTickets.length) break;
+                            let added = 0;
+                            for (const t of pageTickets) {
+                                if (t && t.id != null && !seen.has(t.id)) {
+                                    seen.add(t.id);
+                                    all.push(t);
+                                    added++;
+                                }
+                            }
+                            if (added === 0) break;
+                        }
+                    };
+
+                    await loadStatus('all');
+                    // активные догружаем отдельно (их обычно немного - 1-2 страницы)
+                    try { await loadStatus('active'); } catch (_) {}
+
+                    sendResponse({ success: true, tickets: all });
                     return;
                 }
 
