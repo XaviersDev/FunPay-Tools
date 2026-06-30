@@ -245,50 +245,45 @@ ${styleExamples}
     }
 }
 
-export async function fetchAITranslation(data) {
-    const { title, description, buyerMessage } = data;
-    
-    const prompt = `
-Translate the following Russian texts for a gaming marketplace into natural-sounding English. Preserve emojis and any special characters or symbols. Keep the exact same line structure as the input - do NOT add extra empty lines or blank lines between items.
-
-Your response MUST be in JSON format only, with no extra text.
-
-Input JSON:
-{
-  "title": "${title.replace(/"/g, '\\"')}",
-  "description": "${description.replace(/"/g, '\\"')}",
-  "buyerMessage": "${(buyerMessage || "").replace(/"/g, '\\"')}"
+async function googleTranslateLine(text, target) {
+    if (!text || !text.trim()) return text;
+    const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl='
+        + encodeURIComponent(target || 'en') + '&dt=t&q=' + encodeURIComponent(text);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('TRANSLATE_HTTP_' + res.status);
+    const json = await res.json();
+    if (!json || !Array.isArray(json[0])) return text;
+    return json[0].map((s) => (s && s[0] != null ? s[0] : '')).join('');
 }
 
-Output JSON:
-`;
+async function googleTranslatePreserve(text, target) {
+    if (typeof text !== 'string' || !text.trim()) return text || '';
+    const lines = text.split('\n');
+    const out = [];
+    for (const line of lines) {
+        if (!line.trim()) { out.push(line); continue; }
+        try { out.push(await googleTranslateLine(line, target)); }
+        catch { out.push(line); }
+    }
+    return out.join('\n');
+}
 
-    const result = await makeAIRequest(prompt);
-    if (!result.success) return result;
-
-    const _clean = (obj) => {
-        if (obj && typeof obj === 'object') {
-            if (obj.title) obj.title = fptNorm(obj.title);
-            if (obj.description) obj.description = fptNorm(obj.description);
-            if (obj.buyerMessage) obj.buyerMessage = fptNorm(obj.buyerMessage);
-        }
-        return obj;
-    };
-
+export async function fetchAITranslation(data) {
+    const { title, description, buyerMessage } = data;
     try {
-        const aiJson = JSON.parse(result.data);
-        return { success: true, data: _clean(aiJson) };
+        const tTitle = await googleTranslatePreserve(title || '', 'en');
+        const tDesc = await googleTranslatePreserve(description || '', 'en');
+        const tBuyer = await googleTranslatePreserve(buyerMessage || '', 'en');
+        return {
+            success: true,
+            data: {
+                title: tTitle,
+                description: tDesc,
+                buyerMessage: tBuyer,
+            },
+        };
     } catch (e) {
-        const jsonMatch = result.data.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            try {
-                const cleanedJson = JSON.parse(jsonMatch[0]);
-                return { success: true, data: _clean(cleanedJson) };
-            } catch (e2) {
-                return { success: false, error: `AI returned invalid JSON for translation (cleaned): ${e2.message}` };
-            }
-        }
-        return { success: false, error: `AI returned invalid JSON for translation: ${e.message}` };
+        return { success: false, error: 'Ошибка перевода: ' + e.message };
     }
 }
 

@@ -26,7 +26,7 @@ import { runAutoResponderCycle } from './autoresponder.js';
 export const ENGINE_HEARTBEAT_ALARM = 'fpToolsEngineHeartbeat';
 const OFFSCREEN_PATH = 'offscreen/offscreen.html';
 
-const POLL_INTERVAL_MS = 3000;        // active-loop cadence while worker is awake
+const POLL_INTERVAL_MS = 5000;        // active-loop cadence while worker is awake
 const MIN_CYCLE_GAP_MS = 2500;        // never hammer runner/ faster than this
 const ERROR_BACKOFF_MS = 5000;        // FP Tools sleeps 5s after a runner error
 const STALL_MS = 90000;               // if no successful cycle in 90s -> force restart
@@ -56,18 +56,27 @@ async function anyAutomationEnabled() {
 }
 
 // Layer 2 enabler: make sure the offscreen document exists so its keepalive interval runs.
+let _offscreenCreatedAt = 0;
+const OFFSCREEN_RECYCLE_MS = 30 * 60 * 1000;
+
 async function ensureOffscreen() {
     try {
         const existing = await chrome.runtime.getContexts({
             contextTypes: ['OFFSCREEN_DOCUMENT'],
             documentUrls: [chrome.runtime.getURL(OFFSCREEN_PATH)]
         });
+        if (existing.length && _offscreenCreatedAt && (Date.now() - _offscreenCreatedAt) > OFFSCREEN_RECYCLE_MS) {
+            try { await chrome.offscreen.closeDocument(); } catch (_) {}
+            _offscreenCreatedAt = 0;
+            existing.length = 0;
+        }
         if (!existing.length) {
             await chrome.offscreen.createDocument({
                 url: OFFSCREEN_PATH,
                 reasons: ['DOM_PARSER'],
                 justification: 'Background polling, HTML parsing and keepalive for FunPay automation'
             });
+            _offscreenCreatedAt = Date.now();
         }
     } catch (e) {
         if (!String(e && e.message || '').includes('Only a single offscreen')) {

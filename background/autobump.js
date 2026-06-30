@@ -89,145 +89,164 @@ async function getAuthDetails() {
 
 
 async function raiseCategory(categoryData, auth) {
-    const { cookies, csrfToken } = auth;
+    const { csrfToken } = auth;
     const { gameId, nodeId, categoryName } = categoryData;
-    
-    const initialData = new URLSearchParams({ game_id: gameId, node_id: nodeId });
+
     const headers = {
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
         'X-Requested-With': 'XMLHttpRequest',
         'X-Csrf-Token': csrfToken
     };
 
-    let response = await fetch('https://funpay.com/lots/raise', { method: 'POST', headers: headers, body: initialData.toString(), credentials: 'include' });
+    const initialData = new URLSearchParams({ game_id: gameId, node_id: nodeId });
+    let response = await fetch('https://funpay.com/lots/raise', { method: 'POST', headers, body: initialData.toString(), credentials: 'include' });
     let responseText = await response.text();
 
-    try {
-        const jsonResponse = JSON.parse(responseText);
-        if (jsonResponse.modal) {
-            const modalHtml = jsonResponse.modal;
-            
-            const checkboxRegex = /<div class="checkbox"[^>]*>.*?<input[^>]*value="(\d+)"/g;
-            const nodeIds = Array.from(modalHtml.matchAll(checkboxRegex), match => match[1]);
+    let parsed = null;
+    try { parsed = JSON.parse(responseText); } catch (e) { parsed = null; }
 
-            if (nodeIds.length > 0) {
-                const multiRaiseData = new URLSearchParams();
-                multiRaiseData.append('game_id', gameId);
-                multiRaiseData.append('node_id', nodeId);
-                nodeIds.forEach(id => multiRaiseData.append('node_ids[]', id));
-                
-                response = await fetch('https://funpay.com/lots/raise', { method: 'POST', headers: headers, body: multiRaiseData.toString(), credentials: 'include' });
-                responseText = await response.text();
-
-            } else {
-                await logToConsole(`Не поднято: ${categoryName}. Причина: Модальное окно не содержит подкатегорий для поднятия.`);
-                return false;
-            }
+    if (parsed && parsed.modal) {
+        const checkboxRegex = /<div class="checkbox"[^>]*>.*?<input[^>]*value="(\d+)"/g;
+        const nodeIds = Array.from(parsed.modal.matchAll(checkboxRegex), m => m[1]);
+        if (nodeIds.length > 0) {
+            const multi = new URLSearchParams();
+            multi.append('game_id', gameId);
+            multi.append('node_id', nodeId);
+            nodeIds.forEach(id => multi.append('node_ids[]', id));
+            response = await fetch('https://funpay.com/lots/raise', { method: 'POST', headers, body: multi.toString(), credentials: 'include' });
+            responseText = await response.text();
+            try { parsed = JSON.parse(responseText); } catch (e) { parsed = null; }
+        } else {
+            await logToConsole(`Не поднято: ${categoryName}. Модальное окно без подкатегорий.`);
+            return { ok: false, waitSeconds: 4 * 3600 };
         }
-    } catch (e) { }
-    
-    if (responseText.includes('подняты') || responseText.includes('raised')) {
-        await logToConsole(`Поднято: ${categoryName}`);
-        return true;
-    } else {
-        let errorMsg = responseText;
-        try {
-            const errJson = JSON.parse(responseText);
-            errorMsg = errJson.msg || JSON.stringify(errJson);
-        } catch(e) {
-            errorMsg = responseText.replace(/<[^>]*>/g, '').trim();
-        }
-        await logToConsole(`Не поднято: ${categoryName}. Причина: ${errorMsg}`);
-        return false;
     }
+
+    if (response.status === 429) {
+        const w = parsed && Number(parsed.wait) ? Number(parsed.wait) : 4 * 3600;
+        await logToConsole(`Лимит: ${categoryName}. Следующая попытка через ${formatWait(w)}.`);
+        return { ok: false, waitSeconds: w };
+    }
+
+    if (responseText.includes('подняты') || responseText.includes('raised') || (parsed && parsed.error === false)) {
+        await logToConsole(`Поднято: ${categoryName}`);
+        return { ok: true, waitSeconds: 4 * 3600 };
+    }
+
+    if (parsed && Number(parsed.wait)) {
+        await logToConsole(`Не поднято: ${categoryName}. ${parsed.msg || ''} Ждать ${formatWait(Number(parsed.wait))}.`);
+        return { ok: false, waitSeconds: Number(parsed.wait) };
+    }
+
+    let errorMsg = parsed ? (parsed.msg || JSON.stringify(parsed)) : responseText.replace(/<[^>]*>/g, '').trim();
+    await logToConsole(`Не поднято: ${categoryName}. Причина: ${errorMsg}`);
+    return { ok: false, waitSeconds: 600 };
 }
 
-// --- ИЗМЕНЕННАЯ ФУНКЦИЯ ---
+function formatWait(sec) {
+    sec = Math.max(0, Math.round(sec));
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    if (h > 0) return `${h} ч ${m} мин`;
+    if (m > 0) return `${m} мин`;
+    return `${sec} сек`;
+}
+
+async function collectCategories(auth) {
+    const { fpToolsSelectiveBumpEnabled, fpToolsSelectedBumpCategories, fpToolsBumpOnlyAutoDelivery } =
+        await chrome.storage.local.get(['fpToolsSelectiveBumpEnabled', 'fpToolsSelectedBumpCategories', 'fpToolsBumpOnlyAutoDelivery']);
+
+    const userUrl = `https://funpay.com/users/${auth.userId}/`;
+    const userPageHtml = await (await fetch(userUrl, { credentials: 'include', cache: 'no-store' })).text();
+    let categories = await parseHtmlViaOffscreen(userPageHtml, 'parseUserCategories');
+
+    if (fpToolsBumpOnlyAutoDelivery) categories = categories.filter(c => c.hasAutoDelivery);
+
+    if (fpToolsSelectiveBumpEnabled && fpToolsSelectedBumpCategories && fpToolsSelectedBumpCategories.length > 0) {
+        categories = categories.filter(c => fpToolsSelectedBumpCategories.includes(c.id));
+    } else if (fpToolsSelectiveBumpEnabled) {
+        return [];
+    }
+    return categories;
+}
+
 export async function runBumpCycle() {
-    const summary = { raised: 0, errors: 0, skipped: 0 };
+    const summary = { raised: 0, errors: 0, skipped: 0, nextWaitSeconds: 4 * 3600 };
     try {
-        const { fpToolsSelectiveBumpEnabled, fpToolsSelectedBumpCategories, fpToolsBumpOnlyAutoDelivery } = await chrome.storage.local.get(['fpToolsSelectiveBumpEnabled', 'fpToolsSelectedBumpCategories', 'fpToolsBumpOnlyAutoDelivery']);
-
         const auth = await getAuthDetails();
-        const userUrl = `https://funpay.com/users/${auth.userId}/`;
-        const userPageResponse = await fetch(userUrl, { credentials: 'include', cache: 'no-store' });
-        const userPageHtml = await userPageResponse.text();
+        const categories = await collectCategories(auth);
 
-        // Получаем структурированный список категорий
-        let categories = await parseHtmlViaOffscreen(userPageHtml, 'parseUserCategories');
-        
-        // Фильтр по автовыдаче
-        if (fpToolsBumpOnlyAutoDelivery) {
-            await logToConsole(`Режим "Только автовыдача" активен. Фильтрация...`);
-            categories = categories.filter(cat => cat.hasAutoDelivery);
-        }
-
-        // Фильтр по выборочным категориям
-        if (fpToolsSelectiveBumpEnabled && fpToolsSelectedBumpCategories && fpToolsSelectedBumpCategories.length > 0) {
-            await logToConsole(`Режим выборочного поднятия активен. Выбрано категорий: ${fpToolsSelectedBumpCategories.length}.`);
-            categories = categories.filter(cat => fpToolsSelectedBumpCategories.includes(cat.id));
-        } else if (fpToolsSelectiveBumpEnabled) {
-            await logToConsole("Выборочное поднятие включено, но категории не выбраны. Ничего не будет поднято.");
+        if (!categories.length) {
+            await logToConsole('Нет категорий для поднятия (по настройкам).');
             return summary;
         }
-        
-        // Преобразуем отфильтрованный список в URL
-        let categoryUrls = categories.map(cat => new URL(cat.id, 'https://funpay.com/'));
 
-        if (categoryUrls.length === 0) {
-            await logToConsole("Нет категорий для поднятия (согласно настройкам).");
-            return summary;
-        }
-        
-        const categoryUrlHrefs = categoryUrls.map(url => url.href);
+        let minNextWait = Infinity;
 
-        for (const categoryUrl of categoryUrlHrefs) {
-            const categoryPageResponse = await fetch(categoryUrl, { credentials: 'include', cache: 'no-store' });
-            
-            const urlParts = categoryUrl.split('/');
-            const guessedName = urlParts.length > 2 ? urlParts[urlParts.length - 2] : 'Неизвестная категория';
-            
-            if (!categoryPageResponse.ok) {
-                await logToConsole(`Не поднято: ${guessedName}. Причина: Ошибка загрузки страницы ${categoryPageResponse.status}.`);
+        for (const cat of categories) {
+            const categoryUrl = new URL(cat.id, 'https://funpay.com/').href;
+            const pageResp = await fetch(categoryUrl, { credentials: 'include', cache: 'no-store' });
+            const guessed = categoryUrl.split('/').slice(-2, -1)[0] || 'категория';
+
+            if (!pageResp.ok) {
+                await logToConsole(`Не поднято: ${guessed}. Ошибка загрузки ${pageResp.status}.`);
                 summary.errors++;
+                minNextWait = Math.min(minNextWait, 600);
                 continue;
             }
-            
-            const categoryPageHtml = await categoryPageResponse.text();
-            
-            const categoryNameMatch = categoryPageHtml.match(/<span class="inside">([^<]+)<\/span>/);
-            const categoryName = categoryNameMatch ? categoryNameMatch[1].trim() : guessedName;
 
-            const raiseButtonRegex = /<button[^>]+class="[^"]*js-lot-raise[^"]*"[^>]*data-game="(\d+)"[^>]*data-node="([^"]+)"/;
-            const raiseButtonMatch = categoryPageHtml.match(raiseButtonRegex);
+            const html = await pageResp.text();
+            const nameMatch = html.match(/<span class="inside">([^<]+)<\/span>/);
+            const categoryName = nameMatch ? nameMatch[1].trim() : guessed;
 
-            if (raiseButtonMatch) {
-                const categoryData = { 
-                    gameId: raiseButtonMatch[1], 
-                    nodeId: raiseButtonMatch[2],
-                    categoryName: categoryName
-                };
-                const ok = await raiseCategory(categoryData, auth);
-                if (ok) summary.raised++; else summary.skipped++;
-            } else {
-                await logToConsole(`Не поднято: ${categoryName}. Причина: Не найдена кнопка поднятия.`);
+            const btnMatch = html.match(/<button[^>]+class="[^"]*js-lot-raise[^"]*"[^>]*data-game="(\d+)"[^>]*data-node="([^"]+)"/);
+            if (!btnMatch) {
+                await logToConsole(`Не поднято: ${categoryName}. Кнопка поднятия не найдена.`);
                 summary.skipped++;
+                minNextWait = Math.min(minNextWait, 3600);
+                continue;
             }
-            await new Promise(resolve => setTimeout(resolve, 4500)); // 2.9: increased to 4.5s to avoid rate limiting
+
+            const result = await raiseCategory({ gameId: btnMatch[1], nodeId: btnMatch[2], categoryName }, auth);
+            if (result.ok) summary.raised++; else summary.skipped++;
+            minNextWait = Math.min(minNextWait, result.waitSeconds || 4 * 3600);
+
+            await new Promise(r => setTimeout(r, 2000));
         }
+
+        if (!isFinite(minNextWait)) minNextWait = 4 * 3600;
+        summary.nextWaitSeconds = minNextWait;
         return summary;
     } catch (error) {
-        await logToConsole(`Не поднято: [Системная ошибка]. Причина: ${error.message}`);
+        await logToConsole(`Не поднято: [Системная ошибка]. ${error.message}`);
         summary.errors++;
-        throw error;
+        summary.nextWaitSeconds = 600;
+        return summary;
     }
 }
 
-export async function startAutoBump(cooldownMinutes) {
-    await chrome.alarms.create(BUMP_ALARM_NAME, { delayInMinutes: 1, periodInMinutes: parseInt(cooldownMinutes, 10) });
-    await runBumpCycle();
+async function scheduleNext(seconds) {
+    const minutes = Math.max(1, Math.ceil((seconds + 15) / 60));
+    await chrome.alarms.clear(BUMP_ALARM_NAME);
+    await chrome.alarms.create(BUMP_ALARM_NAME, { delayInMinutes: minutes });
+    await logToConsole(`Следующее поднятие примерно через ${formatWait(minutes * 60)}.`);
+}
+
+export async function runScheduledBump() {
+    const { autoBumpEnabled } = await chrome.storage.local.get(['autoBumpEnabled']);
+    if (!autoBumpEnabled) { await chrome.alarms.clear(BUMP_ALARM_NAME); return; }
+    const summary = await runBumpCycle();
+    await scheduleNext(summary.nextWaitSeconds);
+}
+
+export async function startAutoBump() {
+    await chrome.storage.local.set({ autoBumpEnabled: true });
+    await logToConsole('Автоподнятие включено.');
+    await runScheduledBump();
 }
 
 export async function stopAutoBump() {
+    await chrome.storage.local.set({ autoBumpEnabled: false });
     await chrome.alarms.clear(BUMP_ALARM_NAME);
+    await logToConsole('Автоподнятие выключено.');
 }
