@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
     "name": "FunPay Tools",
-    "version": "2.8",
-    "description": "Глобальное расширение для FunPay ⚡ 120+ инструментов • ИИ-помощник • Автоответчик • Аналитика • Автоматизация • Больше продаж",
+    "version": "2.9.2",
+    "description": "Глобальное расширение для FunPay ⚡ 299+ инструментов • ИИ-помощник • Автоответчик • Аналитика • Автоматизация • Больше продаж",
     "permissions": [
         "storage",
         "tabs",
@@ -24,6 +24,7 @@
         "https://raw.githubusercontent.com/*",
         "https://*.workers.dev/*",
         "https://fonts.googleapis.com/*",
+        "https://translate.googleapis.com/*",
         "https://fonts.gstatic.com/*",
         "https://support.funpay.com/*",
         "https://api.telegram.org/*"
@@ -55,7 +56,8 @@
                 "https://funpay.com/*"
             ],
             "js": [
-                "content/theme_flash_fix.js"
+                "content/theme_flash_fix.js",
+                "content/early_custom_styles.js"
             ],
             "run_at": "document_start",
             "all_frames": true
@@ -65,6 +67,10 @@
                 "https://funpay.com/*"
             ],
             "js": [
+                "content/sales_db.js",
+                "content/purchases_db.js",
+                "content/finance_db.js",
+                "content/error_page_reload.js",
                 "content/scripts/jquery.js",
                 "content/utils.js",
                 "content/features/feature_registry.js",
@@ -84,6 +90,11 @@
                 "content/features/templates.js",
                 "content/features/theme.js",
                 "content/features/exact_price.js",
+                "content/features/buyer_price_field.js",
+                "content/features/section_commission.js",
+                "content/features/open_lot_button.js",
+                "content/features/profile_descriptions.js",
+                "content/features/profile_raise_all.js",
                 "content/features/user_notes.js",
                 "content/features/image_generator.js",
                 "content/features/custom_sound.js",
@@ -105,6 +116,9 @@
                 "content/features/slash_telegram_ui.js",
                 "content/ui/main_popup.js",
                 "content/ui/header_button_styler.js",
+                "content/features/lot_notes.js",
+                "content/features/lot_note_buttons.js",
+                "content/features/chat_lot_note.js",
                 "content/features/lot_context_menu.js",
                 "content/features/ai_lot_audit.js",
                 "content/features/settings_io.js",
@@ -119,15 +133,22 @@
                 "content/features/epic_nicknames.js",
                 "content/features/auto_delivery_ui.js",
                 "content/features/rmthub_search.js",
+                "content/features/new_chat_starter.js",
                 "content/features/support.js",
+                "content/features/purchases.js",
                 "content/content_script.js",
                 "content/features/auto_restore_lots.js",
                 "content/features/order_page_enhancements.js",
+                "content/features/order_lot_copy.js",
                 "content/features/sales_chart.js",
                 "content/features/sales_modes.js",
+                "content/features/stats_drilldown.js",
+                "content/features/finance.js",
+                "content/features/export_studio.js",
                 "content/features/slash_commands.js",
                 "content/features/category_peek_panel.js",
-                "content/features/chat_reply.js"
+                "content/features/chat_reply.js",
+                "content/features/lot_offer_actions.js"
             ],
             "css": [
                 "css/content_styles.css",

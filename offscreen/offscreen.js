@@ -10,6 +10,18 @@
     }, PING_MS);
 })();
 
+(function () {
+    let _reuseDoc = null;
+    window.__fptParseHTML = function (html) {
+        if (!_reuseDoc) {
+            _reuseDoc = document.implementation.createHTMLDocument('');
+        }
+        _reuseDoc.documentElement.innerHTML = String(html || '');
+        return _reuseDoc;
+    };
+})();
+
+
 function fptCleanDescriptionHtml(rawHtml) {
     if (!rawHtml) return '';
     let html = String(rawHtml);
@@ -104,7 +116,7 @@ function parseFunPayDate(dateString) {
 
 function parseFinancePage(html) {
     try {
-        const doc = new DOMParser().parseFromString(html, "text/html");
+        const doc = window.__fptParseHTML(html);
         const continueInput = doc.querySelector("input[type='hidden'][name='continue']");
         const rawNext = continueInput ? (continueInput.value || "").trim() : "";
         let nextId = rawNext ? rawNext : null; // пустой continue = больше страниц нет
@@ -161,7 +173,7 @@ function parseFinancePage(html) {
 
 function parseSalesPage(html) {
     try {
-        const doc = new DOMParser().parseFromString(html, "text/html");
+        const doc = window.__fptParseHTML(html);
         const continueInput = doc.querySelector("input[type='hidden'][name='continue']");
         const nextOrderId = continueInput ? continueInput.value : null;
         const orderRows = doc.querySelectorAll("a.tc-item");
@@ -211,7 +223,7 @@ function parseSalesPage(html) {
 
 function parseLotEditPage(html) {
     try {
-        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const doc = window.__fptParseHTML(html);
         const form = doc.querySelector('form.form-offer-editor');
         if (!form) {
             throw new Error('Форма редактирования лота не найдена на странице.');
@@ -311,7 +323,7 @@ const CLONE_DESC_HEADERS = ["подробное описание", "detailed des
 
 function parsePublicLotForClone(html) {
     try {
-        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const doc = window.__fptParseHTML(html);
 
         const pageHeader = doc.querySelector('h1.page-header');
         if (pageHeader && /Предложение не найдено|Пропозицію не знайдено|Offer not found/i.test(pageHeader.textContent)) {
@@ -464,7 +476,7 @@ function parsePublicLotForClone(html) {
 // FunPay ругался «Please fill out this field». node из offerEdit — самый точный.
 function parseOfferEditPrice(html) {
     try {
-        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const doc = window.__fptParseHTML(html);
         const form = doc.querySelector('form.form-offer-editor');
         if (!form) return null;
         const priceInput = form.querySelector('input[name="price"]');
@@ -490,7 +502,7 @@ function parseOfferEditPrice(html) {
 
 function parseSellerLotPrice(html, offerId) {
     try {
-        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const doc = window.__fptParseHTML(html);
         const oid = String(offerId);
         const offers = doc.querySelectorAll('a.tc-item');
         for (const a of offers) {
@@ -531,7 +543,7 @@ function parseSellerLotPrice(html, offerId) {
 // Логика повторяет solve_form из официального плагина AutoCopy, но аккуратнее с радио/чекбоксами.
 function solveCloneForm(html, attributes, attributePairs) {
     try {
-        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const doc = window.__fptParseHTML(html);
         const form = doc.querySelector('form.form-offer-editor');
         if (!form) throw new Error('Форма создания лота не найдена (offerEdit).');
 
@@ -768,7 +780,7 @@ function solveCloneForm(html, attributes, attributePairs) {
 
 function parseChatList(html) {
     try {
-        const doc = new DOMParser().parseFromString(html, "text/html");
+        const doc = window.__fptParseHTML(html);
         const chatItems = doc.querySelectorAll('a.contact-item');
         const BOT_MARKER = '\u2061';
         const OLD_BOT_MARKER = '\u2064';
@@ -801,7 +813,7 @@ function parseChatList(html) {
 
 function parseUserLotsList(html) {
     try {
-        const doc = new DOMParser().parseFromString(html, "text/html");
+        const doc = window.__fptParseHTML(html);
         const allLots = [];
         const lotRows = doc.querySelectorAll("a.tc-item");
 
@@ -833,7 +845,7 @@ function parseUserLotsList(html) {
 
 function parseGameSearchResults(html) {
     try {
-        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const doc = window.__fptParseHTML(html);
         const items = doc.querySelectorAll('.promo-game-item');
         return Array.from(items).map(item => {
             const link = item.querySelector('.game-title a');
@@ -851,7 +863,7 @@ function parseGameSearchResults(html) {
 
 function parseCategoryPage(html) {
     try {
-        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const doc = window.__fptParseHTML(html);
         const items = doc.querySelectorAll('.counter-item');
         return Array.from(items).map(item => {
             const url = item.href;
@@ -870,7 +882,7 @@ function parseCategoryPage(html) {
 
 function parseLotListPage(html) {
     try {
-        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const doc = window.__fptParseHTML(html);
         const items = doc.querySelectorAll('a.tc-item');
         return Array.from(items).map(item => {
             const offerIdMatch = item.getAttribute('href')?.match(/id=(\d+)/);
@@ -889,7 +901,7 @@ function parseLotListPage(html) {
 // --- ИСПРАВЛЕННАЯ ФУНКЦИЯ ---
 function parseUserCategories(html) {
     try {
-        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const doc = window.__fptParseHTML(html);
         const categories = [];
         const offerBlocks = doc.querySelectorAll('.offer');
         
@@ -936,7 +948,7 @@ function parseUserCategories(html) {
 // FIX 2.8: returns { stars, lotName } so auto-replies can use {lotname} variable
 function parseOrderPageForReview(html) {
     try {
-        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const doc = window.__fptParseHTML(html);
 
         // --- Detect if this review was written by the current user (skip own reviews) ---
         // FIX: Use more reliable selector - the profile link in the order page header
@@ -988,7 +1000,7 @@ function parseOrderPageForReview(html) {
 // 2.9: Parse unconfirmed (pending) balance from the header/balance page
 function parseUnconfirmedBalance(html) {
     try {
-        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const doc = window.__fptParseHTML(html);
         // Unconfirmed orders: status "info" (paid but not yet confirmed)
         const pendingRows = doc.querySelectorAll('a.tc-item.info');
         let total = 0;
@@ -1012,7 +1024,7 @@ function parseBuyerHistory(html, buyerUsername) {
     // Safety net: never return results if buyer is unknown
     if (!buyerUsername) return [];
     try {
-        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const doc = window.__fptParseHTML(html);
         const orders = [];
         doc.querySelectorAll('a.tc-item').forEach(row => {
             // Server pre-filters by username - just parse all returned rows
@@ -1034,7 +1046,7 @@ function parseBuyerHistory(html, buyerUsername) {
 // тоже попадает в мой список чатов).
 function parseOrderParticipants(html) {
     try {
-        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const doc = window.__fptParseHTML(html);
 
         // текущий пользователь (я) - из data-app-data или из ссылки в шапке
         let myId = null;
@@ -1089,7 +1101,7 @@ function parseOrderParticipants(html) {
 // 3.0: Parse order page for auto-delivery - get secrets, lotId, chatId
 function parseOrderPageForDelivery(html) {
     try {
-        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const doc = window.__fptParseHTML(html);
 
         // Get secrets (the goods that were delivered / in order-secrets-box)
         const secretsBox = doc.querySelector('.order-secrets-box, .order-secrets-list');
@@ -1131,7 +1143,7 @@ function parseOrderPageForDelivery(html) {
 
 
 function parseSupportTickets(html) {
-    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const doc = window.__fptParseHTML(html);
     const tickets = [];
     doc.querySelectorAll('a.ticket-item').forEach(item => {
         const href = item.getAttribute('href') || '';
@@ -1157,7 +1169,7 @@ function parseSupportTickets(html) {
 }
 
 function parseSupportCategories(html) {
-    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const doc = window.__fptParseHTML(html);
     const categories = [];
     doc.querySelectorAll('select#ticket_select_form option').forEach(opt => {
         const v = opt.value, t = opt.textContent.trim();
@@ -1167,7 +1179,7 @@ function parseSupportCategories(html) {
 }
 
 function parseSupportFields(html) {
-    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const doc = window.__fptParseHTML(html);
     const fields = [];
     const seenNames = new Set();
 
@@ -1229,12 +1241,12 @@ function parseSupportFields(html) {
 }
 
 function parseSupportFormToken(html) {
-    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const doc = window.__fptParseHTML(html);
     return doc.querySelector("input[name='ticket[_token]']")?.value || null;
 }
 
 function parseOrdersPage(html) {
-    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const doc = window.__fptParseHTML(html);
     const ids = new Set();
     doc.querySelectorAll('a[href*="/orders/"]').forEach(a => {
         const m = (a.getAttribute('href') || '').match(/\/orders\/([A-Z0-9]{8})/);
@@ -1245,7 +1257,7 @@ function parseOrdersPage(html) {
 
 // Detailed parse of the sales/orders list (used by Telegram notifications + /orders).
 function parseOrdersDetailed(html) {
-    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const doc = window.__fptParseHTML(html);
     const orders = [];
     doc.querySelectorAll('a.tc-item[href*="/orders/"]').forEach(row => {
         const href = row.getAttribute('href') || '';
@@ -1272,7 +1284,7 @@ function parseOrdersDetailed(html) {
 // Извлекает userId и csrf-token из data-app-data главной страницы.
 // Используется фоном (autobump), когда нет открытой вкладки FunPay.
 function parseAuthData(html) {
-    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const doc = window.__fptParseHTML(html);
     const raw = doc.querySelector('body')?.getAttribute('data-app-data');
     const out = { userId: null, csrfToken: null, username: '' };
     if (raw) {
@@ -1288,7 +1300,7 @@ function parseAuthData(html) {
 }
 
 function parseProfileInfo(html) {
-    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const doc = window.__fptParseHTML(html);
     let username = '';
     const userLink = doc.querySelector('.user-link-name, .menu-item-night + * .user-link-name');
     if (userLink) username = userLink.textContent.trim();
@@ -1310,7 +1322,7 @@ function parseProfileInfo(html) {
 
 // Снимок аккаунта для вкладки мультиаккаунтов: имя, аватар, баланс, непрочитанные.
 function parseAccountSnapshot(html) {
-    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const doc = window.__fptParseHTML(html);
     const out = { username: '', avatar: '', balance: '', unread: 0, loggedIn: false };
 
     // имя + userId из app-data
@@ -1365,7 +1377,7 @@ function parseAccountSnapshot(html) {
 
 
 function parseTicketDetails(html) {
-    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const doc = window.__fptParseHTML(html);
     const title = doc.querySelector('.breadcrumb-item.active')?.textContent.replace(/Заявка #\d+/, '').trim() || '';
     const badge = doc.querySelector('.ticket-info-panel .badge');
     const status = !badge ? (doc.querySelector('.btn-outline-secondary') ? 'Открыт' : 'Закрыт')

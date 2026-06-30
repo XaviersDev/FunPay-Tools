@@ -2369,6 +2369,16 @@ body.funpay-redesigned .promo-games {
     line-height: 1.1;
 }
 
+.stat-card-subvalue {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.6);
+    line-height: 1.2;
+    margin-top: 2px;
+}
+.stat-card-subvalue:empty { display: none; }
+.fpt-custom-theme-off .stat-card-subvalue { color: rgba(0,0,0,0.5) !important; }
+
 .stat-card-large {
     grid-column: span 2;
 }
