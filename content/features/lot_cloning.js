@@ -92,6 +92,34 @@ function applyWizardTheme(rootId) {
     root.style.setProperty('--cw-field-bg', isLight ? '#fff' : 'rgba(255,255,255,0.04)');
 }
 
+// FP Tools: запуск ТОГО ЖЕ визарда создания лота, но из данных страницы
+// купленного заказа (без offerId). Форму категории строит background по nodeId.
+async function openCloneWizardFromOrder(data) {
+    const overlay = ensureCloneWizardModal();
+    overlay.className = 'fp-wizard-overlay';
+    overlay.style.display = 'flex';
+    applyWizardTheme('fp-clone-wizard');
+    const body = document.getElementById('fp-cw-body');
+    body.innerHTML = '<div class="fp-cw-loader"></div><p class="fp-cw-muted" style="text-align:center;">Готовлю форму категории и перевод EN…</p>';
+
+    try {
+        const resp = await chrome.runtime.sendMessage({ action: 'orderBuildClone', data });
+        if (!resp || !resp.success) throw new Error(resp?.error || 'Не удалось подготовить форму лота.');
+
+        __fpCloneState = {
+            offerId: null,
+            source: resp.source,
+            fields: resp.fields || null,
+            formError: resp.formError || null,
+            csrf: resp.csrf,
+            createdIds: []
+        };
+        renderCloneReview();
+    } catch (e) {
+        body.innerHTML = `<div class="fp-cw-error">Ошибка: ${escapeHtmlClone(e.message)}</div>`;
+    }
+}
+
 async function openCloneWizard(offerId) {
     const overlay = ensureCloneWizardModal();
     overlay.className = 'fp-wizard-overlay';
@@ -405,9 +433,10 @@ async function checkForCopiedLotData() {
     }
 
     const pasteBar = createElement('div', { id: 'fp-tools-paste-bar' });
+    const _hasAuto = !!copiedData.secrets;
     pasteBar.innerHTML = `
         <span class="paste-bar-icon">📋</span>
-        <span class="paste-bar-text">Найдены скопированные данные лота. Вставить их в форму?</span>
+        <span class="paste-bar-text">Найдены скопированные данные лота${_hasAuto ? ' (с автовыдачей)' : ''}. Вставить их в форму?</span>
         <div class="paste-bar-actions">
             <button id="paste-lot-data-btn" class="btn btn-sm btn-primary">Вставить</button>
             <button id="decline-paste-btn" class="btn btn-sm btn-default">&times;</button>
@@ -420,10 +449,28 @@ async function checkForCopiedLotData() {
     }
 
     document.getElementById('paste-lot-data-btn').addEventListener('click', () => {
-        setFormField('summary', copiedData.summary, '');
-        setFormField('desc', copiedData.description, '');
+        // summary/description: подставляем RU и (если есть) EN-перевод
+        setFormField('summary', copiedData.summary, copiedData.summaryEn || '');
+        setFormField('desc', copiedData.description, copiedData.descriptionEn || '');
 
-        showNotification('Данные вставлены!', false);
+        // автовыдача (приходит со страницы заказа): включаем галку и заполняем
+        // поле secrets выданными товарами.
+        let autoMsg = '';
+        if (copiedData.secrets) {
+            const autoChk = document.querySelector('input[name="auto_delivery"]');
+            if (autoChk && !autoChk.checked) {
+                autoChk.checked = true;
+                autoChk.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            const secretsTa = document.querySelector('textarea[name="secrets"]');
+            if (secretsTa) {
+                secretsTa.value = copiedData.secrets;
+                secretsTa.dispatchEvent(new Event('input', { bubbles: true }));
+                autoMsg = ' + автовыдача';
+            }
+        }
+
+        showNotification('Данные вставлены!' + autoMsg, false);
         chrome.storage.local.remove(COPIED_LOT_STORAGE_KEY);
         pasteBar.remove();
     });

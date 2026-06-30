@@ -281,13 +281,15 @@ async function setupTemplateSettingsHandlers() {
 async function loadSavedSettings() {
     const settings = await chrome.storage.local.get([
         'fpToolsTemplateSettings', 'enableCustomTheme', 'fpToolsTheme', 'aiModeActive',
-        'autoBumpEnabled', 'autoBumpCooldown', 'fpToolsSmartBumpEnabled', 'fpToolsCursorFx', 'fpToolsCustomCursor',
+        'autoBumpEnabled', 'fpToolsCursorFx', 'fpToolsCustomCursor',
         'fpToolsPopupPosition', 'fpToolsPopupSize', 'enableRedesignedHomepage', 'fpToolsPopupDragged',
         'fpToolsAccounts', 'showSalesStats', 'showFinanceStats', 'hideBalance', 'viewSellersPromo', 'notificationSound', 'notificationVolume',
         'fpToolsDiscord',
         'fpToolsSelectiveBumpEnabled', 'fpToolsSelectedBumpCategories', 'fpToolsBumpOnlyAutoDelivery',
         'autoReviewEnabled', 'reviewTemplates', 'greetingEnabled', 'greetingText', 'keywordsEnabled', 'keywords',
         'fpToolsIdentifierEnabled',
+        'fptShowCommission',
+        'fptShowRealPrices',
         'fpToolsBuyerHistory',
         'fpToolsShowUnconfirmed',
         'fpToolsAutoRestoreEnabled',
@@ -371,10 +373,8 @@ async function loadSavedSettings() {
     updateThemePreview();
 
     document.getElementById('autoBumpEnabled').checked = settings.autoBumpEnabled === true;
-    document.getElementById('autoBumpCooldown').value = settings.autoBumpCooldown || 245;
     document.getElementById('selectiveBumpEnabled').checked = settings.fpToolsSelectiveBumpEnabled === true;
     document.getElementById('bumpOnlyAutoDelivery').checked = settings.fpToolsBumpOnlyAutoDelivery === true;
-    { const sb = document.getElementById('fpToolsSmartBumpEnabled'); if (sb) sb.checked = settings.fpToolsSmartBumpEnabled === true; }
 
     document.getElementById('enableRedesignedHomepage').checked = settings.enableRedesignedHomepage !== false;
 
@@ -420,6 +420,30 @@ async function loadSavedSettings() {
     { const _fs=document.getElementById('showFinanceStatsCheckbox'); if(_fs) _fs.checked = settings.showFinanceStats !== false; }
     document.getElementById('hideBalanceCheckbox').checked = settings.hideBalance === true;
     document.getElementById('viewSellersPromoCheckbox').checked = settings.viewSellersPromo !== false;
+
+    // FPT: комиссия разделов и реальные цены — по умолчанию ВЫКЛ
+    (function () {
+        const commEl = document.getElementById('fptShowCommissionCheckbox');
+        const realEl = document.getElementById('fptShowRealPricesCheckbox');
+        if (commEl) {
+            commEl.checked = settings.fptShowCommission === true;
+            if (!commEl.dataset.bound) {
+                commEl.dataset.bound = '1';
+                commEl.addEventListener('change', () => {
+                    chrome.storage.local.set({ fptShowCommission: commEl.checked });
+                });
+            }
+        }
+        if (realEl) {
+            realEl.checked = settings.fptShowRealPrices === true;
+            if (!realEl.dataset.bound) {
+                realEl.dataset.bound = '1';
+                realEl.addEventListener('change', () => {
+                    chrome.storage.local.set({ fptShowRealPrices: realEl.checked });
+                });
+            }
+        }
+    })();
     // 2.8: FPT identifier toggle (default: enabled)
     const identifierEl = document.getElementById('fptIdentifierEnabled');
     if (identifierEl) {

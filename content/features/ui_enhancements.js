@@ -110,6 +110,7 @@ function getStatsBlockHTML() {
                 <div class="stat-card-content">
                     <div class="stat-card-label">В ожидании</div>
                     <div class="stat-card-value" id="fpTools-stats-orders-pending">0</div>
+                    <div class="stat-card-subvalue" id="fpTools-stats-pending-amount"></div>
                 </div>
             </div>
             <div class="fp-stat-card stat-card-refund">
@@ -166,6 +167,7 @@ async function calculateSalesStats(allOrders, startDate, endDate) {
     const stats = {
         totalOrders: 0, totalClosed: 0, totalPending: 0, totalRefunded: 0,
         totalRevenue: { RUB: 0, USD: 0, EUR: 0 },
+        pendingRevenue: { RUB: 0, USD: 0, EUR: 0 },
         refundedRevenue: { RUB: 0, USD: 0, EUR: 0 },
         averageCheck: { RUB: 0, USD: 0, EUR: 0 },
         uniqueBuyers: new Set(), mostPopularProduct: "", mostPopularCategory: "",
@@ -213,7 +215,10 @@ async function calculateSalesStats(allOrders, startDate, endDate) {
         const buyerKey = `${order.buyerUsername}|${order.buyerId}`;
         buyerCount.set(buyerKey, (buyerCount.get(buyerKey) || 0) + 1);
 
-        if (order.orderStatus === "paid") stats.totalPending++;
+        if (order.orderStatus === "paid") {
+            stats.totalPending++;
+            if (stats.pendingRevenue[order.currency] != null) stats.pendingRevenue[order.currency] += order.price;
+        }
         else if (order.orderStatus === "closed") stats.totalClosed++;
         else if (order.orderStatus === "refunded") stats.totalRefunded++;
         
@@ -362,6 +367,18 @@ async function displaySalesStats() {
     document.getElementById("fpTools-stats-average-sale-price").innerHTML = formatRevenue(stats.averageCheck);
     document.getElementById("fpTools-stats-orders-closed").textContent = stats.totalClosed;
     document.getElementById("fpTools-stats-orders-pending").textContent = stats.totalPending;
+    {
+        const amtEl = document.getElementById("fpTools-stats-pending-amount");
+        if (amtEl) {
+            const sym = { RUB: '₽', USD: '$', EUR: '€' };
+            const parts = [];
+            for (const cur of ['RUB', 'USD', 'EUR']) {
+                const v = stats.pendingRevenue[cur];
+                if (v && v > 0) parts.push(Math.round(v).toLocaleString('ru-RU') + ' ' + (sym[cur] || cur));
+            }
+            amtEl.textContent = parts.length ? parts.join(' · ') : '';
+        }
+    }
     if (window.fptStatsCfg) {
         // Покупки: в карточке возвратов показываем СУММУ вернувшихся денег
         // (она не входит в «Всего потрачено»), а не просто число заказов.

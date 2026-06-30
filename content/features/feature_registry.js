@@ -271,6 +271,30 @@ const FPT_FEATURE_REGISTRY = [
         preview: { kind: 'html', html: '<div class="fpt-pv-fpbtn">Включить лоты</div>' }
     },
     {
+        id: 'open_lot_buttons',
+        label: 'Кнопки «Открыть лот»',
+        desc: 'Кнопка перехода на лот: иконка-ссылка возле каждого лота и рядом с заголовком на странице редактирования, которая открывает (перейти, переход, ссылка на) сам лот, а не его редактирование.',
+        group: 'Список лотов и профиль',
+        selector: '.fpt-open-lot',
+        preview: { kind: 'html', html: '<div class="fpt-pv-fpbtn" style="width:28px;text-align:center;">↗</div>' }
+    },
+    {
+        id: 'raise_all_lots_btn',
+        label: 'Кнопка «Поднять все лоты»',
+        desc: 'Кнопка на своём профиле рядом с «Выбрать» - поднимает все лоты во всех разделах по очереди.',
+        group: 'Список лотов и профиль',
+        selector: '#fpt-raise-all-btn',
+        preview: { kind: 'html', html: '<div class="fpt-pv-fpbtn">Поднять все лоты</div>' }
+    },
+    {
+        id: 'buyer_price_field',
+        label: 'Поле «Цена покупателю»',
+        desc: 'Живое поле на странице создания/редактирования лота: показывает цену для покупателя и может пересчитать цену продавца обратно.',
+        group: 'Редактор лота',
+        selector: '#fpt-buyer-price-group',
+        preview: { kind: 'html', html: '<div class="fpt-pv-lotsearch"><input type="text" class="fpt-pv-fpinput" placeholder="Цена покупателю" readonly></div>' }
+    },
+    {
         id: 'lot_pinned_container',
         label: 'Блок «Закрепленные лоты»',
         desc: 'Дополнительный блок «Закрепленные лоты» на странице профиля/продаж (с кнопкой ✏️ для выбора закреплённых).',

@@ -112,6 +112,12 @@ async function previewNotificationSound(soundValue, volume) {
 }
 
 function initializeCustomSound() {
+    // защита от повторной инициализации (раньше вызывалось только при сборке
+    // попапа настроек — из-за чего звук не подменялся, пока пользователь не открыл
+    // настройки на этой вкладке; теперь модуль ещё и сам стартует ниже)
+    if (window.__fptSoundInited) { applyNotificationSound(); return; }
+    window.__fptSoundInited = true;
+
     // Первоначальное применение звука
     applyNotificationSound();
 
@@ -131,6 +137,20 @@ function initializeCustomSound() {
 
     observer.observe(document.body, { childList: true, subtree: true });
 }
+
+// FIX 3.0: звук НЕ должен зависеть от того, открыл ли пользователь попап настроек.
+// Раньше initializeCustomSound() вызывался только при ленивой сборке попапа, и
+// если вкладку с настройками не открывали — кастомный звук не подменялся.
+// Теперь модуль самоинициализируется на КАЖДОЙ странице funpay сразу при загрузке.
+(function autoInitCustomSound() {
+    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.id) return;
+    const boot = () => { try { initializeCustomSound(); } catch (_) {} };
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', boot, { once: true });
+    } else {
+        boot();
+    }
+})();
 
 // 3.0: re-apply sound/volume immediately when changed in the popup (no reload).
 if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {

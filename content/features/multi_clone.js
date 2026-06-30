@@ -153,7 +153,23 @@
         logEl.style.display = 'block';
         logEl.innerHTML = '';
         let ok = 0, fail = 0;
-        const log = (html, cls) => { const d = document.createElement('div'); if (cls) d.className = cls; d.innerHTML = html; logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight; };
+        const log = (html, cls) => { const d = document.createElement('div'); if (cls) d.className = cls; d.innerHTML = html; logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight; return d; };
+
+        const DELAY_MS = 3500; // пауза между лотами, чтобы не словить лимит FunPay
+        // оценка общего времени: на каждый лот ~1.5с работа + задержка между ними
+        const perLot = DELAY_MS + 1500;
+        const totalMs = ids.length * perLot;
+        const fmtTime = (ms) => {
+            const sec = Math.max(0, Math.round(ms / 1000));
+            const m = Math.floor(sec / 60), s = sec % 60;
+            return m > 0 ? `${m} мин ${s} сек` : `${s} сек`;
+        };
+        const finishAt = Date.now() + totalMs;
+        const etaEl = log(`Примерное время: <b>${fmtTime(totalMs)}</b>. Завершу примерно к ${new Date(finishAt).toLocaleTimeString()}.`);
+        const etaTimer = setInterval(() => {
+            const left = finishAt - Date.now();
+            if (left > 0) etaEl.innerHTML = `Осталось примерно: <b>${fmtTime(left)}</b> (готово к ${new Date(finishAt).toLocaleTimeString()}).`;
+        }, 1000);
 
         for (let i = 0; i < ids.length; i++) {
             const id = ids[i];
@@ -166,7 +182,18 @@
                 fail++;
                 log(`✗ #${id}: ${e.message}`, 'err');
             }
+            // пауза перед следующим лотом (не после последнего)
+            if (i < ids.length - 1) {
+                const waitEl = log(`⏳ Пауза ${Math.round(DELAY_MS / 1000)} сек, чтобы не словить лимит FunPay…`, 'wait');
+                let remain = Math.round(DELAY_MS / 1000);
+                const cd = setInterval(() => { remain--; if (remain > 0) waitEl.textContent = `⏳ Пауза ${remain} сек…`; }, 1000);
+                await new Promise(r => setTimeout(r, DELAY_MS));
+                clearInterval(cd);
+                waitEl.remove();
+            }
         }
+        clearInterval(etaTimer);
+        etaEl.remove();
         log(`<b>Готово: ${ok} создано, ${fail} с ошибкой.</b>`);
         showNotification?.(`Копирование завершено: ${ok} ок, ${fail} ошибок`, fail > 0);
         go.disabled = false;

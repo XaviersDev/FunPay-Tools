@@ -126,14 +126,14 @@
         .fpt-fin-period:hover{border-color:var(--fpt-text-muted,#b0b4c0);}
         .fpt-fin-btn{padding:8px 16px;border-radius:10px;border:1px solid var(--fpt-border,#e3e3ea);
             background:var(--fpt-surface-2,#fff);color:inherit;font-size:13px;cursor:pointer;font-weight:600;transition:all .15s;}
-        .fpt-fin-btn:hover{border-color:#7c5cff;color:#7c5cff;box-shadow:0 2px 10px rgba(124,92,255,.12);}
+        .fpt-fin-btn:hover{border-color:#10b981;color:#10b981;box-shadow:0 2px 10px rgba(16,185,129,.12);}
         .fpt-fin-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:13px;margin-bottom:18px;}
         .fpt-fin-card{position:relative;background:var(--fpt-surface-2,#fbfbfd);border:1px solid var(--fpt-border,#edeef2);
             border-radius:16px;padding:16px 16px 15px;cursor:pointer;transition:transform .12s cubic-bezier(.2,.8,.2,1),box-shadow .15s;overflow:hidden;}
         .fpt-fin-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--fpt-text-muted,#c8ccd8);opacity:.55;}
         .fpt-fin-card[data-fin-card="in"]::before{background:linear-gradient(180deg,#22c55e,#16a34a);opacity:1;}
         .fpt-fin-card[data-fin-card="out"]::before{background:linear-gradient(180deg,#f87171,#ef4444);opacity:1;}
-        .fpt-fin-card[data-fin-card="net"]::before{background:linear-gradient(180deg,#7c5cff,#6d28d9);opacity:1;}
+        .fpt-fin-card[data-fin-card="net"]::before{background:linear-gradient(180deg,#10b981,#059669);opacity:1;}
         .fpt-fin-card[data-fin-card="all"]::before{background:linear-gradient(180deg,#38bdf8,#0ea5e9);opacity:1;}
         .fpt-fin-card:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(20,22,40,0.10);border-color:var(--fpt-text-muted,#d4d7e2);}
         .fpt-fin-card-label{font-size:11px;letter-spacing:.2px;color:var(--fpt-text-muted,#8b90a0);font-weight:600;margin-bottom:8px;}
@@ -268,7 +268,7 @@
             '30d': 'за месяц', '90d': 'за 3 месяца', '365d': 'за год' }[_period] || '';
     }
 
-    const PALETTE = ['#ff6d15', '#2563eb', '#22c55e', '#a855f7', '#ef4444', '#14b8a6', '#eab308', '#ec4899'];
+    const PALETTE = ['#ff6d15', '#2563eb', '#22c55e', '#0891b2', '#ef4444', '#14b8a6', '#eab308', '#ec4899'];
 
     // Столбчатый SVG-график в стиле статистики продаж: приход (зелёный) над осью,
     // расход (красный) под осью. keys — отсортированные периоды (месяцы/дни).

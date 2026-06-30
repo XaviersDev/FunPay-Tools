@@ -296,10 +296,8 @@ function initializeToolsPopup() {
 
                 // Авто-поднятие
                 autoBumpEnabled: document.getElementById('autoBumpEnabled').checked,
-                autoBumpCooldown: parseInt(document.getElementById('autoBumpCooldown').value, 10) || 245,
                 fpToolsSelectiveBumpEnabled: document.getElementById('selectiveBumpEnabled').checked,
                 fpToolsBumpOnlyAutoDelivery: document.getElementById('bumpOnlyAutoDelivery').checked,
-                fpToolsSmartBumpEnabled: (document.getElementById('fpToolsSmartBumpEnabled') ? document.getElementById('fpToolsSmartBumpEnabled').checked : false),
 
                 // Авто-ответы (добавленный блок)
                 autoReviewEnabled: document.getElementById('autoReviewEnabled').checked,
@@ -317,7 +315,11 @@ function initializeToolsPopup() {
 
                 // 2.9: New toggles
                 fpToolsBuyerHistory:     document.getElementById('fpToolsBuyerHistory')?.checked !== false,
-                fpToolsShowUnconfirmed:  document.getElementById('fpToolsShowUnconfirmed')?.checked !== false
+                fpToolsShowUnconfirmed:  document.getElementById('fpToolsShowUnconfirmed')?.checked !== false,
+
+                // комиссия разделов и реальные цены лотов (по умолчанию ВЫКЛ)
+                fptShowCommission:       document.getElementById('fptShowCommissionCheckbox')?.checked === true,
+                fptShowRealPrices:       document.getElementById('fptShowRealPricesCheckbox')?.checked === true
             };
 
             // 3.0: Extended autoresponder settings
@@ -367,7 +369,7 @@ function initializeToolsPopup() {
             applyNotificationSound();
 
             if (settingsToSave.autoBumpEnabled) {
-                chrome.runtime.sendMessage({ action: 'startAutoBump', cooldown: settingsToSave.autoBumpCooldown });
+                chrome.runtime.sendMessage({ action: 'startAutoBump' });
             } else {
                 chrome.runtime.sendMessage({ action: 'stopAutoBump' });
             }
