@@ -27,8 +27,8 @@ const DEFAULT_TEMPLATE_DISPLAY = {
 };
 
 const DEFAULT_STANDARD_TEMPLATES = {
-    greeting: { enabled: true, label: 'Приветствие', color: '#C026D3', text: '{welcome}, {buyername}! Чем могу помочь?' },
-    completed: { enabled: true, label: 'Заказ выполнен', color: '#C026D3', text: 'Заказ выполнен. Пожалуйста, зайдите в раздел «Покупки», выберите его в списке и нажмите кнопку «Подтвердить выполнение заказа».' },
+    greeting: { enabled: true, label: 'Приветствие', color: '#1b75bb', text: '{welcome}, {buyername}! Чем могу помочь?' },
+    completed: { enabled: true, label: 'Заказ выполнен', color: '#1b75bb', text: 'Заказ выполнен. Пожалуйста, зайдите в раздел «Покупки», выберите его в списке и нажмите кнопку «Подтвердить выполнение заказа».' },
     review: { enabled: true, label: 'Попросить отзыв', color: '#FF6B6B', text: 'Спасибо за покупку! Буду очень благодарен, если вы оставите отзыв о сделке.' },
     thanks: { enabled: true, label: 'Спасибо за заказ', color: '#FF6B6B', text: 'Спасибо за заказ, {buyername}! Обращайтесь еще. {date}' }
 };
@@ -83,6 +83,13 @@ async function replaceTemplateVariables(template) {
     const lotNameInChat = document.querySelector('.deal-desc-lot a');
     if(lotNameInChat) lotName = lotNameInChat.textContent.trim();
     result = result.replace(/{lotname}/g, lotName);
+
+    result = result.replace(/\{([^{}|]*\|[^{}]*)\}/g, (full, inner) => {
+        if (/^ai:/i.test(inner)) return full;
+        const options = inner.split('|');
+        const pick = options[Math.floor(Math.random() * options.length)];
+        return pick;
+    });
 
     // NOTE: {orderlink}/{orderid} are intentionally NOT supported in chat templates.
     // A chat can contain many orders, so there is no single reliable "current order" to
@@ -166,7 +173,8 @@ async function applyTemplateToInput(chatInput, templateContent, images, sendOrde
         };
         const sendImages = async () => {
             for (const dataUrl of imgs) {
-                const resp = await chrome.runtime.sendMessage({ action: 'fptSendImage', chatId, dataUrl, chatName });
+                const sendId = 'tpl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+                const resp = await chrome.runtime.sendMessage({ action: 'fptSendImage', chatId, dataUrl, chatName, sendId });
                 if (!resp || !resp.ok) showNotification('Не удалось отправить изображение: ' + (resp && resp.error || 'ошибка'), true);
                 await new Promise(r => setTimeout(r, 300));
             }

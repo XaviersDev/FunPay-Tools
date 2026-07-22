@@ -40,7 +40,7 @@ function getStatsBlockHTML() {
         </div>
 
         <div class="fp-stats-modebar" id="fpTools-stats-modebar">
-            <button type="button" class="fp-stats-mode-btn active" data-mode="cards"><span class="material-symbols-rounded">dashboard</span>Карточки</button>
+            <button type="button" class="fp-stats-mode-btn active" data-mode="cards"><span class="material-symbols-rounded">dashboard</span>Кратко</button>
             <button type="button" class="fp-stats-mode-btn" data-mode="charts"><span class="material-symbols-rounded">show_chart</span>Графики</button>
             <button type="button" class="fp-stats-mode-btn" data-mode="diagrams"><span class="material-symbols-rounded">pie_chart</span>Диаграммы</button>
             <button type="button" class="fp-stats-mode-btn" data-mode="detailed"><span class="material-symbols-rounded">table_rows</span>Детально</button>
@@ -76,86 +76,60 @@ function getStatsBlockHTML() {
         <div id="fpTools-stats-modeview"></div>
 
         <div id="fpTools-stats-cards">
-        <div class="fp-stats-grid">
-            <div class="fp-stat-card stat-card-large stat-card-revenue">
-                <div class="stat-card-icon">💰</div>
-                <div class="stat-card-content">
-                    <div class="stat-card-label">${_fptCfg().totalMoneyLabel}</div>
-                    <div class="stat-card-value" id="fpTools-stats-total-revenue">0 ₽</div>
-                </div>
+        <div class="fp-stats-grid3">
+            <div class="fp-s3 fpt-clickable" data-click="fpTools-stats-total-orders">
+                <div class="fp-s3-label">${(_fptCfg().totalOrdersLabel || "Всего заказов").replace(/^Всего\s+/i, "")}</div>
+                <div class="fp-s3-value" id="fpTools-stats-total-orders">0</div>
             </div>
-            <div class="fp-stat-card">
-                <div class="stat-card-icon">📦</div>
-                <div class="stat-card-content">
-                    <div class="stat-card-label">${_fptCfg().totalOrdersLabel || "Всего заказов"}</div>
-                    <div class="stat-card-value" id="fpTools-stats-total-orders">0</div>
-                </div>
+            <div class="fp-s3 fp-s3-mid fpt-clickable" data-click="fpTools-stats-total-revenue">
+                <div class="fp-s3-label">${(_fptCfg().totalMoneyLabel || "Заработано").replace(/^Всего\s+/i, "")}</div>
+                <div class="fp-s3-value fp-s3-money" id="fpTools-stats-total-revenue">0 ₽</div>
             </div>
-            <div class="fp-stat-card">
-                <div class="stat-card-icon">📈</div>
-                <div class="stat-card-content">
-                    <div class="stat-card-label">Средний чек</div>
-                    <div class="stat-card-value" id="fpTools-stats-average-sale-price">0 ₽</div>
-                </div>
+            <div class="fp-s3 fp-s3-end fpt-clickable" data-click="fpTools-stats-average-sale-price">
+                <div class="fp-s3-label">Средний чек</div>
+                <div class="fp-s3-value" id="fpTools-stats-average-sale-price">0 ₽</div>
             </div>
-            <div class="fp-stat-card stat-card-success">
-                <div class="stat-card-icon">✅</div>
-                <div class="stat-card-content">
-                    <div class="stat-card-label">Закрыто</div>
-                    <div class="stat-card-value" id="fpTools-stats-orders-closed">0</div>
-                </div>
+
+            <div class="fp-s3 fpt-clickable" data-click="fpTools-stats-orders-closed">
+                <div class="fp-s3-label">Закрыто</div>
+                <div class="fp-s3-value" id="fpTools-stats-orders-closed">0</div>
             </div>
-            <div class="fp-stat-card stat-card-pending">
-                <div class="stat-card-icon">⏳</div>
-                <div class="stat-card-content">
-                    <div class="stat-card-label">В ожидании</div>
-                    <div class="stat-card-value" id="fpTools-stats-orders-pending">0</div>
-                    <div class="stat-card-subvalue" id="fpTools-stats-pending-amount"></div>
-                </div>
+            <div class="fp-s3 fp-s3-mid fpt-clickable" data-click="fpTools-stats-orders-pending">
+                <div class="fp-s3-label">В ожидании подтверждения</div>
+                <div class="fp-s3-value" id="fpTools-stats-orders-pending">0</div>
+                <div class="fp-s3-sub" id="fpTools-stats-pending-amount"></div>
             </div>
-            <div class="fp-stat-card stat-card-refund">
-                <div class="stat-card-icon">↩️</div>
-                <div class="stat-card-content">
-                    <div class="stat-card-label">${_fptCfg().refundLabel || 'Возвраты'}</div>
-                    <div class="stat-card-value" id="fpTools-stats-orders-refund">0</div>
-                </div>
+            <div class="fp-s3 fp-s3-end fpt-clickable" data-click="fpTools-stats-orders-refund">
+                <div class="fp-s3-label">${_fptCfg().refundLabel || 'Возвраты'}</div>
+                <div class="fp-s3-value" id="fpTools-stats-orders-refund">0</div>
             </div>
-            <div class="fp-stat-card">
-                <div class="stat-card-icon">👥</div>
-                <div class="stat-card-content">
-                    <div class="stat-card-label">${_fptCfg().uniquePartyLabel}</div>
-                    <div class="stat-card-value" id="fpTools-stats-unique-customers">0</div>
-                </div>
+
+            <div class="fp-s3">
+                <div class="fp-s3-label">${_fptCfg().uniquePartyLabel}</div>
+                <div class="fp-s3-value" id="fpTools-stats-unique-customers">0</div>
+            </div>
+            <div class="fp-s3 fp-s3-mid">
+                <div class="fp-s3-label">${(_fptCfg().topPartyLabel || '').replace(/^[^\wА-Яа-яЁё]*/,'').replace(/:\s*$/,'')}</div>
+                <div class="fp-s3-value fp-s3-name" id="fpTools-stats-top-customer">-</div>
+            </div>
+            <div class="fp-s3 fp-s3-end">
+                <div class="fp-s3-label">${(_fptCfg().topDealLabel || 'Самая дорогая продажа').replace(/^[^\wА-Яа-яЁё]*/,'').replace(/:\s*$/,'')}</div>
+                <div class="fp-s3-value fp-s3-money" id="fpTools-stats-top-sale">-</div>
             </div>
         </div>
 
-        <div class="fp-stats-details">
-            <div class="fp-stat-detail-item">
-                <span class="detail-label">${_fptCfg().topPartyLabel}</span>
-                <span class="detail-value" id="fpTools-stats-top-customer">-</span>
+        <div class="fp-stats-extra-grid">
+            <div class="fp-s3">
+                <div class="fp-s3-label">Самый популярный товар</div>
+                <div class="fp-s3-value fp-s3-name" id="fpTools-stats-popular-product">-</div>
             </div>
-            <div class="fp-stat-detail-item">
-                <span class="detail-label">${_fptCfg().topDealLabel || "💎 Самая дорогая продажа:"}</span>
-                <span class="detail-value" id="fpTools-stats-top-sale">-</span>
+            <div class="fp-s3 fp-s3-mid">
+                <div class="fp-s3-label">Самая популярная категория</div>
+                <div class="fp-s3-value fp-s3-name" id="fpTools-stats-popular-category">-</div>
             </div>
-            <div class="fp-stat-detail-item">
-                <span class="detail-label">🔥 Самый популярный товар:</span>
-                <span class="detail-value" id="fpTools-stats-popular-product">-</span>
-            </div>
-            <div class="fp-stat-detail-item">
-                <span class="detail-label">🎮 Самая популярная категория:</span>
-                <span class="detail-value" id="fpTools-stats-popular-category">-</span>
-            </div>
-            <div class="fp-stats-unconf-divider"></div>
-            <div class="fp-stats-expand-row" id="fpTools-stats-expand-btn">
-                <span class="fp-stats-expand-label">Показать ещё</span>
-                <span class="fp-stats-expand-arrow">▾</span>
-            </div>
-            <div class="fp-stats-extra" id="fpTools-stats-extra" style="display:none;">
-                <div class="fp-stat-detail-item">
-                    <span class="detail-label">🔒 Неподтверждённые заказы:</span>
-                    <span class="detail-value" id="fpTools-stats-unconfirmed">-</span>
-                </div>
+            <div class="fp-s3 fp-s3-end">
+                <div class="fp-s3-label">Неподтверждённые заказы</div>
+                <div class="fp-s3-value" id="fpTools-stats-unconfirmed">-</div>
             </div>
         </div>
         </div>

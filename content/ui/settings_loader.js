@@ -12,7 +12,7 @@ async function renderTemplateSettings() {
         const item = createElement('div', { class: 'template-item' });
         if (!config.enabled) item.classList.add('disabled-in-settings');
         
-        const colorPickerHtml = `<input type="color" class="template-color-picker" value="${config.color || '#C026D3'}" data-key="${key}" data-custom="${isCustom}">`;
+        const colorPickerHtml = `<input type="color" class="template-color-picker" value="${config.color || '#1b75bb'}" data-key="${key}" data-custom="${isCustom}">`;
         const deleteBtnHtml = isCustom ? `<button class="delete-custom-template-btn" data-id="${config.id}" title="Удалить"><span class="material-symbols-rounded">delete</span></button>` : '';
 
         // === ИЗМЕНЕНИЕ ЗДЕСЬ ===
@@ -282,7 +282,7 @@ async function loadSavedSettings() {
     const settings = await chrome.storage.local.get([
         'fpToolsTemplateSettings', 'enableCustomTheme', 'fpToolsTheme', 'aiModeActive',
         'autoBumpEnabled', 'fpToolsCursorFx', 'fpToolsCustomCursor',
-        'fpToolsPopupPosition', 'fpToolsPopupSize', 'enableRedesignedHomepage', 'fpToolsPopupDragged',
+        'fpToolsPopupPosition', 'fpToolsPopupSize', 'fpToolsPopupDragged', 'fpToolsAccentColor',
         'fpToolsAccounts', 'showSalesStats', 'showFinanceStats', 'hideBalance', 'viewSellersPromo', 'notificationSound', 'notificationVolume',
         'fpToolsDiscord',
         'fpToolsSelectiveBumpEnabled', 'fpToolsSelectedBumpCategories', 'fpToolsBumpOnlyAutoDelivery',
@@ -299,6 +299,8 @@ async function loadSavedSettings() {
     
     fpToolsAccounts = settings.fpToolsAccounts || [];
     renderAccountsList();
+
+    if (settings.fpToolsAccentColor) window.__fptUserAccent = settings.fpToolsAccentColor;
 
     const logoutLink = document.querySelector('.menu-item-logout');
     if(logoutLink && !document.querySelector('.fp-tools-logout-clean')) {
@@ -365,7 +367,7 @@ async function loadSavedSettings() {
     }
 
     const enableCustomThemeCheckboxEl = document.getElementById('enableCustomThemeCheckbox');
-    const isThemeEnabled = settings.enableCustomTheme !== false;
+    const isThemeEnabled = settings.enableCustomTheme === true;
     if(enableCustomThemeCheckboxEl) {
         enableCustomThemeCheckboxEl.checked = isThemeEnabled;
         toggleThemeControls(!isThemeEnabled);
@@ -376,10 +378,8 @@ async function loadSavedSettings() {
     document.getElementById('selectiveBumpEnabled').checked = settings.fpToolsSelectiveBumpEnabled === true;
     document.getElementById('bumpOnlyAutoDelivery').checked = settings.fpToolsBumpOnlyAutoDelivery === true;
 
-    document.getElementById('enableRedesignedHomepage').checked = settings.enableRedesignedHomepage !== false;
-
     const cursorFxSettings = settings.fpToolsCursorFx || {};
-    const cursorFxDefaults = { enabled: false, type: 'sparkle', color1: '#FF6B6B', color2: '#C026D3', rgb: false, count: 50 };
+    const cursorFxDefaults = { enabled: false, type: 'sparkle', color1: '#FF6B6B', color2: '#1b75bb', rgb: false, count: 50 };
     const finalCursorFxSettings = { ...cursorFxDefaults, ...cursorFxSettings };
 
     document.getElementById('cursorFxEnabled').checked = finalCursorFxSettings.enabled;

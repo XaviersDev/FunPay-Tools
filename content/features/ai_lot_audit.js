@@ -296,12 +296,12 @@ function auditRenderQuestion(index) {
             btn.textContent = opt;
             btn.dataset.val = opt;
             btn.className = 'fp-audit-opt';
-            btn.style.cssText = `flex:1;padding:12px;border:2px solid #22253a;border-radius:8px;background:#1a1c2e;color:#d8dae8;cursor:pointer;font-size:14px;font-family:inherit;transition:all .15s;`;
+            btn.style.cssText = `flex:1;padding:12px;border:2px solid var(--fpt-border, rgba(0,0,0,0.12));border-radius:8px;background:var(--fpt-bg, #ffffff);color:var(--fpt-text, #16181d);cursor:pointer;font-size:14px;font-family:inherit;transition:all .15s;`;
             btn.addEventListener('click', () => {
                 wrap.querySelectorAll('.fp-audit-opt').forEach(b => {
                     b.style.borderColor = '#22253a'; b.style.background = '#1a1c2e'; b.style.color = '#d8dae8';
                 });
-                btn.style.borderColor = '#C026D3'; btn.style.background = '#2A1830'; btn.style.color = '#E9A8FF';
+                btn.style.borderColor = '#1b75bb'; btn.style.background = 'rgba(27,117,187,0.16)'; btn.style.color = '#4a9fd4';
                 btn.dataset.selected = '1';
             });
             wrap.appendChild(btn);
@@ -321,12 +321,12 @@ function auditRenderQuestion(index) {
             btn.textContent = opt;
             btn.dataset.val = opt;
             btn.className = 'fp-audit-opt';
-            btn.style.cssText = `padding:10px 14px;border:2px solid #22253a;border-radius:8px;background:#1a1c2e;color:#d8dae8;cursor:pointer;font-size:13px;text-align:left;font-family:inherit;transition:all .15s;`;
+            btn.style.cssText = `padding:10px 14px;border:2px solid var(--fpt-border, rgba(0,0,0,0.12));border-radius:8px;background:var(--fpt-bg, #ffffff);color:var(--fpt-text, #16181d);cursor:pointer;font-size:13px;text-align:left;font-family:inherit;transition:all .15s;`;
             btn.addEventListener('click', () => {
                 wrap.querySelectorAll('.fp-audit-opt').forEach(b => {
                     b.style.borderColor = '#22253a'; b.style.background = '#1a1c2e'; b.style.color = '#d8dae8';
                 });
-                btn.style.borderColor = '#C026D3'; btn.style.background = '#2A1830'; btn.style.color = '#E9A8FF';
+                btn.style.borderColor = '#1b75bb'; btn.style.background = 'rgba(27,117,187,0.16)'; btn.style.color = '#4a9fd4';
                 btn.dataset.selected = '1';
             });
             wrap.appendChild(btn);
@@ -368,7 +368,7 @@ function auditRenderQuestion(index) {
             wrap.appendChild(star);
         }
         const labelEl = document.createElement('span');
-        labelEl.style.cssText = 'font-size:12px;color:#5a5f7a;margin-left:6px;';
+        labelEl.style.cssText = 'font-size:12px;color:var(--fpt-text-muted, #8a90a6);margin-left:6px;';
         wrap.appendChild(labelEl);
         getValue = () => selectedRating ? `${selectedRating}/5 - ${labels[selectedRating]}` : '';
         container.appendChild(wrap);
@@ -377,8 +377,8 @@ function auditRenderQuestion(index) {
         // text (default)
         const ta = document.createElement('textarea');
         ta.placeholder = 'Ваш ответ...';
-        ta.style.cssText = `width:100%;height:80px;background:#0e0f16;border:1px solid #22253a;border-radius:8px;padding:10px;color:#d8dae8;font-size:13px;resize:vertical;outline:none;font-family:inherit;box-sizing:border-box;`;
-        ta.addEventListener('focus', () => ta.style.borderColor = '#C026D3');
+        ta.style.cssText = `width:100%;height:80px;background:var(--fpt-surface, #f5f7fa);border:1px solid var(--fpt-border, rgba(0,0,0,0.12));border-radius:8px;padding:10px;color:var(--fpt-text, #16181d);font-size:13px;resize:vertical;outline:none;font-family:inherit;box-sizing:border-box;`;
+        ta.addEventListener('focus', () => ta.style.borderColor = '#1b75bb');
         ta.addEventListener('blur',  () => ta.style.borderColor = '#22253a');
         getValue = () => ta.value.trim();
         container.appendChild(ta);
@@ -415,20 +415,20 @@ function auditShowResults(recs) {
         if (!items?.length) return '';
         return `<div style="margin-bottom:16px;">
             <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:${color};margin-bottom:8px;">${title}</div>
-            ${items.map(it => `<div style="background:#0e0f16;border-left:3px solid ${color};border-radius:0 6px 6px 0;padding:8px 12px;margin-bottom:6px;font-size:13px;color:#d8dae8;line-height:1.4;">${it}</div>`).join('')}
+            ${items.map(it => `<div style="background:var(--fpt-surface, #f5f7fa);border-left:3px solid ${color};border-radius:0 6px 6px 0;padding:8px 12px;margin-bottom:6px;font-size:13px;color:var(--fpt-text, #16181d);line-height:1.4;">${it}</div>`).join('')}
         </div>`;
     };
 
     el.innerHTML = `
-        <div style="background:#1a1c2e;border-radius:8px;padding:14px;margin-bottom:16px;font-size:13px;color:#c0c4d8;line-height:1.5;">
+        <div style="background:var(--fpt-bg, #ffffff);border-radius:8px;padding:14px;margin-bottom:16px;font-size:13px;color:#c0c4d8;line-height:1.5;">
             <strong style="color:#eceef6;">Резюме:</strong><br>${recs.summary || ''}
         </div>
         ${section('🔴 Критично - исправить первым делом', recs.critical, '#e05252')}
         ${section('📝 Названия и описания', recs.titles, '#FF6B6B')}
         ${section('💰 Цены', recs.pricing, '#ff9800')}
-        ${section('🔍 Видимость в поиске', recs.visibility, '#C026D3')}
+        ${section('🔍 Видимость в поиске', recs.visibility, '#1b75bb')}
         ${section('💬 Клиентский сервис', recs.service, '#4caf82')}
-        <button onclick="document.getElementById('fp-audit-start-btn').click()" style="margin-top:10px;background:#1e2030;border:1px solid #22253a;border-radius:6px;padding:8px 16px;color:#9099b8;cursor:pointer;font-size:13px;font-family:inherit;">Начать заново</button>
+        <button onclick="document.getElementById('fp-audit-start-btn').click()" style="margin-top:10px;background:var(--fpt-bg, #ffffff);border:1px solid var(--fpt-border, rgba(0,0,0,0.12));border-radius:6px;padding:8px 16px;color:var(--fpt-text-muted, #6b7280);cursor:pointer;font-size:13px;font-family:inherit;">Начать заново</button>
     `;
 }
 

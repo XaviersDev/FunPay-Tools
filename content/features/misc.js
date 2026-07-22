@@ -433,7 +433,6 @@ function initializeToolsPopup() {
         resetThemeBtn.addEventListener('click', async () => {
             if (confirm('Вы уверены, что хотите сбросить все настройки темы и оформления?')) {
                 await chrome.storage.local.remove('fpToolsTheme');
-                await chrome.storage.local.set({ enableRedesignedHomepage: true });
                 applyCustomTheme();
                 applyHeaderPosition();
                 await updateThemePreview();

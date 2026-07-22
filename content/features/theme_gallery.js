@@ -66,7 +66,7 @@
         }
         #fpt-theme-gallery .fptg-preview-empty {
             width:100%; aspect-ratio:16/9; display:flex; align-items:center; justify-content:center;
-            color:#5a5f7a; font-size:13px; background:#15151c;
+            color:var(--fpt-text-muted, #8a90a6); font-size:13px; background:#15151c;
         }
         #fpt-theme-gallery .fptg-meta { padding:10px 12px; }
         #fpt-theme-gallery .fptg-name { font-size:14px; font-weight:600; margin:0 0 2px; }

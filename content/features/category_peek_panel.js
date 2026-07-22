@@ -57,7 +57,7 @@
             --pk-border: var(--fpt-border, #22253a);
             --pk-text: var(--fpt-text, #d8dae8);
             --pk-muted: var(--fpt-text-muted, #9099b8);
-            --pk-accent: var(--fpt-accent, #C026D3);
+            --pk-accent: var(--fpt-accent, #1b75bb);
             --pk-shadow: var(--fpt-shadow, rgba(0,0,0,0.5));
             position:fixed; top:0; right:0; height:100vh; width:340px; max-width:92vw;
             background:var(--pk-bg); border-left:1px solid var(--pk-border);

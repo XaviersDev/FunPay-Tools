@@ -131,7 +131,7 @@ function _applyTicketFilters() {
         topRow.appendChild(statusSpan);
 
         const meta = document.createElement('div');
-        meta.style.cssText = 'font-size:11px;color:#3a3d52;margin-top:5px;display:flex;align-items:center;justify-content:space-between;';
+        meta.style.cssText = 'font-size:11px;color:var(--fpt-text-muted, #8a90a6);margin-top:5px;display:flex;align-items:center;justify-content:space-between;';
 
         const metaText = document.createElement('span');
         metaText.textContent = `#${t.id}${t.lastUpdate ? ' · ' + t.lastUpdate : ''}`;
@@ -230,7 +230,7 @@ async function _loadCategoriesForForm() {
     const fieldsDiv = document.getElementById('fp-new-ticket-fields');
     const submitBtn = document.getElementById('fp-new-ticket-submit');
     if (!fieldsDiv) return;
-    fieldsDiv.innerHTML = '<div style="color:#3a3d52;font-size:12px;">Загрузка категорий...</div>';
+    fieldsDiv.innerHTML = '<div style="color:var(--fpt-text-muted, #8a90a6);font-size:12px;">Загрузка категорий...</div>';
     if (submitBtn) submitBtn.style.display = 'none';
 
     try {
@@ -277,7 +277,7 @@ function _renderCategorySelect(fieldsDiv, submitBtn) {
 
         const spinner = document.createElement('div');
         spinner.className = 'fp-tkt-field';
-        spinner.style.cssText = 'font-size:12px;color:#3a3d52;padding:4px 0;';
+        spinner.style.cssText = 'font-size:12px;color:var(--fpt-text-muted, #8a90a6);padding:4px 0;';
         spinner.textContent = 'Загрузка полей...';
         fieldsDiv.appendChild(spinner);
 
@@ -525,7 +525,7 @@ function _renderBubble(c, myUsername) {
     // Avatar (only for others)
     if (!isMe) {
         const av = document.createElement('div');
-        av.style.cssText = `width:28px;height:28px;border-radius:50%;flex-shrink:0;background:#1a1c2e;font-size:11px;font-weight:600;color:#C026D3;display:flex;align-items:center;justify-content:center;`;
+        av.style.cssText = `width:28px;height:28px;border-radius:50%;flex-shrink:0;background:var(--fpt-bg, #ffffff);font-size:11px;font-weight:600;color:#1b75bb;display:flex;align-items:center;justify-content:center;`;
         if (c.avatarUrl) {
             av.style.backgroundImage = `url('${c.avatarUrl}')`;
             av.style.backgroundSize = 'cover';
@@ -542,7 +542,7 @@ function _renderBubble(c, myUsername) {
 
     // Name + time (only for others, or own first)
     const meta = document.createElement('div');
-    meta.style.cssText = `font-size:10px;color:#3a3d52;padding:0 4px;`;
+    meta.style.cssText = `font-size:10px;color:var(--fpt-text-muted, #8a90a6);padding:0 4px;`;
     meta.textContent = (!isMe ? c.author + '  ' : '') + (c.timestamp || '');
     col.appendChild(meta);
 
@@ -551,7 +551,7 @@ function _renderBubble(c, myUsername) {
     if (isMe) {
         bubble.style.cssText = `background:linear-gradient(135deg,#5a56e8,#7b77ff);border-radius:16px 16px 4px 16px;padding:8px 12px;font-size:13px;color:#fff;line-height:1.55;word-break:break-word;`;
     } else {
-        bubble.style.cssText = `background:#12131f;border:1px solid #1a1c2e;border-radius:16px 16px 16px 4px;padding:8px 12px;font-size:13px;color:#d8dae8;line-height:1.55;word-break:break-word;`;
+        bubble.style.cssText = `background:#12131f;border:1px solid var(--fpt-border, rgba(0,0,0,0.12));border-radius:16px 16px 16px 4px;padding:8px 12px;font-size:13px;color:var(--fpt-text, #16181d);line-height:1.55;word-break:break-word;`;
     }
 
     // Parse text: images inline, links clickable
@@ -586,7 +586,7 @@ async function _openTicket(ticketId) {
     document.getElementById('fp-ticket-detail-status').textContent = '';
     document.getElementById('fp-tria').style.display = 'none';
     const msgs = document.getElementById('fp-tdm');
-    msgs.innerHTML = '<div style="text-align:center;color:#3a3d52;font-size:13px;padding:40px 0;">Загрузка...</div>';
+    msgs.innerHTML = '<div style="text-align:center;color:var(--fpt-text-muted, #8a90a6);font-size:13px;padding:40px 0;">Загрузка...</div>';
 
     try {
         const res = await _msg('supportGetTicketDetails', { ticketId });
@@ -604,7 +604,7 @@ async function _openTicket(ticketId) {
 
         msgs.innerHTML = '';
         if (!(res.comments || []).length) {
-            msgs.innerHTML = '<div style="text-align:center;color:#3a3d52;font-size:12px;padding:30px 0;">Нет сообщений</div>';
+            msgs.innerHTML = '<div style="text-align:center;color:var(--fpt-text-muted, #8a90a6);font-size:12px;padding:30px 0;">Нет сообщений</div>';
         } else {
             (res.comments || []).forEach(c => msgs.appendChild(_renderBubble(c, myUsername)));
             msgs.scrollTop = msgs.scrollHeight;
@@ -678,7 +678,7 @@ function initTicketsTab() {
     // Hover effects via JS - inline onmouseover breaks HTML in template literals
     const replyBtn = document.getElementById('fp-ticket-reply-btn');
     replyBtn?.addEventListener('mouseenter', () => replyBtn.style.background = '#5752e8');
-    replyBtn?.addEventListener('mouseleave', () => replyBtn.style.background = '#C026D3');
+    replyBtn?.addEventListener('mouseleave', () => replyBtn.style.background = '#1b75bb');
     const attachLbl = document.getElementById('fp-attach-lbl');
     attachLbl?.addEventListener('mouseenter', () => attachLbl.style.color = '#9099b8');
     attachLbl?.addEventListener('mouseleave', () => attachLbl.style.color = '#4a4f6a');

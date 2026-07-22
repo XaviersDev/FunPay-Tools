@@ -8,6 +8,7 @@ class MagicStickStyler {
         this.activeSelector = null;
         this.isClickThroughActive = false;
         this.savedStyles = {}; // { 'selector': { 'property': 'value' } }
+        this._autoSaveTimer = null;
 
         this.ui = {
             highlightEl: null,
@@ -45,6 +46,13 @@ class MagicStickStyler {
         if (sessionStorage.getItem('fpToolsMagicStickActive') === 'true') {
             this.activate();
         }
+
+        const flush = () => {
+            if (this._autoSaveTimer) { clearTimeout(this._autoSaveTimer); this._autoSaveTimer = null; }
+            try { chrome.storage.local.set({ fpToolsLiveStyles: this.savedStyles }); } catch (_) {}
+        };
+        window.addEventListener('pagehide', flush);
+        document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); });
     }
 
     toggle() {
@@ -74,6 +82,7 @@ class MagicStickStyler {
         document.removeEventListener('keydown', this.bound.handleKeyDown);
         this.selectedEl = null;
         this.activeSelector = null;
+        this.autoSaveNow();
     }
 
     handleKeyDown(e) {
@@ -233,6 +242,7 @@ class MagicStickStyler {
             cssText += '}\n';
         }
         this.ui.dynamicStyleTag.textContent = cssText;
+        this.autoSave();
     }
 
     injectPersistentStyles() {
@@ -251,6 +261,25 @@ class MagicStickStyler {
         await chrome.storage.local.set({ fpToolsLiveStyles: this.savedStyles });
         this.injectPersistentStyles();
         showNotification('Стили сохранены!', false);
+    }
+
+    autoSave() {
+        if (this._autoSaveTimer) clearTimeout(this._autoSaveTimer);
+        this._autoSaveTimer = setTimeout(async () => {
+            this._autoSaveTimer = null;
+            try {
+                await chrome.storage.local.set({ fpToolsLiveStyles: this.savedStyles });
+                this.injectPersistentStyles();
+            } catch (_) { /* storage недоступен - попробуем при следующем изменении */ }
+        }, 250);
+    }
+
+    async autoSaveNow() {
+        if (this._autoSaveTimer) { clearTimeout(this._autoSaveTimer); this._autoSaveTimer = null; }
+        try {
+            await chrome.storage.local.set({ fpToolsLiveStyles: this.savedStyles });
+            this.injectPersistentStyles();
+        } catch (_) {}
     }
     
     async loadStyles() {
@@ -526,7 +555,7 @@ class MagicStickStyler {
                 <div class="ms-panel-section ms-actions">
                     <button id="ms-continue-click-btn" data-title="Продолжить нажатие"><span class="material-icons">ads_click</span></button>
                     <button id="ms-hide-btn" data-title="Скрыть элемент"><span class="material-icons">visibility_off</span></button>
-                    <button id="ms-save-btn" data-title="Сохранить стили"><span class="material-icons">save</span></button>
+                    <button id="ms-save-btn" data-title="Автосохранение всегда включено (можно нажать для ручного сохранения)"><span class="material-icons">save</span></button>
                     <button id="ms-my-styles-btn" data-title="Мои стили"><span class="material-icons">style</span></button>
                     <button id="ms-exit-panel-btn" data-title="Выйти из режима"><span class="material-icons">logout</span></button>
                 </div>

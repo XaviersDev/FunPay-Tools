@@ -49,7 +49,7 @@
 
         const menu = document.createElement('div');
         menu.id = MENU_ID;
-        menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:#13141a;border:1px solid #22253a;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.5);z-index:100000;min-width:210px;padding:4px 0;font-family:Inter,'Segoe UI',sans-serif;font-size:13px;color:#d8dae8;`;
+        menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:var(--fpt-bg, #ffffff);border:1px solid var(--fpt-border, rgba(0,0,0,0.12));border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.5);z-index:100000;min-width:210px;padding:4px 0;font-family:Inter,'Segoe UI',sans-serif;font-size:13px;color:var(--fpt-text, #16181d);`;
 
         const hasNote = lot.__hasNote;
         const items = [
@@ -70,7 +70,7 @@
         ];
 
         items.forEach(item => {
-            if (item.sep) { const d = document.createElement('div'); d.style.cssText = 'height:1px;background:#1e2030;margin:4px 0;'; menu.appendChild(d); return; }
+            if (item.sep) { const d = document.createElement('div'); d.style.cssText = 'height:1px;background:var(--fpt-bg, #ffffff);margin:4px 0;'; menu.appendChild(d); return; }
             const row = document.createElement('div');
             row.style.cssText = `display:flex;align-items:center;gap:10px;padding:8px 14px;border-radius:4px;margin:0 4px;${item.hint ? 'opacity:0.4;cursor:default;font-size:11px;' : item.enabled ? 'cursor:pointer;' : 'opacity:0.4;cursor:default;'}`;
             const tooltipHtml = item.tooltip ? `<span style="font-size:10px;color:#4a5070;margin-left:auto;max-width:120px;text-align:right;white-space:normal;line-height:1.3;">${item.tooltip}</span>` : '';
@@ -131,20 +131,20 @@
         removeChatPanel();
         const panel = document.createElement('div');
         panel.id = CHAT_ID;
-        panel.style.cssText = 'position:fixed;bottom:24px;right:24px;width:320px;background:#13141a;border:1px solid #22253a;border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,0.6);z-index:100001;overflow:hidden;font-family:Inter,sans-serif;font-size:13px;color:#d8dae8;animation:fpCtxIn 0.15s ease;';
+        panel.style.cssText = 'position:fixed;bottom:24px;right:24px;width:320px;background:var(--fpt-bg, #ffffff);border:1px solid var(--fpt-border, rgba(0,0,0,0.12));border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,0.6);z-index:100001;overflow:hidden;font-family:Inter,sans-serif;font-size:13px;color:var(--fpt-text, #16181d);animation:fpCtxIn 0.15s ease;';
         panel.innerHTML = `
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #1e2030;background:#0e0f16;">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #1e2030;background:var(--fpt-surface, #f5f7fa);">
                 <span style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${lot.sellerName ? `Написать ${lot.sellerName}` : 'Написать'}</span>
                 <button id="fp-ctx-chat-close" style="background:none;border:none;color:#4a4f68;cursor:pointer;font-size:18px;padding:0 0 0 8px;line-height:1;">✕</button>
             </div>
             <div style="padding:10px 14px;">
                 <div style="font-size:11px;color:#4a4f68;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Лот: ${lot.title}</div>
-                <textarea id="fp-ctx-chat-text" placeholder="Сообщение... (Ctrl+Enter отправить)" style="width:100%;height:80px;background:#0e0f16;border:1px solid #22253a;border-radius:6px;color:#d8dae8;font-size:13px;padding:8px;resize:none;outline:none;font-family:inherit;box-sizing:border-box;"></textarea>
+                <textarea id="fp-ctx-chat-text" placeholder="Сообщение... (Ctrl+Enter отправить)" style="width:100%;height:80px;background:var(--fpt-surface, #f5f7fa);border:1px solid var(--fpt-border, rgba(0,0,0,0.12));border-radius:6px;color:var(--fpt-text, #16181d);font-size:13px;padding:8px;resize:none;outline:none;font-family:inherit;box-sizing:border-box;"></textarea>
                 <div style="display:flex;gap:8px;margin-top:8px;">
-                    <button id="fp-ctx-chat-send" style="flex:1;background:#C026D3;color:#fff;border:none;border-radius:6px;padding:9px;font-size:13px;font-weight:600;cursor:pointer;">Отправить</button>
-                    <a href="https://funpay.com/chat/?node=" id="fp-ctx-open-chat-link" target="_blank" style="display:flex;align-items:center;padding:0 10px;background:#1e2030;border:1px solid #2a2d44;border-radius:6px;color:#9099b8;text-decoration:none;font-size:12px;white-space:nowrap;">Открыть чат</a>
+                    <button id="fp-ctx-chat-send" style="flex:1;background:#1b75bb;color:#fff;border:none;border-radius:6px;padding:9px;font-size:13px;font-weight:600;cursor:pointer;">Отправить</button>
+                    <a href="https://funpay.com/chat/?node=" id="fp-ctx-open-chat-link" target="_blank" style="display:flex;align-items:center;padding:0 10px;background:var(--fpt-bg, #ffffff);border:1px solid #2a2d44;border-radius:6px;color:var(--fpt-text-muted, #6b7280);text-decoration:none;font-size:12px;white-space:nowrap;">Открыть чат</a>
                 </div>
-                <div id="fp-ctx-chat-status" style="font-size:11px;color:#5a5f7a;margin-top:6px;min-height:16px;"></div>
+                <div id="fp-ctx-chat-status" style="font-size:11px;color:var(--fpt-text-muted, #8a90a6);margin-top:6px;min-height:16px;"></div>
             </div>`;
         document.body.appendChild(panel);
 
@@ -161,7 +161,7 @@
         const status = document.getElementById('fp-ctx-chat-status');
 
         sendBt.addEventListener('mouseenter', () => sendBt.style.background = '#5d58f0');
-        sendBt.addEventListener('mouseleave', () => sendBt.style.background = '#C026D3');
+        sendBt.addEventListener('mouseleave', () => sendBt.style.background = '#1b75bb');
         ta.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendBt.click(); } });
         ta.focus();
 
@@ -253,7 +253,7 @@
             row.className = 'tc-item fp-pinned-row';
             row.href = lot.lotUrl;
             row.setAttribute('data-pinned-id', lot.offerId);
-            row.style.cssText = 'display:flex;align-items:center;padding:8px 12px;background:rgba(192,38,211,0.06);border-left:2px solid #C026D3;';
+            row.style.cssText = 'display:flex;align-items:center;padding:8px 12px;background:rgba(27,117,187,0.06);border-left:2px solid #1b75bb;';
 
             // Clone original row's structure if we can find it
             const origRow = document.querySelector(`a.tc-item[href*="id=${lot.offerId}"]`);
@@ -262,7 +262,7 @@
                 const clone = origRow.cloneNode(true);
                 clone.classList.add('fp-pinned-row');
                 clone.setAttribute('data-pinned-id', lot.offerId);
-                clone.style.cssText = 'border-left:2px solid #C026D3;background:rgba(192,38,211,0.05);';
+                clone.style.cssText = 'border-left:2px solid #1b75bb;background:rgba(27,117,187,0.05);';
                 // Remove any existing pinned clone to avoid duplication
                 targetTable.querySelector(`[data-pinned-id="${lot.offerId}"]`)?.remove();
                 // Add unpin button to cloned price cell
@@ -288,8 +288,8 @@
 
             // Fallback: minimal row
             row.innerHTML = `
-                <div class="tc-desc" style="flex:1;"><div class="tc-desc-text" style="color:#E9A8FF;">📌 ${lot.title}</div></div>
-                <div class="tc-price"><button data-unpin="${lot.offerId}" style="background:none;border:none;color:#3a3d52;cursor:pointer;font-size:14px;padding:0 4px;" title="Открепить">✕</button></div>`;
+                <div class="tc-desc" style="flex:1;"><div class="tc-desc-text" style="color:#4a9fd4;">📌 ${lot.title}</div></div>
+                <div class="tc-price"><button data-unpin="${lot.offerId}" style="background:none;border:none;color:var(--fpt-text-muted, #8a90a6);cursor:pointer;font-size:14px;padding:0 4px;" title="Открепить">✕</button></div>`;
             row.querySelector('button').addEventListener('click', (e) => {
                 e.preventDefault(); e.stopPropagation();
                 pinnedLots = pinnedLots.filter(p => p.offerId !== lot.offerId);

@@ -23,7 +23,7 @@ function initializeFPTIdentifier() {
         s.id = 'fpt-identifier-styles';
         s.textContent = `
             .${FPT_LABEL_CLASS} {
-                color: #C026D3;
+                color: #1b75bb;
                 font-size: 11px;
                 font-weight: 600;
                 margin-left: 6px;

@@ -144,6 +144,9 @@
         .fpt-dd-empty{padding:24px;text-align:center;color:var(--fpt-text-muted,#9099b8);font-size:13px;}
         .fp-stat-card{cursor:pointer;transition:transform .08s ease,box-shadow .12s ease;}
         .fp-stat-card:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,0,0,0.18);}
+        .fp-s3.fpt-clickable{cursor:pointer;}
+        .fp-s3.fpt-clickable .fp-s3-value{transition:color .12s ease;}
+        .fp-s3.fpt-clickable:hover .fp-s3-value{color:var(--fpt-accent,#1b75bb);}
         .fpt-dd-hint{font-size:10px;color:var(--fpt-text-muted,#9099b8);opacity:.7;margin-top:6px;}
         `;
         document.head.appendChild(css);
@@ -301,15 +304,16 @@
         ensureStyles();
 
         const defs = cardDefs();
-        Object.keys(defs).forEach(valueId => {
-            const valueEl = document.getElementById(valueId);
-            if (!valueEl) return;
-            const card = valueEl.closest('.fp-stat-card') || valueEl;
-            card.style.cursor = 'pointer';
-            card.title = 'Показать все заказы за этой цифрой';
-            if (card.dataset.ddBound) return;
-            card.dataset.ddBound = '1';
-            card.addEventListener('click', () => openCard(valueId));
+        // Кликабельны ТОЛЬКО ячейки, помеченные .fpt-clickable с data-click.
+        // Остальные (уникальные покупатели, топ-товар и т.п.) — обычный текст,
+        // без курсора-руки и без ховера, чтобы не выглядели «нажимаемыми».
+        cardsHost.querySelectorAll('.fpt-clickable[data-click]').forEach(cell => {
+            const valueId = cell.getAttribute('data-click');
+            if (!defs[valueId]) return;
+            cell.title = 'Показать все заказы за этой цифрой';
+            if (cell.dataset.ddBound) return;
+            cell.dataset.ddBound = '1';
+            cell.addEventListener('click', () => openCard(valueId));
         });
     }
 

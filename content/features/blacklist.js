@@ -26,18 +26,18 @@ function initializeBlacklist() {
         }
 
         listEl.innerHTML = fpToolsBlacklist.map((entry, i) => `
-            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#0e0f16;border:1px solid #1e2030;border-radius:7px;margin-bottom:6px;">
-                <span style="flex:1;font-size:13px;color:#d8dae8;font-weight:600;">
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--fpt-surface, #f5f7fa);border:1px solid #1e2030;border-radius:7px;margin-bottom:6px;">
+                <span style="flex:1;font-size:13px;color:var(--fpt-text, #16181d);font-weight:600;">
                     ${entry.username}
                     ${entry.note ? `<span style="color:#7a7f9a; font-weight:normal; font-size:11px; margin-left:6px;">(${entry.note})</span>` : ''}
                 </span>
-                <label title="Блокировать авто-выдачу" style="display:flex;align-items:center;gap:4px;font-size:11px;color:#5a5f7a;cursor:pointer;">
+                <label title="Блокировать авто-выдачу" style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--fpt-text-muted, #8a90a6);cursor:pointer;">
                     <input type="checkbox" class="fp-bl-delivery" data-idx="${i}" ${entry.blockDelivery ? 'checked' : ''} style="accent-color:#e05252;"> Выдача
                 </label>
-                <label title="Блокировать авто-ответы" style="display:flex;align-items:center;gap:4px;font-size:11px;color:#5a5f7a;cursor:pointer;">
+                <label title="Блокировать авто-ответы" style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--fpt-text-muted, #8a90a6);cursor:pointer;">
                     <input type="checkbox" class="fp-bl-response" data-idx="${i}" ${entry.blockResponse ? 'checked' : ''} style="accent-color:#e05252;"> Ответы
                 </label>
-                <label title="Блокировать уведомления" style="display:flex;align-items:center;gap:4px;font-size:11px;color:#5a5f7a;cursor:pointer;">
+                <label title="Блокировать уведомления" style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--fpt-text-muted, #8a90a6);cursor:pointer;">
                     <input type="checkbox" class="fp-bl-notif" data-idx="${i}" ${entry.blockNotification ? 'checked' : ''} style="accent-color:#e05252;"> Уведом.
                 </label>
                 <button class="btn btn-default fp-bl-remove" data-idx="${i}" style="padding:3px 8px;font-size:11px;flex-shrink:0;">✕</button>

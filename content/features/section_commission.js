@@ -81,6 +81,25 @@
     return percent;
   }
 
+  window.FPTCommission = {
+    getPercent: getPercent,
+    async getMultiplier(nodeId) {
+      const p = await getPercent(nodeId);
+      if (p == null) return null;
+      return 1 + p / 100;
+    },
+    async buyerPrice(nodeId, sellerPrice) {
+      const p = await getPercent(nodeId);
+      if (p == null || !Number.isFinite(sellerPrice)) return null;
+      return Math.round(sellerPrice * (1 + p / 100) * 100) / 100;
+    },
+    async sellerNet(nodeId, buyerPrice) {
+      const p = await getPercent(nodeId);
+      if (p == null || !Number.isFinite(buyerPrice)) return null;
+      return Math.round((buyerPrice / (1 + p / 100)) * 100) / 100;
+    }
+  };
+
   // --- комиссия рядом с заголовком (ванильный стиль FunPay) ---
   async function renderSectionCommission(nodeId) {
     const heading = document.querySelector('h1.page-header') || document.querySelector('.page-header') || document.querySelector('h1');

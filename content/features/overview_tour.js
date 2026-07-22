@@ -70,7 +70,7 @@ const SCENES = [
             <div class="tour-magicstick-mockup">
                 <div class="tour-ms-element" id="tour-ms-target">Кнопка</div>
                 <div class="tour-ms-panel">
-                    <span>Цвет:</span> <input type="color" value="#E879F9" disabled>
+                    <span>Цвет:</span> <input type="color" value="#1b75bb" disabled>
                 </div>
                 <div class="tour-ms-cursor"></div>
             </div>`,

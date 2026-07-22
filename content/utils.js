@@ -513,8 +513,8 @@ function fptComputePalette() {
     const hover    = fptMix(bg, dark ? 'white' : 'black', dark ? 0.14 : 0.08);
     const text     = textRaw;
     const textMuted = dark ? fptMix(textRaw, 'black', 0.35) : fptMix(textRaw, 'white', 0.35);
-    // акцент берём фирменный фанпеевский, но это можно переопределить
-    const accent = [193, 38, 211, 1]; // #C026D3 - но используем умеренно
+    // акцент — фирменный голубой FunPay (#1b75bb), под стиль самого сайта
+    const accent = [27, 117, 187, 1]; // #1b75bb
 
     return {
         dark,

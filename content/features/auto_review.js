@@ -282,8 +282,8 @@ function renderKeywordsList(keywords) {
 
     listContainer.innerHTML = keywords.map((item, index) => {
         const modeBadge = item.matchMode === 'contains'
-            ? '<span style="font-size:10px;background:#1e2030;padding:1px 5px;border-radius:3px;color:#7a7f9a;margin-left:4px;">содержит</span>'
-            : '<span style="font-size:10px;background:#1e2030;padding:1px 5px;border-radius:3px;color:#7a7f9a;margin-left:4px;">точно</span>';
+            ? '<span style="font-size:10px;background:var(--fpt-bg, #ffffff);padding:1px 5px;border-radius:3px;color:#7a7f9a;margin-left:4px;">содержит</span>'
+            : '<span style="font-size:10px;background:var(--fpt-bg, #ffffff);padding:1px 5px;border-radius:3px;color:#7a7f9a;margin-left:4px;">точно</span>';
         // show a small icon if the rule has an attached image
         const imgMarker = (Array.isArray(item.images) && item.images.length)
             ? '<span class="material-symbols-rounded fpt-kw-img-marker" title="К правилу прикреплено изображение">image</span>'

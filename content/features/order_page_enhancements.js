@@ -57,7 +57,7 @@ function makeOrderNumberCopyable() {
     icon.style.cssText = 'font-size:0.75em;opacity:.6;';
     chip.appendChild(icon);
 
-    chip.addEventListener('mouseenter', () => chip.style.background = 'rgba(192,38,211,0.15)');
+    chip.addEventListener('mouseenter', () => chip.style.background = 'rgba(27,117,187,0.15)');
     chip.addEventListener('mouseleave', () => chip.style.background = '');
     chip.addEventListener('click', async () => {
         try {
@@ -156,7 +156,7 @@ function initQuickPriceEdit() {
         const nodeId = nodeMatch ? nodeMatch[1] : null;
 
         const editBtn = document.createElement('span');
-        editBtn.style.cssText = 'display:none;font-size:11px;color:#C026D3;cursor:pointer;margin-left:4px;vertical-align:middle;user-select:none;';
+        editBtn.style.cssText = 'display:none;font-size:11px;color:#1b75bb;cursor:pointer;margin-left:4px;vertical-align:middle;user-select:none;';
         editBtn.textContent = '✎';
         editBtn.title = 'Быстро изменить цену';
         priceEl.appendChild(editBtn);
@@ -185,8 +185,8 @@ function openPricePopup(offerId, currentPrice, anchor, nodeId) {
     const popup = document.createElement('div');
     popup.id = 'fp-price-popup';
     const rect = anchor.getBoundingClientRect();
-    popup.style.cssText = `position:fixed;left:${Math.min(rect.right+8, window.innerWidth-200)}px;top:${rect.top}px;background:#13141a;border:1px solid #22253a;border-radius:8px;padding:12px;z-index:10000;box-shadow:0 8px 24px rgba(0,0,0,0.5);font-family:Inter,sans-serif;width:176px;`;
-    popup.innerHTML = `<div style="font-size:10px;color:#5a5f7a;margin-bottom:6px;font-weight:700;text-transform:uppercase;">Цена</div><input id="fp-pe-input" type="number" step="0.01" value="${parseFloat(currentPrice)||''}" style="width:100%;background:#0e0f16;border:1px solid #22253a;border-radius:5px;padding:6px;color:#d8dae8;font-size:13px;outline:none;font-family:inherit;margin-bottom:8px;"><div style="display:flex;gap:6px;"><button id="fp-pe-save" style="flex:1;background:#C026D3;border:none;color:#fff;border-radius:5px;padding:6px;font-size:12px;cursor:pointer;font-weight:600;">Сохранить</button><button id="fp-pe-cancel" style="background:#1e2030;border:1px solid #2a2d44;color:#9099b8;border-radius:5px;padding:6px 8px;font-size:12px;cursor:pointer;">✕</button></div><div id="fp-pe-status" style="font-size:11px;margin-top:6px;min-height:14px;color:#5a5f7a;"></div>`;
+    popup.style.cssText = `position:fixed;left:${Math.min(rect.right+8, window.innerWidth-200)}px;top:${rect.top}px;background:var(--fpt-bg, #ffffff);border:1px solid var(--fpt-border, rgba(0,0,0,0.12));border-radius:8px;padding:12px;z-index:10000;box-shadow:0 8px 24px rgba(0,0,0,0.5);font-family:Inter,sans-serif;width:176px;`;
+    popup.innerHTML = `<div style="font-size:10px;color:var(--fpt-text-muted, #8a90a6);margin-bottom:6px;font-weight:700;text-transform:uppercase;">Цена</div><input id="fp-pe-input" type="number" step="0.01" value="${parseFloat(currentPrice)||''}" style="width:100%;background:var(--fpt-surface, #f5f7fa);border:1px solid var(--fpt-border, rgba(0,0,0,0.12));border-radius:5px;padding:6px;color:var(--fpt-text, #16181d);font-size:13px;outline:none;font-family:inherit;margin-bottom:8px;"><div style="display:flex;gap:6px;"><button id="fp-pe-save" style="flex:1;background:#1b75bb;border:none;color:#fff;border-radius:5px;padding:6px;font-size:12px;cursor:pointer;font-weight:600;">Сохранить</button><button id="fp-pe-cancel" style="background:var(--fpt-bg, #ffffff);border:1px solid #2a2d44;color:var(--fpt-text-muted, #6b7280);border-radius:5px;padding:6px 8px;font-size:12px;cursor:pointer;">✕</button></div><div id="fp-pe-status" style="font-size:11px;margin-top:6px;min-height:14px;color:var(--fpt-text-muted, #8a90a6);"></div>`;
     document.body.appendChild(popup);
 
     const input = popup.querySelector('#fp-pe-input');
@@ -240,7 +240,7 @@ function initOfferListFilter() {
     let active = 0;
     const setActive = (btn) => {
         // нейтральный «активный» вид в стиле кнопок FunPay: лёгкая обводка-акцент,
-        // без фиолетового фона/текста (раньше было #2A1830/#E9A8FF — мозолило на белой теме)
+        // без фиолетового фона/текста (раньше было rgba(27,117,187,0.16)/#4a9fd4 — мозолило на белой теме)
         btn.style.borderColor = 'var(--fpt-text-muted, #8a90a0)';
         btn.style.fontWeight = '800';
         btn.style.opacity = '1';

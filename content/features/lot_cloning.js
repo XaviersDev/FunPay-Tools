@@ -986,9 +986,24 @@ async function submitForm(formData) {
     const nodeId = new URLSearchParams(window.location.search).get('node');
     formData.set('node_id', nodeId); formData.set('offer_id', '0');
     try {
-        const response = await fetch('https://funpay.com/lots/offerSave', { method: 'POST', body: new URLSearchParams(formData) });
-        if (response.ok) showNotification('Лот успешно продублирован!');
-        else { console.error('Ошибка при копировании лота', response); showNotification('Ошибка при копировании лота', true); }
+        const response = await fetch('https://funpay.com/lots/offerSave', {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+            },
+            body: new URLSearchParams(formData)
+        });
+        if (response.ok && !/\/account\/login/.test(response.url)) {
+            showNotification('Лот успешно продублирован!');
+        } else if (/\/account\/login/.test(response.url)) {
+            console.error('Ошибка при копировании лота: редирект на логин', response);
+            showNotification('Сессия FunPay устарела. Обновите страницу funpay.com и повторите.', true);
+        } else {
+            console.error('Ошибка при копировании лота', response);
+            showNotification('Ошибка при копировании лота', true);
+        }
     } catch (error) { console.error('Ошибка при выполнении запроса', error); showNotification('Ошибка при выполнении запроса', true); }
 }
 

@@ -68,13 +68,13 @@ function initSalesFilter() {
     periods.forEach(p => {
         const btn = document.createElement('button');
         btn.className = 'btn btn-default';
-        btn.style.cssText = `padding:4px 10px;font-size:11px;font-weight:600;${p.default ? 'background:#2A1830;color:#E9A8FF;border-color:#363a5a;' : ''}`;
+        btn.style.cssText = `padding:4px 10px;font-size:11px;font-weight:600;${p.default ? 'background:rgba(27,117,187,0.16);color:#4a9fd4;border-color:rgba(27,117,187,0.4);' : ''}`;
         btn.textContent = p.label;
         btn.addEventListener('click', () => {
             bar.querySelectorAll('button').forEach(b => {
                 b.style.background = ''; b.style.color = ''; b.style.borderColor = '';
             });
-            btn.style.background = '#2A1830'; btn.style.color = '#E9A8FF'; btn.style.borderColor = '#363a5a';
+            btn.style.background = 'rgba(27,117,187,0.16)'; btn.style.color = '#4a9fd4'; btn.style.borderColor = 'rgba(27,117,187,0.4)';
             applySalesPeriodFilter(p.days);
         });
         bar.appendChild(btn);
@@ -128,8 +128,8 @@ function initReviewRequestButtons() {
 
             const btn = document.createElement('button');
             btn.style.cssText = `
-                background:none;border:1px solid #22253a;border-radius:4px;
-                color:#C026D3;cursor:pointer;padding:2px 8px;font-size:11px;
+                background:none;border:1px solid var(--fpt-border, rgba(0,0,0,0.12));border-radius:4px;
+                color:#1b75bb;cursor:pointer;padding:2px 8px;font-size:11px;
                 margin-left:6px;font-family:Inter,sans-serif;transition:background .15s;
                 white-space:nowrap;flex-shrink:0;
             `;

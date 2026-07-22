@@ -60,19 +60,19 @@ function renderDeliveryLots(lots, config, container) {
             const lotConfig = config[String(lot.id)] || {};
             const item = document.createElement('div');
             item.style.cssText = `
-                background:#0e0f16;border:1px solid #1e2030;border-radius:8px;
+                background:var(--fpt-surface, #f5f7fa);border:1px solid #1e2030;border-radius:8px;
                 padding:12px;margin-bottom:8px;
             `;
 
             item.innerHTML = `
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                    <span style="font-size:13px;font-weight:600;color:#d8dae8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%;">${lot.title}</span>
+                    <span style="font-size:13px;font-weight:600;color:var(--fpt-text, #16181d);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%;">${lot.title}</span>
                     <div style="display:flex;gap:6px;align-items:center;">
-                        <span class="fp-ad-product-count" data-lot-id="${lot.id}" style="font-size:11px;color:#5a5f7a;">
+                        <span class="fp-ad-product-count" data-lot-id="${lot.id}" style="font-size:11px;color:var(--fpt-text-muted, #8a90a6);">
                             ${lotConfig.productCount !== undefined ? `📦 ${lotConfig.productCount} шт.` : ''}
                         </span>
-                        <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:#5a5f7a;cursor:pointer;">
-                            <input type="checkbox" class="fp-ad-enabled" data-lot-id="${lot.id}" ${lotConfig.enabled ? 'checked' : ''} style="accent-color:#C026D3;">
+                        <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--fpt-text-muted, #8a90a6);cursor:pointer;">
+                            <input type="checkbox" class="fp-ad-enabled" data-lot-id="${lot.id}" ${lotConfig.enabled ? 'checked' : ''} style="accent-color:#1b75bb;">
                             Авто-выдача
                         </label>
                     </div>
@@ -94,11 +94,11 @@ function renderDeliveryLots(lots, config, container) {
                             style="height:80px;">${lotConfig.text || ''}</textarea>
                     </div>
                     <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
-                        <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:#5a5f7a;cursor:pointer;">
+                        <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--fpt-text-muted, #8a90a6);cursor:pointer;">
                             <input type="checkbox" class="fp-ad-auto-restore" data-lot-id="${lot.id}" ${lotConfig.autoRestoreEnabled !== false ? 'checked' : ''} style="accent-color:#4caf82;">
                             Авто-восстановление
                         </label>
-                        <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:#5a5f7a;cursor:pointer;">
+                        <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--fpt-text-muted, #8a90a6);cursor:pointer;">
                             <input type="checkbox" class="fp-ad-auto-disable" data-lot-id="${lot.id}" ${lotConfig.autoDisableEnabled !== false ? 'checked' : ''} style="accent-color:#e05252;">
                             Авто-деактивация при пустом складе
                         </label>

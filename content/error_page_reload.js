@@ -55,14 +55,14 @@
                   background:#0f1016;color:#e6e7ee;
                   font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
                 <div style="width:64px;height:64px;border-radius:50%;
-                    border:5px solid rgba(192,38,211,.18);border-top-color:#C026D3;
+                    border:5px solid rgba(27,117,187,.18);border-top-color:#1b75bb;
                     animation:fptErrSpin .9s linear infinite;"></div>
                 <div style="font-size:21px;font-weight:600;letter-spacing:.2px;">Подождите...</div>
                 <div style="font-size:14px;color:#9a9db4;text-align:center;max-width:320px;line-height:1.5;">
                     ${codeText}${code ? ` (${code})` : ''}.<br>Страница обновится автоматически.
                 </div>
                 <div style="width:220px;height:4px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;">
-                    <div id="fpt-err-bar" style="height:100%;width:0;background:#C026D3;border-radius:3px;
+                    <div id="fpt-err-bar" style="height:100%;width:0;background:#1b75bb;border-radius:3px;
                         transition:width ${RELOAD_MS}ms linear;"></div>
                 </div>
                 <button id="fpt-err-now" style="

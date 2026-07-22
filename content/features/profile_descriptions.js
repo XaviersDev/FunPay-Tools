@@ -6,7 +6,7 @@
   const VERIFY_NODE_ID = '2046';
   const VERIFY_TITLE = 'FPT Verify';
   const VERIFY_PRICE = '1000';
-  const DESCRIPTION_MAX = 600;
+  const DESCRIPTION_MAX = 250;
   const MAX_LINES = 4;
   const ROOT = 'fpt-pd';
   const ROW = 'fpt-pd-row';
@@ -14,6 +14,7 @@
   const EDIT = 'fpt-pd-edit';
   const SESSION_KEY = 'fptProfileSession';
   const CACHE_KEY = 'fptProfileDescrCache';
+  const PENDING_LOTS_KEY = 'fptPendingVerifyLots'; // отложенная очистка верификационных лотов
   const CLIENT_CACHE_TTL = 60 * 60 * 1000;
   const PROFILE_RE = /^\/users\/(\d+)\/?$/;
 
@@ -132,14 +133,10 @@
     if (!r.ok) { const c = await safeErr(r); const e = new Error(c); e.httpStatus = r.status; throw e; }
     return r.json();
   }
-  async function serverSaveBanner(session, bannerUrl) {
-    const r = await fetch(SERVER + '/me/funpay/banner', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'X-FPT-Key': SHARED_KEY, Authorization: 'Bearer ' + session },
-      body: JSON.stringify({ bannerUrl }),
-    });
-    if (!r.ok) { const c = await safeErr(r); const e = new Error(c); e.httpStatus = r.status; throw e; }
-    return r.json();
+  // Кастомные баннеры профиля удалены. Функция оставлена как заглушка,
+  // чтобы не трогать вызывающий код; сетевых запросов не делает.
+  async function serverSaveBanner(_session, _bannerUrl) {
+    return { ok: true, disabled: true };
   }
   async function safeErr(res) {
     try { const j = await res.json(); return (j && j.error && j.error.code) || ('HTTP_' + res.status); }
@@ -245,6 +242,66 @@
       throw new Error('FUNPAY_DELETE_ERROR: ' + e);
     }
   }
+
+  // ── Надёжная очистка верификационных лотов ──────────────────────────────────
+  // Проблема: если удаление лота падало из-за сети, лот оставался навсегда.
+  // Решение: как только лот создан, записываем его id в chrome.storage. Удаление
+  // снимает запись ТОЛЬКО при подтверждённом успехе. На каждом заходе (и по таймеру)
+  // «подметаем» все оставшиеся id и дочищаем их с повторными попытками.
+  async function trackPendingLot(offerId) {
+    if (offerId == null) return;
+    const cur = (await storageGet([PENDING_LOTS_KEY]))[PENDING_LOTS_KEY] || {};
+    cur[String(offerId)] = Date.now();
+    await storageSet({ [PENDING_LOTS_KEY]: cur });
+  }
+  async function untrackPendingLot(offerId) {
+    const cur = (await storageGet([PENDING_LOTS_KEY]))[PENDING_LOTS_KEY] || {};
+    if (String(offerId) in cur) {
+      delete cur[String(offerId)];
+      await storageSet({ [PENDING_LOTS_KEY]: cur });
+    }
+  }
+
+  // Удаляет лот с несколькими попытками. Снимает из очереди только при успехе.
+  async function cleanupVerificationLot(offerId, attempts) {
+    const tries = attempts || 3;
+    for (let i = 0; i < tries; i++) {
+      try {
+        await deleteVerificationLot(offerId);
+        await untrackPendingLot(offerId);
+        console.log('[FPT PD] verify lot deleted, offerId=', offerId);
+        return true;
+      } catch (e) {
+        console.warn('[FPT PD] delete attempt', i + 1, 'failed for', offerId, e && e.message);
+        // экспоненциальная пауза перед следующей попыткой (2s, 4s, 8s…)
+        if (i < tries - 1) await new Promise((r) => setTimeout(r, 2000 * Math.pow(2, i)));
+      }
+    }
+    // не удалось сейчас — id остаётся в очереди, дочистим при следующем sweep
+    return false;
+  }
+
+  let _sweepRunning = false;
+  // Проходит по всем незакрытым лотам и пытается их удалить.
+  async function sweepPendingLots() {
+    if (_sweepRunning) return;
+    _sweepRunning = true;
+    try {
+      const cur = (await storageGet([PENDING_LOTS_KEY]))[PENDING_LOTS_KEY] || {};
+      const ids = Object.keys(cur);
+      if (!ids.length) return;
+      // нужен валидный csrf на странице funpay, иначе delete всё равно не пройдёт
+      if (!getCsrf()) return;
+      console.log('[FPT PD] sweeping', ids.length, 'pending verify lot(s)…');
+      for (const id of ids) {
+        await cleanupVerificationLot(id, 2);
+      }
+    } catch (e) {
+      console.warn('[FPT PD] sweep error:', e && e.message);
+    } finally {
+      _sweepRunning = false;
+    }
+  }
   async function pollConfirm(id, maxMs) {
     const deadline = Date.now() + (maxMs || 90000);
     while (Date.now() < deadline) {
@@ -274,6 +331,9 @@
     let offerId = null;
     try {
       offerId = await createVerificationLot(start.code);
+      // Сразу фиксируем id в хранилище — чтобы лот гарантированно удалился даже
+      // если страницу закроют или упадёт сеть до штатного удаления.
+      await trackPendingLot(offerId);
       console.log('[FPT PD] lot created, offerId=', offerId, '- ждём проверку сервером…');
       const conf = await pollConfirm(id, 90000);
       console.log('[FPT PD] confirmed by server');
@@ -281,7 +341,13 @@
       await saveSession(session);
       return session;
     } finally {
-      if (offerId !== null) deleteVerificationLot(offerId).catch(() => {});
+      // Удаляем с повторными попытками; при неудаче id остаётся в очереди и будет
+      // дочищен фоновым sweep при следующем заходе на профиль.
+      if (offerId !== null) {
+        cleanupVerificationLot(offerId).then((ok) => {
+          if (!ok) console.warn('[FPT PD] lot', offerId, 'не удалён сейчас — дочистим позже');
+        });
+      }
     }
   }
 
@@ -314,35 +380,7 @@
       '.fpt-cover-gtop{position:absolute !important;inset:0 !important;background:linear-gradient(180deg,rgba(13,19,33,.22) 0%,transparent 35%,transparent 75%,rgba(13,19,33,.32) 100%) !important;z-index:1 !important;border-radius:0 0 40px 40px !important;pointer-events:none;}' +
       '.fpt-cover-gbottom{position:absolute !important;bottom:0 !important;left:0 !important;width:100% !important;height:160px !important;background:linear-gradient(0deg,rgba(13,19,33,.6) 0%,rgba(13,19,33,.25) 45%,transparent 100%) !important;z-index:1 !important;border-radius:0 0 40px 40px !important;pointer-events:none;}' +
       '.fpt-cover-gdark{position:absolute !important;inset:0 !important;background:rgba(0,0,0,.05) !important;z-index:1 !important;border-radius:0 0 40px 40px !important;pointer-events:none;}' +
-      '.profile-cover-img.fpt-cover .avatar,.fpt-cover-host .avatar{position:relative !important;z-index:10 !important;}' +
-      '.fpt-banner-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0);opacity:0;transition:opacity .18s ease,background .18s ease;cursor:pointer;z-index:5;}' +
-      '.profile-cover-img.fpt-cover:hover .fpt-banner-overlay{opacity:1;background:rgba(0,0,0,.45);}' +
-      '.fpt-banner-pencil{width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;}' +
-      '.fpt-banner-modal{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);transition:background .4s ease;}' +
-      '.fpt-banner-modal.fpt-preview-mode{background:rgba(0,0,0,.12);}' +
-      '.fpt-banner-box{background:#fff;color:#1a1a1a;width:min(620px,94vw);border-radius:14px;padding:30px 30px 26px;box-shadow:0 20px 60px rgba(0,0,0,.45);transition:transform .55s cubic-bezier(.22,1,.36,1),box-shadow .4s ease;will-change:transform;}' +
-      '.fpt-preview-mode .fpt-banner-box{transform:translateY(24vh);box-shadow:0 28px 70px rgba(0,0,0,.5);}' +
-      '.fpt-banner-box h5{margin:0 0 18px;font-size:20px;font-weight:700;color:#1a1a1a;}' +
-      '.fpt-banner-input{width:100%;box-sizing:border-box;padding:14px 16px;border:1.5px solid #d5d7db;border-radius:9px;background:#fff;color:#1a1a1a;font-size:15px;outline:none;transition:border-color .15s ease;}' +
-      '.fpt-banner-input:focus{border-color:var(--fpt-pd-primary,#f59e0b);}' +
-      '.fpt-banner-input::placeholder{color:#9aa0a6;}' +
-      '.fpt-banner-hint{font-size:13px;color:#6b7280;margin-top:14px;line-height:1.5;min-height:20px;}' +
-      '.fpt-banner-hint.fpt-bad{color:#dc2626;}' +
-      '.fpt-banner-help{margin-top:14px;padding:14px 16px;background:#f4f6f8;border-radius:10px;border:1px solid #e6e9ee;}' +
-      '.fpt-help-title{font-size:13px;font-weight:700;color:#374151;margin-bottom:8px;}' +
-      '.fpt-help-step{font-size:12.5px;color:#4b5563;line-height:1.55;margin-bottom:4px;}' +
-      '.fpt-help-note{font-size:12px;color:#9ca3af;line-height:1.5;margin-top:8px;}' +
-      '.fpt-banner-help b{color:#111827;}' +
-      '.fpt-banner-actions{display:flex;gap:10px;margin-top:28px;}' +
-      '.fpt-banner-actions .btn{min-width:120px;padding:10px 18px;font-size:14px;}' +
-      '.fpt-banner-actions .btn[disabled]{opacity:.6;cursor:default;}' +
-      '.fpt-btn-dots{display:inline-block;}' +
-      '.fpt-btn-dots > i{display:inline-block;width:5px;height:5px;margin:0 1.5px;border-radius:50%;background:currentColor;opacity:.4;animation:fpt-pd-bounce 1.2s infinite ease-in-out;}' +
-      '.fpt-btn-dots > i:nth-child(2){animation-delay:.15s;}' +
-      '.fpt-btn-dots > i:nth-child(3){animation-delay:.3s;}' +
-      '.fpt-banner-vignette{position:fixed;inset:0;z-index:9998;pointer-events:none;opacity:0;transition:opacity .35s ease;box-shadow:inset 0 0 120px 30px rgba(0,0,0,.28);display:flex;align-items:flex-end;justify-content:center;}' +
-      '.fpt-banner-vignette.show{opacity:1;}' +
-      '.fpt-banner-vignette span{margin-bottom:26px;background:rgba(0,0,0,.45);color:#fff;font-size:12px;padding:6px 12px;border-radius:20px;}';
+      '.profile-cover-img.fpt-cover .avatar,.fpt-cover-host .avatar{position:relative !important;z-index:10 !important;}';
     document.head.appendChild(s);
   }
 
@@ -432,18 +470,84 @@
     save.type = 'button'; save.className = 'btn btn-primary'; save.textContent = 'Сохранить';
     const cancel = document.createElement('button');
     cancel.type = 'button'; cancel.className = 'btn btn-gray'; cancel.textContent = 'Отмена';
+    let del = null;
+    if (state.description) {
+      del = document.createElement('button');
+      del.type = 'button'; del.className = 'btn btn-danger'; del.textContent = 'Удалить описание';
+    }
     const counter = document.createElement('span');
     counter.className = 'fpt-pd-counter';
     const upd = () => { counter.textContent = ta.value.length + ' / ' + DESCRIPTION_MAX; };
     upd();
     ta.addEventListener('input', upd);
-    actions.appendChild(save); actions.appendChild(cancel); actions.appendChild(counter);
+    actions.appendChild(save);
+    if (del) actions.appendChild(del);
+    actions.appendChild(cancel); actions.appendChild(counter);
     root.appendChild(actions);
     cancel.addEventListener('click', () => renderView(root, state));
-    save.addEventListener('click', async () => {
-      save.disabled = true; cancel.disabled = true;
-      const text = ta.value;
+
+    function localHasContactInfo(text) {
+      if (!text) return false;
+      const t = String(text);
+      const low = t.toLowerCase();
+
+      if (/(^|[^a-zA-Zа-яА-Я0-9_@])@[a-zA-Z0-9_]{3,}/.test(t)) return true;
+
+      if (/\b(t\.me|telegram\.me|wa\.me|vk\.com|vk\.cc|discord(app)?\.(gg|com)|instagram\.com|t\.co|wa\.link)\b/i.test(low)) return true;
+      if (/https?:\/\/|www\./i.test(low)) return true;
+
+      if (/\b(телеграм|телега|тг|тгк|whatsapp|ватсап|вотсап|вацап|viber|вайбер|discord|дискорд|диск|skype|скайп|instagram|инста|инстаграм|вконтакте|вк|vk)\b/i.test(low)) return true;
+
+      if (/\b(в\s*лс|в\s*личк|в\s*личн|напиши\s*мне|пиши\s*мне|пишите\s*мне|вне\s*(сайта|фанпей|funpay)|мой\s*(тг|ник|контакт|телеграм)|мои\s*контакты|связь\s*вне)\b/i.test(low)) return true;
+
+      const phone = t.replace(/[\s()\-]/g, '');
+      if (/(\+?\d[\d]{9,14})/.test(phone)) return true;
+
+      if (/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/.test(t)) return true;
+
+      return false;
+    }
+
+    async function aiHasContactInfo(text) {
       try {
+        const res = await new Promise((resolve) => {
+          let done = false;
+          const to = setTimeout(() => { if (!done) { done = true; resolve(null); } }, 15000);
+          try {
+            chrome.runtime.sendMessage(
+              { action: 'getAIProcessedText', text, context: '', myUsername: '', type: 'contact_check' },
+              (r) => { if (!done) { done = true; clearTimeout(to); resolve(r); } }
+            );
+          } catch (_) { if (!done) { done = true; clearTimeout(to); resolve(null); } }
+        });
+        console.log('[FPT PD] contact_check AI result:', res);
+        if (!res || !res.success || typeof res.data !== 'string') return false;
+        const ans = res.data.toLowerCase().trim();
+        if (/\b(нет|no|отсутств|не\s*содерж|не\s*обнаруж)\b/.test(ans)) return false;
+        if (/\b(есть|да|yes|обнаруж|содерж|найден|присутств|имеет)\b/.test(ans)) return true;
+        return false;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    async function hasContactInfo(text) {
+      if (localHasContactInfo(text)) return true;
+      return await aiHasContactInfo(text);
+    }
+
+    async function persist(text, okMessage) {
+      save.disabled = true; cancel.disabled = true; if (del) del.disabled = true;
+      try {
+        if (text && text.trim()) {
+          toast('Проверяем описание…', false);
+          const hasContact = await aiHasContactInfo(text);
+          if (hasContact) {
+            toast('В описании нельзя указывать контактные данные (Telegram, номер и т.п.). Уберите их и попробуйте снова.', true);
+            save.disabled = false; cancel.disabled = false; if (del) del.disabled = false;
+            return;
+          }
+        }
         let session = state.session || (await loadSession(state.funpayUserId));
         if (!session || session.funpayUserId !== state.funpayUserId) {
           console.log('[FPT PD] no session, starting verification for', state.funpayUserId);
@@ -466,13 +570,21 @@
         const newState = Object.assign({}, state, { description: newDesc, session });
         await cacheWrite(state.funpayUserId, { description: newDesc, bannerUrl: state.bannerUrl });
         renderView(root, newState);
-        toast('Описание сохранено', false);
+        toast(okMessage, false);
       } catch (e) {
         console.error('[FPT PD] save failed:', e && e.message, e);
         toast(humanError(e && e.message), true);
-        save.disabled = false; cancel.disabled = false;
+        save.disabled = false; cancel.disabled = false; if (del) del.disabled = false;
       }
-    });
+    }
+
+    save.addEventListener('click', () => persist(ta.value, 'Описание сохранено'));
+    if (del) {
+      del.addEventListener('click', () => {
+        if (!confirm('Удалить описание профиля?')) return;
+        persist('', 'Описание удалено');
+      });
+    }
     ta.focus();
   }
 
@@ -498,339 +610,15 @@
 
   // Грузит картинку с прогрессом. onProgress(percentOrNull).
   // Долгий таймаут (90с) — большие гифки на слабом инете успеют.
-  function preloadImage(url, onProgress) {
-    return new Promise((resolve) => {
-      let done = false;
-      const finish = (ok, reason) => { if (!done) { done = true; resolve({ ok, reason }); } };
+  // Кастомные баннеры профиля удалены полностью.
+  function reattachEditor() { /* disabled */ }
+  function applyBanner(_url) { /* disabled */ }
 
-      // Сначала пробуем XHR (даёт проценты загрузки)
-      let gotXhr = false;
-      try {
-        const xhr = new XMLHttpRequest();
-        xhr.open('GET', url, true);
-        xhr.responseType = 'blob';
-        xhr.timeout = 160000;
-        xhr.onprogress = (e) => {
-          gotXhr = true;
-          if (onProgress) {
-            if (e.lengthComputable && e.total > 0) onProgress(Math.round((e.loaded / e.total) * 100));
-            else onProgress(null);
-          }
-        };
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 400 && xhr.response && /^image\//.test(xhr.response.type || '')) {
-            finish(true, null);
-          } else if (xhr.status >= 200 && xhr.status < 400 && xhr.response) {
-            // сервер не дал content-type image — проверим через <img>
-            verifyViaImg();
-          } else {
-            verifyViaImg();
-          }
-        };
-        xhr.onerror = () => { verifyViaImg(); };      // CORS/hotlink — падаем на <img>
-        xhr.ontimeout = () => finish(false, 'timeout');
-        xhr.send();
-      } catch {
-        verifyViaImg();
-      }
+  // Кастомные баннеры профиля удалены — редактор баннера не монтируется.
+  function mountBannerEditor(_profileId, _session, _currentBanner) { /* disabled */ }
 
-      // Фолбэк: обычная <img> загрузка (работает даже при CORS-запрете на XHR)
-      function verifyViaImg() {
-        if (done) return;
-        if (onProgress) onProgress(null);
-        const img = new Image();
-        img.onload = () => finish(true, null);
-        img.onerror = () => finish(false, 'load');
-        img.src = url;
-        // запасной таймаут именно для img-пути
-        setTimeout(() => finish(false, 'timeout'), 160000);
-      }
-    });
-  }
-
-  let bannerWatch = null;
-  let activeBannerUrl = null;
-  let editorMount = null;
-
-  function reattachEditor() {
-    if (!editorMount) return;
-    const cover = findCover();
-    if (!cover) return;
-    const img = cover.querySelector(':scope > .profile-cover-img.fpt-cover');
-    if (img && !img.querySelector('.fpt-banner-overlay')) {
-      const overlay = document.createElement('div');
-      overlay.className = 'fpt-banner-overlay';
-      overlay.innerHTML = '<span class="fpt-banner-pencil"><i class="fa fa-pen"></i></span>';
-      img.appendChild(overlay);
-      overlay.addEventListener('click', () => openBannerForm(cover, editorMount.profileId, editorMount.state));
-    }
-  }
-
-  function buildCoverBanner(cover, url) {
-    const avatar = cover.querySelector('.avatar');
-    let img = cover.querySelector(':scope > .profile-cover-img.fpt-cover');
-    if (!img) {
-      Array.from(cover.querySelectorAll(':scope > .profile-cover-img, :scope > .profile-cover-container'))
-        .forEach((el) => { if (!el.classList.contains('fpt-cover')) el.remove(); });
-      img = document.createElement('div');
-      img.className = 'profile-cover-img fpt-cover';
-      cover.insertBefore(img, cover.firstChild);
-    }
-    img.innerHTML = '';
-
-    const pic = document.createElement('div');
-    pic.className = 'fpt-cover-pic';
-    if (url) pic.style.backgroundImage = 'url("' + url.replace(/"/g, '%22') + '")';
-
-    const gTop = document.createElement('div'); gTop.className = 'fpt-cover-gtop';
-    const gBottom = document.createElement('div'); gBottom.className = 'fpt-cover-gbottom';
-    const gDark = document.createElement('div'); gDark.className = 'fpt-cover-gdark';
-
-    img.appendChild(pic);
-    img.appendChild(gTop);
-    img.appendChild(gBottom);
-    img.appendChild(gDark);
-
-    if (avatar && avatar.parentElement !== cover) cover.appendChild(avatar);
-    cover.setAttribute('data-fpt-banner', url || '');
-    cover.classList.add('fpt-cover-host');
-    return { img, pic };
-  }
-
-  function guardBanner() {
-    if (bannerWatch) return;
-    bannerWatch = new MutationObserver(() => {
-      if (!activeBannerUrl) return;
-      const cover = findCover();
-      if (!cover) return;
-      const pic = cover.querySelector(':scope > .profile-cover-img.fpt-cover .fpt-cover-pic');
-      if (!pic || cover.getAttribute('data-fpt-banner') !== activeBannerUrl) {
-        buildCoverBanner(cover, activeBannerUrl);
-        reattachEditor();
-      }
-    });
-    bannerWatch.observe(document.body, { childList: true, subtree: true });
-  }
-
-  function applyBanner(url) {
-    const cover = findCover();
-    if (!cover || !url) return;
-    activeBannerUrl = url;
-    const pic = cover.querySelector(':scope > .profile-cover-img.fpt-cover .fpt-cover-pic');
-    if (pic && cover.getAttribute('data-fpt-banner') === url) { guardBanner(); return; }
-    buildCoverBanner(cover, url);
-    console.log('[FPT PD] banner applied');
-    guardBanner();
-  }
-
-  function validateBannerUrl(url) {
-    const u = (url || '').trim();
-    if (!u) return { ok: false, msg: 'Вставьте ссылку на картинку.' };
-    if (!/^https:\/\//i.test(u)) return { ok: false, msg: 'Ссылка должна начинаться с https://' };
-    return { ok: true, url: u };
-  }
-
-  function checkImageSize(url, maxBytes) {
-    return new Promise((resolve) => {
-      let settled = false;
-      const done = (v) => { if (!settled) { settled = true; resolve(v); } };
-      try {
-        const xhr = new XMLHttpRequest();
-        xhr.open('HEAD', url, true);
-        xhr.timeout = 8000;
-        xhr.onreadystatechange = () => {
-          if (xhr.readyState === xhr.HEADERS_RECEIVED) {
-            const len = Number(xhr.getResponseHeader('Content-Length') || 0);
-            if (len && len > maxBytes) return done({ ok: false, tooBig: true });
-            done({ ok: true });
-          }
-        };
-        xhr.onerror = () => done({ ok: true });
-        xhr.ontimeout = () => done({ ok: true });
-        xhr.send();
-      } catch { done({ ok: true }); }
-    });
-  }
-
-  function mountBannerEditor(profileId, session, currentBanner) {
-    const cover = findCover();
-    if (!cover) return;
-
-    let img = cover.querySelector(':scope > .profile-cover-img.fpt-cover');
-    if (!img) {
-      const r = buildCoverBanner(cover, currentBanner || activeBannerUrl || '');
-      img = r.img;
-    }
-    if (currentBanner) activeBannerUrl = currentBanner;
-
-    if (!img.querySelector('.fpt-banner-overlay')) {
-      const overlay = document.createElement('div');
-      overlay.className = 'fpt-banner-overlay';
-      overlay.innerHTML = '<span class="fpt-banner-pencil"><i class="fa fa-pen"></i></span>';
-      img.appendChild(overlay);
-      let state = { banner: currentBanner || null, session };
-      editorMount = { profileId, state };
-      overlay.addEventListener('click', () => openBannerForm(cover, profileId, state));
-      console.log('[FPT PD] banner editor mounted');
-    }
-  }
-
-  function openBannerForm(cover, profileId, state) {
-    if (document.querySelector('.fpt-banner-modal')) return;
-    const MAX_BYTES = 30 * 1024 * 1024;
-
-    const modal = document.createElement('div');
-    modal.className = 'fpt-banner-modal';
-    modal.innerHTML =
-      '<div class="fpt-banner-box">' +
-      '<h5 class="fpt-pd-h">Баннер профиля</h5>' +
-      '<input type="text" class="fpt-banner-input" placeholder="https://i.ibb.co/.../kartinka.png" />' +
-      '<div class="fpt-banner-hint">Нужна <b>прямая ссылка на картинку</b> (png, jpg, gif), до 30 МБ.</div>' +
-      '<div class="fpt-banner-help">' +
-      '<div class="fpt-help-title">Как получить прямую ссылку?</div>' +
-      '<div class="fpt-help-step">1. Загрузите картинку на <b>postimages.org</b> или <b>imgbb.com</b> (без регистрации).</div>' +
-      '<div class="fpt-help-step">2. Скопируйте поле <b>«Прямая ссылка»</b> / <b>«Direct link»</b>.</div>' +
-      '<div class="fpt-help-step">Если такого поля нет - нажмите <b>правой кнопкой по картинке</b> и выберите <b>«Копировать ссылку на изображение»</b>.</div>' +
-      '<div class="fpt-help-note">Ссылка на страницу сайта (например, на пост в VK или Pinterest) <b>не подойдёт</b> - нужна ссылка на саму картинку.</div>' +
-      '</div>' +
-      '<div class="fpt-banner-actions">' +
-      '<button type="button" class="btn btn-gray fpt-banner-preview">Предпросмотр</button>' +
-      '<button type="button" class="btn btn-primary fpt-banner-save">Сохранить</button>' +
-      '<button type="button" class="btn btn-gray fpt-banner-cancel">Отмена</button>' +
-      '</div></div>';
-    document.body.appendChild(modal);
-
-    const input = modal.querySelector('.fpt-banner-input');
-    const hint = modal.querySelector('.fpt-banner-hint');
-    const btnPrev = modal.querySelector('.fpt-banner-preview');
-    const btnSave = modal.querySelector('.fpt-banner-save');
-    const btnCancel = modal.querySelector('.fpt-banner-cancel');
-    if (state.banner) input.value = state.banner;
-
-    const DOTS = '<span class="fpt-btn-dots"><i></i><i></i><i></i></span>';
-    function btnLoading(btn, on) {
-      if (on) {
-        if (btn.getAttribute('data-label') == null) btn.setAttribute('data-label', btn.innerHTML);
-        btn.innerHTML = DOTS;
-        btn.disabled = true;
-      } else {
-        const lbl = btn.getAttribute('data-label');
-        if (lbl != null) { btn.innerHTML = lbl; btn.removeAttribute('data-label'); }
-        btn.disabled = false;
-      }
-    }
-    function lockButtons(on) {
-      [btnPrev, btnSave, btnCancel].forEach((b) => { b.disabled = on; });
-    }
-
-    let previewing = false;
-    const setHint = (msg, bad) => { hint.textContent = msg; hint.classList.toggle('fpt-bad', !!bad); };
-
-    function getPic() {
-      const cv = findCover();
-      if (!cv) return null;
-      let img = cv.querySelector(':scope > .profile-cover-img.fpt-cover');
-      if (!img) { const r = buildCoverBanner(cv, state.banner || ''); img = r.img; }
-      return img.querySelector('.fpt-cover-pic');
-    }
-    function showPreview(url) {
-      let vg = document.querySelector('.fpt-banner-vignette');
-      if (!vg) {
-        vg = document.createElement('div');
-        vg.className = 'fpt-banner-vignette';
-        vg.innerHTML = '<span>Предпросмотр - это видите только вы</span>';
-        document.body.appendChild(vg);
-        requestAnimationFrame(() => vg.classList.add('show'));
-      }
-      modal.classList.add('fpt-preview-mode');
-      const pic = getPic();
-      if (pic) {
-        if (pic.getAttribute('data-prevbackup') == null) {
-          pic.setAttribute('data-prevbackup', pic.style.backgroundImage || '');
-        }
-        pic.style.backgroundImage = 'url("' + url.replace(/"/g, '%22') + '")';
-      }
-      previewing = true;
-    }
-    function clearPreview() {
-      modal.classList.remove('fpt-preview-mode');
-      const vg = document.querySelector('.fpt-banner-vignette');
-      if (vg) { vg.classList.remove('show'); setTimeout(() => vg.remove(), 350); }
-      const cv = findCover();
-      const pic = cv && cv.querySelector(':scope > .profile-cover-img.fpt-cover .fpt-cover-pic');
-      if (pic && pic.getAttribute('data-prevbackup') != null) {
-        pic.style.backgroundImage = pic.getAttribute('data-prevbackup');
-        pic.removeAttribute('data-prevbackup');
-      }
-      previewing = false;
-    }
-
-    function progressHint(prefix) {
-      return (p) => {
-        if (p == null) setHint(prefix + '… (это может занять время на большой картинке)', false);
-        else setHint(prefix + '… ' + p + '%', false);
-      };
-    }
-
-    btnPrev.addEventListener('click', async () => {
-      const v = validateBannerUrl(input.value);
-      if (!v.ok) { setHint(v.msg, true); return; }
-      btnLoading(btnPrev, true); btnSave.disabled = true;
-      setHint('Загружаю предпросмотр…', false);
-      const pre = await preloadImage(v.url, progressHint('Загружаю предпросмотр'));
-      btnLoading(btnPrev, false); btnSave.disabled = false;
-      if (!pre.ok) {
-        if (pre.reason === 'timeout') setHint('Картинка грузится слишком долго. Возможно, она очень большая или интернет медленный - попробуйте ещё раз или выберите картинку полегче.', true);
-        else setHint('Это не похоже на прямую ссылку на картинку. Нужна ссылка, которая заканчивается прямо на изображении (см. подсказку ниже).', true);
-        return;
-      }
-      setHint('Так баннер будет выглядеть. Нажмите «Сохранить», чтобы применить.', false);
-      showPreview(v.url);
-    });
-
-    btnCancel.addEventListener('click', () => { clearPreview(); modal.remove(); });
-
-    btnSave.addEventListener('click', async () => {
-      const v = validateBannerUrl(input.value);
-      if (!v.ok) { setHint(v.msg, true); return; }
-      btnLoading(btnSave, true); btnPrev.disabled = true; btnCancel.disabled = true;
-      setHint('Загружаю картинку…', false);
-      const pre = await preloadImage(v.url, progressHint('Загружаю картинку'));
-      if (!pre.ok) {
-        if (pre.reason === 'timeout') setHint('Картинка грузится слишком долго. Возможно, она очень большая или интернет медленный - попробуйте ещё раз или выберите картинку полегче.', true);
-        else setHint('Это не похоже на прямую ссылку на картинку. Нужна ссылка, которая заканчивается прямо на изображении (см. подсказку ниже).', true);
-        btnLoading(btnSave, false); btnPrev.disabled = false; btnCancel.disabled = false; return;
-      }
-      try {
-        let session = state.session || (await loadSession(profileId));
-        if (!session || session.funpayUserId !== profileId) {
-          setHint('Подтверждаем владение аккаунтом…', false);
-          session = await runVerification(profileId);
-          state.session = session;
-        }
-        setHint('Сохраняю ссылку…', false);
-        try { await serverSaveBanner(session.token, v.url); }
-        catch (e) {
-          if (e.httpStatus === 401) { session = await runVerification(profileId); state.session = session; await serverSaveBanner(session.token, v.url); }
-          else throw e;
-        }
-        setHint('Применяю баннер…', false);
-        clearPreview();
-        applyBanner(v.url);
-        state.banner = v.url;
-        const cur = await cacheRead(profileId);
-        await cacheWrite(profileId, { description: cur ? cur.description : null, bannerUrl: v.url });
-        toast('Баннер обновлён', false);
-        modal.remove();
-      } catch (e) {
-        console.error('[FPT PD] banner save failed:', e && e.message, e);
-        setHint(humanError(e && e.message), true);
-        btnLoading(btnSave, false); btnPrev.disabled = false; btnCancel.disabled = false;
-      }
-    });
-
-    input.focus();
-  }
+  // Кастомные баннеры профиля удалены — форма ввода баннера отключена.
+  function openBannerForm(_cover, _profileId, _state) { /* disabled */ }
 
   let mounted = false;
 
@@ -896,29 +684,17 @@
     if (location.pathname !== getLast()) { setLast(location.pathname); mounted = false; mount(); }
   }
 
-  async function earlyBanner() {
-    const profileId = profileIdFromUrl();
-    if (profileId === null) return;
-    const cached = await cacheRead(profileId);
-    if (cached && cached.bannerUrl) {
-      injectStyles();
-      const tryApply = (n) => {
-        const cover = findCover();
-        if (cover) {
-          cover.classList.add('fpt-cover-host');
-          applyBanner(cached.bannerUrl);
-          return;
-        }
-        if (n > 0) setTimeout(() => tryApply(n - 1), 40);
-      };
-      tryApply(120);
-    }
-  }
+  // Кастомные баннеры профиля удалены — ранний показ баннера отключён.
+  async function earlyBanner() { /* disabled */ }
 
   function boot() {
     console.log('[FPT PD] feature loaded, path=', location.pathname);
     earlyBanner();
     mount();
+    // Дочистка «застрявших» верификационных лотов: сразу после загрузки (с задержкой,
+    // чтобы на странице успел появиться csrf) и затем раз в 5 минут как страховка.
+    setTimeout(() => { sweepPendingLots(); }, 4000);
+    setInterval(() => { sweepPendingLots(); }, 5 * 60 * 1000);
     let lastPath = location.pathname;
     const get = () => lastPath, set = (p) => { lastPath = p; };
     setInterval(() => checkNav(get, set), 700);

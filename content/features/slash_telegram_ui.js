@@ -27,10 +27,10 @@ function fptSlashRenderList() {
         return;
     }
     list.innerHTML = _fptSlashCfg.commands.map((c, i) => `
-        <div class="fpt-slash-row" data-i="${i}" style="background:#0e0f16;border:1px solid #1e2030;border-radius:8px;padding:10px;margin-bottom:8px;">
+        <div class="fpt-slash-row" data-i="${i}" style="background:var(--fpt-surface, #f5f7fa);border:1px solid #1e2030;border-radius:8px;padding:10px;margin-bottom:8px;">
             <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
                 <input type="text" class="fpt-slash-trigger template-input" data-i="${i}" value="${fptSlashEsc(c.trigger || '')}" placeholder="/привет" style="flex:0 0 150px;margin:0;">
-                <span style="color:#5a5f7a;font-size:12px;">→</span>
+                <span style="color:var(--fpt-text-muted, #8a90a6);font-size:12px;">→</span>
                 <button class="fpt-slash-del btn btn-default" data-i="${i}" title="Удалить" style="margin-left:auto;padding:4px 10px;">🗑️</button>
             </div>
             <textarea class="fpt-slash-response template-input" data-i="${i}" rows="2" placeholder="Текст-ответ. Напр.: Привет, я тут. Какие вопросы?" style="margin:0;resize:vertical;">${fptSlashEsc(c.response || '')}</textarea>

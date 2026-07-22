@@ -11,7 +11,7 @@
     // вспышки «белое→серое» при перезагрузке.
     try {
         const tData = await chrome.storage.local.get('enableCustomTheme');
-        const on = tData.enableCustomTheme !== false; // по умолчанию включена
+        const on = tData.enableCustomTheme === true;
         document.documentElement.classList.toggle('fpt-custom-theme-on', on);
         document.documentElement.classList.toggle('fpt-custom-theme-off', !on);
     } catch (_) { /* storage not ready - applyCustomTheme выставит позже */ }
@@ -36,7 +36,7 @@
                     color: transparent !important;
                     text-shadow: none !important;
                 }
-                .badge-balance::after { content: '••••'; color: #9099b8; }
+                .badge-balance::after { content: '••••'; color: var(--fptm-muted, #9099b8); }
             `;
             document.documentElement.appendChild(balStyle);
         }

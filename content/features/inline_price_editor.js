@@ -30,6 +30,11 @@
         if (_activePopup) { _activePopup.remove(); _activePopup = null; }
     }
 
+    function getTradeNodeId() {
+        const m = location.pathname.match(/\/lots\/(\d+)\//);
+        return m ? m[1] : null;
+    }
+
     function createPopup(anchorEl, currentPrice, onSave) {
         closeActivePopup();
 
@@ -40,9 +45,35 @@
             <input type="number" class="fp-ipe-input" value="${currentPrice.toFixed(2)}" step="0.01" min="0.01">
             <button class="fp-ipe-save" title="Сохранить">✓</button>
             <button class="fp-ipe-cancel" title="Отмена">✕</button>
+            <div class="fp-ipe-buyer" title="Сколько заплатит покупатель по самому дешёвому способу"></div>
         `;
 
         const input = popup.querySelector('.fp-ipe-input');
+        const buyerHint = popup.querySelector('.fp-ipe-buyer');
+
+        const nodeId = getTradeNodeId();
+        let buyerReqId = 0;
+        async function updateBuyerHint() {
+            if (!buyerHint) return;
+            const sp = parseFloat(input.value);
+            if (!nodeId || !window.FPTCommission || !Number.isFinite(sp) || sp <= 0) {
+                buyerHint.textContent = '';
+                return;
+            }
+            const myReq = ++buyerReqId;
+            buyerHint.textContent = 'Покупатель заплатит ≈ …';
+            try {
+                const bp = await window.FPTCommission.buyerPrice(nodeId, sp);
+                if (myReq !== buyerReqId) return;
+                buyerHint.textContent = (bp != null)
+                    ? `Покупатель заплатит ≈ ${bp.toFixed(2).replace('.', ',')} ₽`
+                    : '';
+            } catch (_) {
+                if (myReq === buyerReqId) buyerHint.textContent = '';
+            }
+        }
+        input.addEventListener('input', updateBuyerHint);
+        updateBuyerHint();
 
         // Position under the anchor element
         function reposition() {

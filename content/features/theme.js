@@ -246,7 +246,7 @@ function getCustomThemeCss(settings) {
 }
 
 async function applyCustomTheme() {
-    const { enableCustomTheme = true, fpToolsTheme = {} } = await chrome.storage.local.get(['enableCustomTheme', 'fpToolsTheme']);
+    const { enableCustomTheme = false, fpToolsTheme = {} } = await chrome.storage.local.get(['enableCustomTheme', 'fpToolsTheme']);
     let styleEl = document.getElementById('fp-tools-custom-theme');
     let overrideStyleEl = document.getElementById(THEME_OVERRIDE_STYLE_ID);
     const flashFixStyle = document.getElementById('fp-tools-flash-fix');
@@ -427,7 +427,7 @@ function toggleThemeControls(disabled) {
         'themeFontSelect', 'themeBgBlur', 'themeBgBrightness', 'themeContainerBgOpacity', 'themeBorderRadius',
         'resetThemeBtn',
         'enableCircleCustomization', 'showCircles', 'circleSize', 'circleOpacity', 'circleBlur',
-        'enableImprovedSeparators', 'headerPositionSelect', 'enableRedesignedHomepage',
+        'enableImprovedSeparators', 'headerPositionSelect',
         'enableGlassmorphism', 'glassmorphismBlur',
         'enableCustomScrollbar', 'scrollbarThumbColor', 'scrollbarTrackColor', 'scrollbarWidth',
         'generatePaletteBtn', 'randomizeThemeBtn', 'exportThemeBtn', 'importThemeBtn'
@@ -769,12 +769,6 @@ function setupThemeCustomizationHandlers() {
         });
     });
 
-    document.getElementById('enableRedesignedHomepage')?.addEventListener('change', async (event) => {
-        await chrome.storage.local.set({ enableRedesignedHomepage: event.target.checked });
-        showNotification('Настройка сохранена. Страница будет перезагружена.', false);
-        setTimeout(() => window.location.reload(), 1500);
-    });
-
     ['themeBgBlur', 'themeBgBrightness', 'themeContainerBgOpacity', 'themeBorderRadius', 'circleSize', 'circleOpacity', 'circleBlur', 'glassmorphismBlur', 'scrollbarWidth'].forEach(id => {
         document.getElementById(id)?.addEventListener('input', (e) => {
              const valueLabel = document.getElementById(`${id}Value`);
@@ -800,7 +794,6 @@ function setupThemeCustomizationHandlers() {
     document.getElementById('resetThemeBtn')?.addEventListener('click', async () => {
         if (!confirm('Вы уверены, что хотите сбросить все настройки темы и оформления?')) return;
         await chrome.storage.local.remove('fpToolsTheme');
-        await chrome.storage.local.set({ enableRedesignedHomepage: true });
         applyCustomTheme();
         applyHeaderPosition();
         updateThemePreview();
@@ -830,6 +823,11 @@ function setupThemeCustomizationHandlers() {
 
 // Применяет настройки прозрачности к окну .fp-tools-popup.
 // Может принять явные значения (из контролов) - иначе читает из storage.
+//
+// FP Tools: по просьбе пользователя меню больше НЕ делается прозрачным поверх
+// темы (это давало нечитаемый результат и артефакты). Теперь меню всегда
+// сплошное и красится авто-темой (fptm-themed): светлая тема сайта → белое меню,
+// тёмная → тёмно-серое. Поэтому здесь мы принудительно снимаем режим прозрачности.
 async function applyFptMenuTransparency(override) {
     const popup = document.querySelector('.fp-tools-popup');
     if (!popup) return;
@@ -841,6 +839,9 @@ async function applyFptMenuTransparency(override) {
         const { fpToolsTheme = {} } = await chrome.storage.local.get('fpToolsTheme');
         s = { ...DEFAULT_THEME, ...fpToolsTheme };
     }
+
+    // Прозрачный режим отключён полностью — всегда сплошное авто-тема-меню.
+    s = { ...s, menuTransparent: false };
 
     if (s.menuTransparent) {
         const alpha = Math.max(0, Math.min(100, parseFloat(s.menuOpacity))) / 100;

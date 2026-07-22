@@ -404,16 +404,13 @@
         window.__fpEnsurePopup = ensureFpToolsPopup;
 
         const settings = await chrome.storage.local.get([
-            'enableRedesignedHomepage', 
             'showSalesStats', 
             'hideBalance', 
             'viewSellersPromo',
             'enableCustomTheme'
         ]);
 
-        if (settings.enableRedesignedHomepage !== false) {
-            await handleHomepageRedesign();
-        } else {
+        {
             const content = document.querySelector('#content');
             if (content) content.style.visibility = 'visible';
         }
@@ -563,9 +560,9 @@
             btn.style.cssText = 'padding:4px 10px;font-size:11px;font-weight:600;';
             btn.textContent = p.label;
             if (i === 2) { // Default: month
-                btn.style.background = '#2A1830';
-                btn.style.color = '#E9A8FF';
-                btn.style.borderColor = '#363a5a';
+                btn.style.background = 'rgba(27,117,187,0.16)';
+                btn.style.color = '#4a9fd4';
+                btn.style.borderColor = 'rgba(27,117,187,0.4)';
             }
             btn.addEventListener('click', () => {
                 filterBar.querySelectorAll('button').forEach(b => {
@@ -573,9 +570,9 @@
                     b.style.color = '';
                     b.style.borderColor = '';
                 });
-                btn.style.background = '#2A1830';
-                btn.style.color = '#E9A8FF';
-                btn.style.borderColor = '#363a5a';
+                btn.style.background = 'rgba(27,117,187,0.16)';
+                btn.style.color = '#4a9fd4';
+                btn.style.borderColor = 'rgba(27,117,187,0.4)';
                 applySalesPeriodFilter(p.days);
             });
             filterBar.appendChild(btn);

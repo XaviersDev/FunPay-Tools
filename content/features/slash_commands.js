@@ -72,11 +72,17 @@
     function applyVars(text) {
         const now = new Date();
         const name = getBuyerName();
-        return String(text)
+        let out = String(text)
             .replace(/\{buyername\}/gi, name)
             .replace(/\{username\}/gi, name)
             .replace(/\{date\}/gi, now.toLocaleDateString('ru-RU'))
             .replace(/\{time\}/gi, now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }));
+        out = out.replace(/\{([^{}|]*\|[^{}]*)\}/g, (full, inner) => {
+            if (/^ai:/i.test(inner)) return full;
+            const options = inner.split('|');
+            return options[Math.floor(Math.random() * options.length)];
+        });
+        return out;
     }
 
     // Возвращает «текущий слэш-токен» у каретки: текст от последнего «/» в начале
@@ -137,9 +143,9 @@
             box-shadow:0 8px 22px var(--fpt-shadow,rgba(0,0,0,0.18));
             padding:6px;font-family:Inter,'Segoe UI',sans-serif;}
         .fpt-slash-item{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:7px;cursor:pointer;}
-        .fpt-slash-item .fpt-slash-trig{font-size:13px;font-weight:700;color:var(--fpt-accent,#C026D3);}
+        .fpt-slash-item .fpt-slash-trig{font-size:13px;font-weight:700;color:var(--fpt-accent,#1b75bb);}
         .fpt-slash-item .fpt-slash-resp{font-size:11px;color:var(--fpt-text-muted,#888);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-        .fpt-slash-item.active,.fpt-slash-item:hover{background:var(--fpt-accent-soft,rgba(192,38,211,0.12));}
+        .fpt-slash-item.active,.fpt-slash-item:hover{background:var(--fpt-accent-soft,rgba(27,117,187,0.12));}
         .fpt-slash-hint{font-size:10px;color:var(--fpt-text-muted,#999);padding:4px 10px 2px;border-top:1px solid var(--fpt-border,rgba(0,0,0,0.1));margin-top:4px;}
         .fpt-slash-dropdown::-webkit-scrollbar{width:6px;}
         .fpt-slash-dropdown::-webkit-scrollbar-thumb{background:var(--fpt-border,#ccc);border-radius:6px;}

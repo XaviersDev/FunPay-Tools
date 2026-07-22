@@ -156,33 +156,97 @@
         return { byDay, byCategory, byStatus, pendingRevenueRUB, byCurrency, byBuyer, byProduct, revenueUSD, count, total: orders.length };
     }
 
-    // ── line+bar chart (выручка линией, заказы столбцами) ──────────────────────
-    // Один график = одна метрика = одна ось. Возвращает SVG со столбцами,
-    // у каждого столбца data-атрибуты для интерактивной подсказки.
-    function singleChart(title, days, getVal, fmt, color) {
-        if (!days.length) return `<div class="fp-sm-card"><div class="fp-sm-card-title">${esc(title)}</div>${emptyHTML('Нет данных')}</div>`;
-        const W = 560, H = 200, PAD = { t: 16, r: 14, b: 28, l: 52 };
+    // ── чистый читаемый график ───────────────────────────────────────────────
+    // Одна метрика за раз (выручка ИЛИ заказы) — переключается табами наверху.
+    // Никакого искажения пропорций (preserveAspectRatio по умолчанию), крупные
+    // подписи, ровная сетка, плавная линия с заливкой и аккуратные столбцы.
+    // Так график читается легко даже когда продаж очень много.
+    function smoothPath(pts) {
+        if (pts.length < 2) return pts.length ? `M${pts[0].x},${pts[0].y}` : '';
+        let d = `M${pts[0].x},${pts[0].y}`;
+        for (let i = 0; i < pts.length - 1; i++) {
+            const p0 = pts[i - 1] || pts[i];
+            const p1 = pts[i];
+            const p2 = pts[i + 1];
+            const p3 = pts[i + 2] || p2;
+            const t = 0.16;
+            const c1x = p1.x + (p2.x - p0.x) * t, c1y = p1.y + (p2.y - p0.y) * t;
+            const c2x = p2.x - (p3.x - p1.x) * t, c2y = p2.y - (p3.y - p1.y) * t;
+            d += ` C${c1x},${c1y} ${c2x},${c2y} ${p2.x},${p2.y}`;
+        }
+        return d;
+    }
+
+    function niceMax(v) {
+        // округляем максимум оси вверх до «красивого» числа
+        if (v <= 0) return 1;
+        const mag = Math.pow(10, Math.floor(Math.log10(v)));
+        const n = v / mag;
+        const step = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
+        return step * mag;
+    }
+    function fmtAxis(v) {
+        if (v >= 1000000) return (Math.round(v / 100000) / 10) + 'млн';
+        if (v >= 1000) return (Math.round(v / 100) / 10) + 'к';
+        return String(Math.round(v));
+    }
+
+    // metric: 'revenue' | 'count'
+    function oneMetricChart(days, agg, metric) {
+        const isRev = metric === 'revenue';
+        const vals = days.map(d => isRev ? agg.byDay[d].revenue : agg.byDay[d].count);
+        const rawMax = Math.max(1, ...vals);
+        const maxV = niceMax(rawMax);
+
+        const W = 760, H = 300, PAD = { t: 20, r: 20, b: 40, l: 60 };
         const cw = W - PAD.l - PAD.r, ch = H - PAD.t - PAD.b;
-        const vals = days.map(getVal);
-        const maxV = Math.max(1, ...vals);
         const slot = cw / days.length;
-        const barW = Math.max(2, Math.min(26, slot - 4));
+        const baseY = PAD.t + ch;
+        const accent = 'var(--fpt-accent)';
 
-        let bars = '', xL = '', yL = '';
-        // Подписи дат: копим по пиксельному интервалу, чтобы не накладывались.
-        // Последнюю дату ("сегодня") ставим всегда и удаляем все предыдущие подписи,
-        // которые к ней ближе порога - иначе две крайние даты налезали друг на друга.
-        const MIN_GAP = 40;
-        const xlParts = []; // { x, anchor, label }
+        // горизонтальная сетка + подписи оси Y
+        let grid = '', yL = '';
+        const steps = 4;
+        for (let i = 0; i <= steps; i++) {
+            const y = baseY - (i / steps) * ch;
+            grid += `<line x1="${PAD.l}" y1="${y}" x2="${W - PAD.r}" y2="${y}" stroke="var(--fpt-border)" stroke-width="1" opacity="${i === 0 ? 0.85 : 0.3}"/>`;
+            const v = (maxV / steps) * i;
+            yL += `<text x="${PAD.l - 10}" y="${y + 4}" text-anchor="end" font-size="11" fill="var(--fpt-text-muted)">${isRev ? fmtAxis(v) : Math.round(v)}</text>`;
+        }
+
+        const fmtVal = (v) => isRev ? money(v, 'RUB') : (v + (v === 1 ? ' заказ' : ' зак.'));
+
+        // Оба режима — в одном стиле: плавная линия с градиентной заливкой.
+        // Точек нет вообще (чище и красивее), наведение работает через
+        // невидимые «хит-зоны» по всей высоте дня.
+        const pts = days.map((day, i) => ({
+            x: PAD.l + slot * i + slot / 2,
+            y: baseY - (vals[i] / maxV) * ch,
+            day, v: vals[i]
+        }));
+        const line = smoothPath(pts);
+        const area = pts.length
+            ? `${line} L${pts[pts.length - 1].x},${baseY} L${pts[0].x},${baseY} Z`
+            : '';
+        const uid = 'fpsmgrad' + Math.random().toString(36).slice(2, 8);
+        const hits = pts.map(p =>
+            `<rect class="fp-sm-hit" x="${p.x - slot / 2}" y="${PAD.t}" width="${slot}" height="${ch}" fill="transparent"
+                data-label="${esc(p.day)}" data-val="${esc(fmtVal(p.v))}" data-day="${esc(p.day)}" tabindex="0"></rect>`
+        ).join('');
+        const content = `
+            <defs><linearGradient id="${uid}" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="${accent}" stop-opacity="0.24"/>
+                <stop offset="100%" stop-color="${accent}" stop-opacity="0.02"/>
+            </linearGradient></defs>
+            ${area ? `<path d="${area}" fill="url(#${uid})" stroke="none"/>` : ''}
+            ${line ? `<path d="${line}" fill="none" stroke="${accent}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>` : ''}
+            ${hits}`;
+
+        // подписи дат (X): прореживаем, последнюю всегда
+        const MIN_GAP = 58;
+        const xlParts = [];
         days.forEach((day, i) => {
-            const v = vals[i];
             const x = PAD.l + slot * i + slot / 2;
-            const bh = (v / maxV) * ch;
-            const y = PAD.t + ch - bh;
-            bars += `<rect class="fp-sm-bar" x="${x - barW / 2}" y="${y}" width="${barW}" height="${bh}" rx="2"
-                fill="${color}" data-label="${esc(day)}" data-val="${esc(fmt(v))}" data-day="${esc(day)}"
-                tabindex="0"></rect>`;
-
             const isLast = i === days.length - 1;
             if (isLast) {
                 const tx = Math.min(x, W - PAD.r);
@@ -192,31 +256,37 @@
                 xlParts.push({ x, anchor: 'middle', label: day.slice(5) });
             }
         });
-        xL = xlParts.map(p => `<text x="${p.x}" y="${H - 8}" text-anchor="${p.anchor}" font-size="9" fill="var(--fpt-text-muted)">${esc(p.label)}</text>`).join('');
-        const steps = 4;
-        for (let i = 0; i <= steps; i++) {
-            const y = PAD.t + ch - (i / steps) * ch;
-            const rv = (maxV / steps) * i;
-            const lbl = rv >= 1000 ? Math.round(rv / 1000) + 'к' : Math.round(rv);
-            yL += `<line x1="${PAD.l}" y1="${y}" x2="${W - PAD.r}" y2="${y}" stroke="var(--fpt-border)" stroke-width="1" opacity="0.5"/>`;
-            yL += `<text x="${PAD.l - 6}" y="${y + 3}" text-anchor="end" font-size="9" fill="var(--fpt-text-muted)">${lbl}</text>`;
-        }
+        const xL = xlParts.map(p => `<text x="${p.x}" y="${H - 14}" text-anchor="${p.anchor}" font-size="11" fill="var(--fpt-text-muted)">${esc(p.label)}</text>`).join('');
 
-        return `
-        <div class="fp-sm-card">
-            <div class="fp-sm-card-title">${esc(title)}</div>
-            <svg class="fp-sm-chart" viewBox="0 0 ${W} ${H}" width="100%" style="display:block;overflow:visible;">
-                ${yL}${bars}${xL}
-            </svg>
-        </div>`;
+        return `<svg class="fp-sm-chart" viewBox="0 0 ${W} ${H}" width="100%" style="display:block;overflow:visible;font-family:inherit;">
+            ${grid}${content}${yL}${xL}
+        </svg>`;
     }
 
     function chartHTML(agg) {
         const days = Object.keys(agg.byDay).sort();
         if (!days.length) return emptyHTML('Нет данных за период');
-        const revChart = singleChart(((_cfg && _cfg.moneyByDayLabel) || 'Выручка по дням, ₽'), days, d => agg.byDay[d].revenue, v => money(v, 'RUB'), 'var(--fpt-accent)');
-        const cntChart = singleChart('Заказы по дням, шт.', days, d => agg.byDay[d].count, v => v + ' заказ.', '#2563eb');
-        return `<div class="fp-sm-charts-stack">${revChart}${cntChart}</div>`;
+        const isPurchases = !!(_cfg && _cfg.moneyByDayLabel && /трат/i.test(_cfg.moneyByDayLabel));
+        const revLabel = isPurchases ? 'Траты' : 'Выручка';
+        const cntLabel = isPurchases ? 'Покупки' : 'Заказы';
+        const totalRev = days.reduce((s, d) => s + agg.byDay[d].revenue, 0);
+        const totalCnt = days.reduce((s, d) => s + agg.byDay[d].count, 0);
+        // сохраняем выбранную метрику между перерисовками
+        const metric = (window.__fptChartMetric === 'count') ? 'count' : 'revenue';
+        return `
+        <div class="fp-sm-card fp-sm-chartcard" data-metric="${metric}">
+            <div class="fp-sm-chart-head">
+                <div class="fp-sm-chart-tabs">
+                    <button type="button" class="fp-sm-ctab ${metric === 'revenue' ? 'active' : ''}" data-metric="revenue">${revLabel}, ₽</button>
+                    <button type="button" class="fp-sm-ctab ${metric === 'count' ? 'active' : ''}" data-metric="count">${cntLabel}, шт.</button>
+                </div>
+                <div class="fp-sm-chart-total">
+                    <span class="fp-sm-chart-total-num">${metric === 'revenue' ? money(totalRev, 'RUB') : totalCnt}</span>
+                    <span class="fp-sm-chart-total-cap">за период</span>
+                </div>
+            </div>
+            <div class="fp-sm-chart-body">${oneMetricChart(days, agg, metric)}</div>
+        </div>`;
     }
 
     // ── pie/donut diagrams ──────────────────────────────────────────────────────
@@ -363,8 +433,19 @@
         .fp-sm-summary{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:12px;font-size:12px;color:var(--fpt-text-muted,#9099b8);}
         .fp-sm-summary strong{color:var(--fpt-text,#d8dae8);}
         .fp-sm-charts-stack{display:flex;flex-direction:column;gap:12px;}
+        .fp-sm-chartcard{padding:16px 18px 14px;}
+        .fp-sm-chart-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px;}
+        .fp-sm-chart-tabs{display:inline-flex;gap:4px;background:var(--fpt-surface-2,rgba(127,127,127,.1));border:1px solid var(--fpt-border,#22253a);border-radius:9px;padding:3px;}
+        .fp-sm-ctab{border:none;background:transparent;color:var(--fpt-text-muted,#9099b8);font-family:inherit;font-size:12px;font-weight:600;padding:5px 14px;border-radius:6px;cursor:pointer;transition:background .14s,color .14s;}
+        .fp-sm-ctab:hover{color:var(--fpt-text,#d8dae8);}
+        .fp-sm-ctab.active{background:var(--fpt-accent,#1b75bb);color:#fff;}
+        .fp-sm-chart-total{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15;}
+        .fp-sm-chart-total-num{font-size:18px;font-weight:800;color:var(--fpt-text,#d8dae8);}
+        .fp-sm-chart-total-cap{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--fpt-text-muted,#9099b8);font-weight:600;}
+        .fp-sm-chart-body{width:100%;}
+        .fp-sm-hit{outline:none;}
         .fp-sm-bar{cursor:pointer;transition:opacity .12s;outline:none;}
-        .fp-sm-bar:hover,.fp-sm-bar:focus{opacity:0.78;}
+        .fp-sm-bar:hover,.fp-sm-bar:focus{opacity:0.75 !important;}
         .fp-sm-seg{transition:opacity .12s;outline:none;}
         .fp-sm-seg:hover,.fp-sm-seg:focus{opacity:0.82;}
         #fp-sm-tooltip{position:fixed;z-index:100001;pointer-events:none;background:var(--fpt-bg,#13141a);
@@ -419,7 +500,7 @@
         .fp-stats-sort-select{width:auto;min-width:150px;height:32px;padding:4px 8px;font-size:12px;
             background:var(--fpt-surface-2,#20222e);border:1px solid var(--fpt-border,#22253a);
             color:var(--fpt-text,#d8dae8);border-radius:7px;}
-        .fp-stats-sort-select option{background:#1a1c26;color:#d8dae8;}
+        .fp-stats-sort-select option{background:var(--fpt-bg, #ffffff);color:var(--fpt-text, #16181d);}
         .fp-stats-filter-reset{margin-left:auto;background:transparent;border:1px solid var(--fpt-border,#22253a);
             color:var(--fpt-text-muted,#9099b8);border-radius:7px;padding:5px 10px;font-size:12px;cursor:pointer;}
         .fp-stats-filter-reset:hover{color:var(--fpt-text,#fff);border-color:var(--fpt-accent,#2563eb);}
@@ -595,6 +676,15 @@
         view.innerHTML = html;
         if (cards) cards.style.display = 'none';
         attachBarTooltips(view);
+        // Табы «Выручка / Заказы» на графике — переключают метрику и перерисовывают.
+        view.querySelectorAll('.fp-sm-ctab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const m = tab.getAttribute('data-metric');
+                if (!m || window.__fptChartMetric === m) return;
+                window.__fptChartMetric = m;
+                render();
+            });
+        });
         // клики по «N зак.» в детальных таблицах → показать эти заказы
         view.querySelectorAll('.fp-sm-row-valbtn').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -654,7 +744,7 @@
         }
         const lbl = tip.querySelector('.fp-sm-tt-label');
         const val = tip.querySelector('.fp-sm-tt-val');
-        const HOVER_SEL = '.fp-sm-bar, .fp-sm-seg';
+        const HOVER_SEL = '.fp-sm-bar, .fp-sm-seg, .fp-sm-pt, .fp-sm-hit';
 
         const show = (e) => {
             const el = e.target.closest(HOVER_SEL);
@@ -695,17 +785,17 @@
 
         root.querySelectorAll('.fp-sm-chart').forEach(svg => {
             wireSvg(svg);
-            // клик по столбцу - показать все заказы за этот день
+            // клик по столбцу/точке/зоне дня — показать все заказы за этот день
             svg.style.cursor = 'default';
             svg.addEventListener('click', (e) => {
-                const bar = e.target.closest('.fp-sm-bar');
-                if (!bar) return;
-                const day = bar.getAttribute('data-day');
+                const el = e.target.closest('.fp-sm-bar, .fp-sm-pt, .fp-sm-hit');
+                if (!el) return;
+                const day = el.getAttribute('data-day');
                 if (day) showDayOrders(day);
             });
         });
         root.querySelectorAll('.fp-sm-donut').forEach(wireSvg);
-        root.querySelectorAll('.fp-sm-bar').forEach(b => { b.style.cursor = 'pointer'; });
+        root.querySelectorAll('.fp-sm-bar, .fp-sm-pt, .fp-sm-hit').forEach(b => { b.style.cursor = 'pointer'; });
         root.querySelectorAll('.fp-sm-seg').forEach(s => { s.style.cursor = 'default'; });
     }
 

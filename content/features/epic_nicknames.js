@@ -17,6 +17,22 @@
     let visibleCanvases = new Set();
     let engineRunning = false;
 
+    const TARGET_FPS = 24;
+    const FRAME_INTERVAL = 1000 / TARGET_FPS;
+    let lastFrameTime = 0;
+
+    function startEngine() {
+        if (engineRunning) return;
+        if (canvases.length === 0) return;
+        engineRunning = true;
+        lastFrameTime = 0;
+        requestAnimationFrame(renderLoop);
+    }
+
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) startEngine();
+    });
+
     // Observer для оптимизации рендеринга частиц
     const io = new IntersectionObserver(entries => {
         entries.forEach(entry => {
@@ -169,7 +185,12 @@
         return `rgba(${defR}, ${defG}, ${defB}, ${alpha})`;
     }
 
-    function renderLoop() {
+    function renderLoop(now) {
+        if (document.hidden) {
+            engineRunning = false;
+            return;
+        }
+
         canvases = canvases.filter(item => {
             if(!document.body.contains(item.canvas)) {
                 io.unobserve(item.canvas);
@@ -183,6 +204,13 @@
             engineRunning = false;
             return;
         }
+
+        if (now === undefined) now = performance.now();
+        if (now - lastFrameTime < FRAME_INTERVAL) {
+            requestAnimationFrame(renderLoop);
+            return;
+        }
+        lastFrameTime = now;
 
         canvases.forEach(item => {
             const {canvas, ctx, parts, cfg} = item;
@@ -282,11 +310,8 @@
             wrap.appendChild(canvas);
             io.observe(canvas);
             canvases.push({ canvas, ctx: canvas.getContext('2d'), parts: [], cfg });
-            
-            if (!engineRunning) {
-                engineRunning = true;
-                requestAnimationFrame(renderLoop);
-            }
+
+            startEngine();
         }
 
         const textSpan = document.createElement('span');
@@ -354,7 +379,7 @@
             nameCol.appendChild(textNode);
             
             const infoCol = document.createElement('div');
-            infoCol.style.cssText = "font-size: 12px; color: #5a5f7a;";
+            infoCol.style.cssText = "font-size: 12px; color: var(--fpt-text-muted, #8a90a6);";
             infoCol.textContent = `Пример ${i+1}`;
 
             row.appendChild(nameCol);

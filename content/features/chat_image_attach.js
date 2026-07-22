@@ -47,14 +47,23 @@
             const m = location.href.match(/[?&]node=([^&#\s]+)/);
             if (m) chatId = decodeURIComponent(m[1]);
         }
-        // 3) активный чат во float-режиме: .chat[data-id] / .contact-item.active
+        // 3) мини-чат на странице лота / float-чат: узел лежит в data-name
+        //    (напр. "users-5852413-6402834"), либо в data-id.
         if (!chatId) {
-            const floatChat = document.querySelector('.chat.chat-float[data-id], .chat[data-id]');
-            if (floatChat) chatId = floatChat.getAttribute('data-id');
+            const floatChat = document.querySelector('.chat.chat-float[data-id], .chat[data-id], .chat.chat-float[data-name], .chat[data-name]');
+            if (floatChat) chatId = floatChat.getAttribute('data-id') || floatChat.getAttribute('data-name');
         }
         if (!chatId) {
             const active = document.querySelector('.contact-item.active[data-id]');
             if (active) chatId = active.getAttribute('data-id');
+        }
+        // 4) запасной вариант: ссылка «открыть чат» в шапке содержит ?node=...
+        if (!chatId) {
+            const link = document.querySelector('.chat-header-controls a[href*="node="], .chat-control[href*="node="]');
+            if (link) {
+                const m = (link.getAttribute('href') || '').match(/[?&]node=([^&#\s]+)/);
+                if (m) chatId = decodeURIComponent(m[1]);
+            }
         }
         const nameEl = document.querySelector('.chat-header .media-user-name, .chat-full-header .media-user-name');
         const chatName = nameEl ? nameEl.textContent.trim() : '';
@@ -713,8 +722,9 @@
 
         try {
             for (let i = 0; i < imgs.length; i++) {
+                const sendId = 'img_' + Date.now() + '_' + i + '_' + Math.random().toString(36).slice(2, 8);
                 const resp = await sendImageReliable({
-                    action: 'fptSendImage', chatId, dataUrl: imgs[i].dataUrl, chatName
+                    action: 'fptSendImage', chatId, dataUrl: imgs[i].dataUrl, chatName, sendId
                 });
                 if (resp && resp.ok) markTileSent(group, i);
                 else { markTileError(group, i); notify('Не удалось отправить изображение: ' + ((resp && resp.error) || 'ошибка'), true); }

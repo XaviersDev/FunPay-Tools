@@ -218,7 +218,7 @@
         catch { return; }
 
         const styleEl = ensureStyle();
-        if (data.enableCustomTheme === false) {
+        if (data.enableCustomTheme !== true) {
             styleEl.textContent = '';
             const f = document.getElementById(FONT_ID);
             if (f) f.textContent = '';

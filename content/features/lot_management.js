@@ -254,6 +254,57 @@ function toggleSelectionMode(enable) {
     }
 }
 
+// Определяем, есть ли среди выбранных валютные (chips) лоты. Их нельзя удалить
+// обычным deleted=1 - у них другая механика (нужно ставить количество в 0), а вёрстка
+// у разных валютных категорий разная. Поэтому просто честно предупреждаем пользователя.
+function isChipLot($checkbox) {
+    const $lotLink = $checkbox.closest('a.tc-item');
+    const href = $lotLink.attr('href') || '';
+    // Валютные офферы: ссылка вида chips/offer?id=... либо составной id с дефисами.
+    if (/chips\/offer/i.test(href)) return true;
+    const idMatch = href.match(/(?:offer=|id=)([\w-]+)/);
+    if (idMatch && /-/.test(idMatch[1])) return true; // составной id (12204953-141-99-...)
+    // Категория лота ведёт на /chips/<node>/
+    const $offer = $checkbox.closest('.offer');
+    const catHref = $offer.find('.offer-list-title a, a.tc-cat-name').attr('href') || '';
+    if (/\/chips\//i.test(catHref)) return true;
+    return false;
+}
+
+function updateChipDeleteWarning() {
+    const $checked = $('.tc-item .lot-box input:checked');
+    let chipCount = 0;
+    $checked.each(function () { if (isChipLot($(this))) chipCount++; });
+
+    let $warn = $('#fp-chip-delete-warning');
+    if (chipCount === 0) { $warn.remove(); return; }
+
+    const text = chipCount === 1
+        ? 'Вы выбрали валютный лот — его нельзя удалить, он не удалится.'
+        : `Среди выбранного есть валютные лоты (${chipCount} шт.) — их нельзя удалить, они не удалятся.`;
+
+    if ($warn.length === 0) {
+        $warn = $('<div id="fp-chip-delete-warning"></div>').appendTo('body');
+    }
+    $warn.text(text);
+    positionChipWarning();
+}
+
+// Ставим предупреждение вплотную над нижней панелью действий, по центру.
+function positionChipWarning() {
+    const $warn = $('#fp-chip-delete-warning');
+    const $bar = $('.actions');
+    if (!$warn.length || !$bar.length || $bar.css('display') === 'none') { $warn.hide(); return; }
+    const rect = $bar[0].getBoundingClientRect();
+    $warn.css({
+        position: 'fixed',
+        left: (rect.left + rect.width / 2) + 'px',
+        transform: 'translateX(-50%)',
+        bottom: (window.innerHeight - rect.top + 6) + 'px',
+        display: 'block'
+    });
+}
+
 async function updatePinButtonsState() {
     const $checked = $('.lot-box input:checked');
     const $pinBtn = $('.action-lot.pin-lot');
@@ -351,6 +402,13 @@ function setupActionProcessing() {
             </div>
         `).appendTo('body').hide();
 
+        // Держим предупреждение о валютных лотах приклеенным к панели при прокрутке/ресайзе.
+        if (!window.__fptChipWarnReposition) {
+            window.__fptChipWarnReposition = true;
+            window.addEventListener('resize', positionChipWarning, { passive: true });
+            window.addEventListener('scroll', positionChipWarning, { passive: true });
+        }
+
         // В режиме копирования (чужой профиль) показываем только «Копировать»,
         // прячем действия над своими лотами.
         if (window.__fptForeignClone) {
@@ -392,6 +450,7 @@ function setupActionProcessing() {
 
         $('.actions').css('display', checkedLots > 0 ? 'flex' : 'none');
         updateActivateDeactivateCounts();
+        updateChipDeleteWarning();
         
         // Обновляем главный чекбокс "Выбрать все"
         if (totalLots > 0) {

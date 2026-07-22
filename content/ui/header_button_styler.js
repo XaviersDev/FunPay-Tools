@@ -53,7 +53,7 @@ async function saveButtonStyles(settings) {
 
 async function loadAndApplyButtonStyles() {
     const data = await chrome.storage.local.get(STORAGE_KEY);
-    const defaults = { color: '#C026D3', size: 14, opacity: 100 };
+    const defaults = { color: '#1b75bb', size: 14, opacity: 100 };
     const settings = { ...defaults, ...(data[STORAGE_KEY] || {}) };
     applyButtonStyles(settings);
 }
@@ -68,7 +68,7 @@ function applyButtonStyles(settings) {
 
     // Drive everything through a single CSS variable that the base stylesheet reads
     // (var(--fpt-btn-color)). The old code injected a gradient + background-clip:text,
-    // but a later rule in content_styles.css forced `color:#C026D3 !important`, so the
+    // but a later rule in content_styles.css forced `color:#1b75bb !important`, so the
     // user's custom colour was always ignored. Setting the variable + plain color avoids
     // the specificity fight entirely and the colour now actually changes.
     styleTag.textContent = `

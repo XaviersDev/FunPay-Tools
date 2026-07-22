@@ -37,7 +37,7 @@ const FPT_FEATURE_REGISTRY = [
         desc: 'Заменяет нативную скрепку FunPay в чате на кнопку с Material-иконкой. Позволяет выбрать сразу несколько фото и показывает альбом-превью по центру экрана с полем «Сообщение...» (фото отправляются первыми, текст - после).',
         group: 'Чат: поле ввода',
         selector: '.fpt-attach-btn',
-        preview: { kind: 'html', html: '<div class="fpt-pv-aibtn"><span class="material-symbols-rounded" style="font-size:22px;color:#e9a8ff">attach_file</span></div>' }
+        preview: { kind: 'html', html: '<div class="fpt-pv-aibtn"><span class="material-symbols-rounded" style="font-size:22px;color:#4a9fd4">attach_file</span></div>' }
     },
     {
         id: 'chat_ai_rewrite_btn',

@@ -367,7 +367,7 @@ async function initializeGlobalChat() {
         if (feed) {
             feed.innerHTML =
                 '<div class="fpt-gc-disabled" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:40px 20px;color:var(--fpt-text-muted,#9aa0b5);">' +
-                '<span class="material-symbols-rounded" style="font-size:48px;color:var(--fpt-accent,#E9A8FF);">hourglass_top</span>' +
+                '<span class="material-symbols-rounded" style="font-size:48px;color:var(--fpt-accent,#4a9fd4);">hourglass_top</span>' +
                 '<div style="font-size:14px;line-height:1.6;max-width:380px;">' + _fptGcEscape(_fptGcConfig.disabledMessage) + '</div>' +
                 '</div>';
         }
