@@ -438,8 +438,7 @@ async function handleReview(msg, auth, settings) {
 
 // FIX 2.8.2 (№12): проверка, что в заказе Я - ПРОДАВЕЦ. Кэшируем результат по
 // orderId, чтобы не дёргать страницу заказа повторно в одном цикле.
-const _sellerCheckCache = new Map();
-async function verifyIAmSeller(orderId, auth) {
+const _sellerCheckCache = new Map();async function verifyIAmSeller(orderId, auth) {
     if (!orderId) return true; // нет orderId - не блокируем (старое поведение)
     if (_sellerCheckCache.has(orderId)) return _sellerCheckCache.get(orderId);
     try {
@@ -455,6 +454,17 @@ async function verifyIAmSeller(orderId, auth) {
     } catch (e) {
         return true; // при ошибке - не блокируем
     }
+}
+
+function isMyOwnAction(messageText, myUsername) {
+    if (!messageText || !myUsername) return false;
+    const clean = String(messageText)
+        .replace(/[\u200B\u200C\u200D\uFEFF\u2060\u2061\u2064]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    const esc = myUsername.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(`(^|[^\\p{L}\\p{N}_])${esc}([^\\p{L}\\p{N}_]|$)`, 'iu');
+    return re.test(clean);
 }
 
 async function handleOrderPurchased(msg, auth, settings) {
@@ -711,13 +721,19 @@ async function _runAutoResponderCycleInner() {
                 msgType
             };
 
+            const iAmInitiator = isMyOwnAction(chat.messageText, auth.username);
+
             if (msgType === 'DEAR_VENDORS') {
                 await notifyDearVendors(msg);
             } else if (msgType === 'ORDER_PURCHASED' || msgType === 'ORDER_CONFIRMED'
                        || msgType === 'NEW_FEEDBACK' || msgType === 'FEEDBACK_CHANGED') {
-                // FIX 2.8.2 (№12): не реагируем на собственные покупки.
                 const _oid = (msg.messageText.match(RX.ORDER_ID) || [])[1] || null;
-                const iAmSeller = await verifyIAmSeller(_oid, auth);
+                let iAmSeller = true;
+                if (iAmInitiator) {
+                    iAmSeller = false;
+                } else {
+                    iAmSeller = await verifyIAmSeller(_oid, auth);
+                }
                 if (!iAmSeller) {
                     console.log(`FP Tools AR: пропуск события по заказу #${_oid} - это моя покупка, не реагируем.`);
                 } else if (msgType === 'ORDER_PURCHASED') {

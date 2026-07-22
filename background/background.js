@@ -39,6 +39,9 @@ import {
 })();
 
 const OFFSCREEN_DOCUMENT_PATH = 'offscreen/offscreen.html';
+
+const _imgSendInFlight = new Map();
+const _imgSendDone = new Map();
 const DISCORD_LOG_ALARM_NAME = 'fpToolsDiscordCheck';
 const AUTO_RESPONDER_ALARM_NAME = 'fpToolsAutoResponder';
 let lastDiscordChatTag = null;
@@ -94,6 +97,9 @@ async function runSalesUpdateCycle() {
         const auth = await getAuthDetailsForBackground();
         if (!auth.golden_key) throw new Error("Не удалось получить golden_key для сбора статистики.");
 
+        // Гарантируем свежую golden_seal ОДИН раз перед циклом: без неё FunPay отдаёт 428.
+        try { await ensureGoldenSeal(); } catch (_) {}
+
         let firstOrderId = await FPTSalesDB.getMeta('firstOrderId');
         let lastOrderId = await FPTSalesDB.getMeta('lastOrderId');
 
@@ -103,14 +109,18 @@ async function runSalesUpdateCycle() {
             const options = {
                 method: 'POST',
                 credentials: 'include',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'Cookie': `golden_key=${auth.golden_key}` },
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
                 body: body
             };
-            // 429/5xx-aware retry: если FunPay всё-таки притормозит — откатываемся и
-            // пробуем снова, но НЕ держим паузу на каждой успешной странице.
+            // 428-aware: если FunPay всё же вернул 428 (устаревшая seal) — обновляем её и повторяем.
             let response;
             for (let attempt = 0; attempt < 5; attempt++) {
                 response = await fetch(url, options);
+                if (response.status === 428) {
+                    try { await refreshGoldenSealOnce(); } catch (_) {}
+                    await new Promise(r => setTimeout(r, 300));
+                    continue;
+                }
                 if (response.status === 429 || response.status >= 500) {
                     await new Promise(r => setTimeout(r, 1500 * (attempt + 1) + Math.random() * 500));
                     continue;
@@ -244,6 +254,7 @@ async function runFinanceUpdateCycle() {
         const auth = await getAuthDetailsForBackground();
         if (!auth.golden_key) throw new Error("Не удалось получить golden_key для сбора финансов.");
         const userId = auth.userId;
+        try { await ensureGoldenSeal(); } catch (_) {}
 
         const fetchPage = async (continueToken) => {
             const url = 'https://funpay.com/users/transactions';
@@ -256,14 +267,18 @@ async function runFinanceUpdateCycle() {
                 credentials: 'include',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Cookie': `golden_key=${auth.golden_key}`
+                    'X-Requested-With': 'XMLHttpRequest'
                 },
                 body: params
             };
             let response;
             for (let attempt = 0; attempt < 5; attempt++) {
                 response = await fetch(url, options);
+                if (response.status === 428) {
+                    try { await refreshGoldenSealOnce(); } catch (_) {}
+                    await new Promise(r => setTimeout(r, 300));
+                    continue;
+                }
                 if (response.status === 429 || response.status >= 500) {
                     await new Promise(r => setTimeout(r, 1500 * (attempt + 1) + Math.random() * 500));
                     continue;
@@ -358,6 +373,8 @@ async function runPurchasesUpdateCycle() {
         const auth = await getAuthDetailsForBackground();
         if (!auth.golden_key) throw new Error("Не удалось получить golden_key для сбора статистики.");
 
+        try { await ensureGoldenSeal(); } catch (_) {}
+
         let firstOrderId = await FPTPurchasesDB.getMeta('firstOrderId');
         let lastOrderId = await FPTPurchasesDB.getMeta('lastOrderId');
 
@@ -367,14 +384,17 @@ async function runPurchasesUpdateCycle() {
             const options = {
                 method: 'POST',
                 credentials: 'include',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'Cookie': `golden_key=${auth.golden_key}` },
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
                 body: body
             };
-            // 429/5xx-aware retry: если FunPay всё-таки притормозит — откатываемся и
-            // пробуем снова, но НЕ держим паузу на каждой успешной странице.
             let response;
             for (let attempt = 0; attempt < 5; attempt++) {
                 response = await fetch(url, options);
+                if (response.status === 428) {
+                    try { await refreshGoldenSealOnce(); } catch (_) {}
+                    await new Promise(r => setTimeout(r, 300));
+                    continue;
+                }
                 if (response.status === 429 || response.status >= 500) {
                     await new Promise(r => setTimeout(r, 1500 * (attempt + 1) + Math.random() * 500));
                     continue;
@@ -518,17 +538,68 @@ async function fetchFreshCsrf() {
     return { csrf_token: u['csrf-token'], userId: u.userId, username: u.userName };
 }
 
+const GOLDEN_SEAL_ERROR = 'Сессия FunPay устарела (golden_seal). Обновите страницу funpay.com или перезайдите в аккаунт и повторите.';
+
 async function checkGoldenSeal() {
     const seal = await chrome.cookies.get({ url: 'https://funpay.com', name: 'golden_seal' });
     if (!seal || !seal.value) return { present: false };
     const parts = seal.value.split('.');
     const exp = parts.length >= 4 ? parseInt(parts[3], 10) : 0;
     const valid = exp > Math.floor(Date.now() / 1000);
-    return { present: true, expiresAt: exp, valid };
+    return { present: true, expiresAt: exp, valid, value: seal.value };
+}
+
+let _sealRefreshInFlight = null;
+async function refreshGoldenSealOnce() {
+    if (_sealRefreshInFlight) return _sealRefreshInFlight;
+    _sealRefreshInFlight = (async () => {
+        try {
+            await fetch('https://funpay.com/', { credentials: 'include', cache: 'no-store' });
+        } catch (e) {
+            console.warn('FP Tools: не удалось обновить golden_seal фоновым запросом:', e && e.message);
+        } finally {
+            await new Promise(r => setTimeout(r, 150));
+        }
+    })();
+    try { await _sealRefreshInFlight; }
+    finally { _sealRefreshInFlight = null; }
+}
+
+async function ensureGoldenSeal() {
+    let seal = await checkGoldenSeal();
+    if (!seal.present || !seal.valid) {
+        await refreshGoldenSealOnce();
+        seal = await checkGoldenSeal();
+    }
+    return seal;
+}
+
+async function fptFetchWithSeal(url, options = {}) {
+    const seal = await ensureGoldenSeal();
+
+    const opts = { ...options, credentials: 'include' };
+    if (opts.headers) {
+        const h = { ...opts.headers };
+        for (const k of Object.keys(h)) {
+            if (k.toLowerCase() === 'cookie') delete h[k];
+        }
+        opts.headers = h;
+    }
+
+    let response = await fetch(url, opts);
+
+    if (!response.ok && !seal.valid) {
+        await refreshGoldenSealOnce();
+        response = await fetch(url, opts);
+    }
+
+    return { response, seal };
 }
 
 async function sendChatImageInBackground(chatId, dataUrl, chatName) {
     const blob = await (await fetch(dataUrl)).blob();
+
+    await ensureOffscreenDocument();
 
     async function attempt(force) {
         const auth = await getAuthDetailsForBackground(force);
@@ -536,20 +607,24 @@ async function sendChatImageInBackground(chatId, dataUrl, chatName) {
             throw new Error('Нет авторизации для отправки изображения.');
         }
 
-        const seal = await checkGoldenSeal();
-        if (seal.present && !seal.valid) {
-            console.warn('FP Tools: golden_seal истекла, обновите страницу FunPay.');
+        // golden_seal (если она есть) браузер приложит сам через credentials:'include'.
+        // Никаких блокирующих проверок/до-запросов ПЕРЕД загрузкой не делаем — это и
+        // ломало отправку. При повторе (force) один раз best-effort обновим seal ниже.
+        if (force) {
+            try { await refreshGoldenSealOnce(); } catch (_) {}
         }
 
         const fd = new FormData();
         fd.append('file', new File([blob], 'image.png', { type: blob.type || 'image/png' }));
         fd.append('file_id', '0');
-        const upRes = await fetch('https://funpay.com/file/addChatImage', {
+        // ВАЖНО: без keepalive. keepalive:true отклоняет запросы с телом > 64 КБ,
+        // а картинка всегда больше — из-за этого загрузка падала с "Failed to fetch".
+        const upRes = await fetchWithTimeout('https://funpay.com/file/addChatImage', {
             method: 'POST',
             credentials: 'include',
             headers: { 'x-requested-with': 'XMLHttpRequest' },
             body: fd
-        });
+        }, 25000);
         if (upRes.status === 400) return { retry: true, where: 'upload' };
         if (!upRes.ok) throw new Error(`Загрузка изображения: HTTP ${upRes.status}`);
         const upJson = await upRes.json().catch(() => ({}));
@@ -562,12 +637,12 @@ async function sendChatImageInBackground(chatId, dataUrl, chatName) {
             request: JSON.stringify(request),
             csrf_token: auth.csrf_token
         };
-        const sendRes = await fetch('https://funpay.com/runner/', {
+        const sendRes = await fetchWithTimeout('https://funpay.com/runner/', {
             method: 'POST',
             credentials: 'include',
             headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest' },
             body: new URLSearchParams(payload)
-        });
+        }, 25000);
         if (sendRes.status === 400) return { retry: true, where: 'runner' };
         if (!sendRes.ok) throw new Error(`Отправка изображения: HTTP ${sendRes.status}`);
         const sendJson = await sendRes.json().catch(() => null);
@@ -579,12 +654,27 @@ async function sendChatImageInBackground(chatId, dataUrl, chatName) {
         return { ok: true, fileId };
     }
 
-    let res = await attempt(false);
+    async function attemptSafe(force) {
+        try {
+            return await attempt(force);
+        } catch (e) {
+            const msg = String(e && e.message || e);
+            if (e && (e.name === 'AbortError' || /aborted|timed out|Failed to fetch|network/i.test(msg))) {
+                return { retry: true, where: 'network', networkErr: msg };
+            }
+            throw e;
+        }
+    }
+
+    let res = await attemptSafe(false);
     if (res && res.retry) {
-        console.warn(`FP Tools: 400 на этапе "${res.where}", обновляю csrf и повторяю.`);
-        res = await attempt(true);
+        console.warn(`FP Tools: повтор загрузки (причина: "${res.where}"${res.networkErr ? ' / ' + res.networkErr : ''}).`);
+        await ensureOffscreenDocument();
+        res = await attemptSafe(true);
         if (res && res.retry) {
-            throw new Error('FunPay вернул 400 даже после обновления csrf.');
+            throw new Error(res.where === 'network'
+                ? 'Не удалось отправить изображение: сеть или сессия FunPay. Обновите страницу и попробуйте снова.'
+                : 'FunPay вернул 400 даже после обновления csrf.');
         }
     }
     return { fileId: res.fileId };
@@ -824,18 +914,7 @@ async function runTelegramCheckCycle() {
 
 // Функция для парсинга HTML через offscreen документ
 async function parseHtmlViaOffscreen(html, action, extra = {}) {
-    const existingContexts = await chrome.runtime.getContexts({
-        contextTypes: ['OFFSCREEN_DOCUMENT'],
-        documentUrls: [chrome.runtime.getURL(OFFSCREEN_DOCUMENT_PATH)]
-    });
-
-    if (!existingContexts.length) {
-        await chrome.offscreen.createDocument({
-            url: OFFSCREEN_DOCUMENT_PATH,
-            reasons: ['DOM_PARSER'],
-            justification: 'Parsing FunPay page HTML',
-        });
-    }
+    await ensureOffscreenDocument();
 
     return await chrome.runtime.sendMessage({
         target: 'offscreen',
@@ -845,16 +924,52 @@ async function parseHtmlViaOffscreen(html, action, extra = {}) {
     });
 }
 
+async function ensureOffscreenDocument() {
+    try {
+        const existingContexts = await chrome.runtime.getContexts({
+            contextTypes: ['OFFSCREEN_DOCUMENT'],
+            documentUrls: [chrome.runtime.getURL(OFFSCREEN_DOCUMENT_PATH)]
+        });
+        if (existingContexts.length) return true;
+        await chrome.offscreen.createDocument({
+            url: OFFSCREEN_DOCUMENT_PATH,
+            reasons: ['DOM_PARSER'],
+            justification: 'Keepalive + parsing FunPay page HTML',
+        });
+        return true;
+    } catch (e) {
+        if (String(e && e.message || '').includes('Only a single offscreen')) return true;
+        console.warn('FP Tools: не удалось создать offscreen-документ:', e && e.message);
+        return false;
+    }
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 25000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 async function cloneBuildFieldsInternal(auth, nodeId, attributes, attributePairs) {
     if (!nodeId) throw new Error('Неизвестна подкатегория (node) лота.');
     
     const editUrl = `https://funpay.com/lots/offerEdit?node=${nodeId}&setlocale=en`;
-    const resp = await fetch(editUrl, { headers: { 'Cookie': `golden_key=${auth.golden_key}` } });
-    if (!resp.ok) throw new Error(`Не удалось открыть форму категории: ${resp.status}`);
+    const { response: resp, seal } = await fptFetchWithSeal(editUrl, {});
+    if (!resp.ok) {
+        if (seal.present && !seal.valid) throw new Error(GOLDEN_SEAL_ERROR);
+        throw new Error(`Не удалось открыть форму категории: ${resp.status}`);
+    }
     const html = await resp.text();
+    if (/account\/login|name="login"/i.test(html) && !/form-offer-editor/i.test(html)) {
+        throw new Error(GOLDEN_SEAL_ERROR);
+    }
     
     // ВОЗВРАЩАЕМ русский язык вашему аккаунту
-    await fetch(`https://funpay.com/?setlocale=ru`, { headers: { 'Cookie': `golden_key=${auth.golden_key}` } });
+    await fetch(`https://funpay.com/?setlocale=ru`, { credentials: 'include' });
     
     const fields = await parseHtmlViaOffscreen(html, 'solveCloneForm', { attributes: attributes || [], attributePairs: attributePairs || [] });
     if (!fields) throw new Error('Не удалось разобрать форму категории.');
@@ -1108,17 +1223,19 @@ async function processNextLotImport() {
         formData.set('offer_id', '0'); // Всегда создаем новый лот
         formData.set('active', 'on'); // Активируем по умолчанию
 
-        const response = await fetch("https://funpay.com/lots/offerSave", {
+        const { response, seal } = await fptFetchWithSeal("https://funpay.com/lots/offerSave", {
             method: "POST",
             headers: { 
                 "X-Requested-With": "XMLHttpRequest", 
-                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                'Cookie': `golden_key=${auth.golden_key}`
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
             },
             body: formData
         });
 
-        if (!response.ok) throw new Error(`Ошибка сети: ${response.statusText}`);
+        if (!response.ok) {
+            if (seal.present && !seal.valid) throw new Error(GOLDEN_SEAL_ERROR);
+            throw new Error(`Ошибка сети: ${response.statusText}`);
+        }
         
         const result = await response.json();
         
@@ -1240,12 +1357,34 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // 3.0: Background image send (ported from FP Tools upload_image + send_image).
     // Uploads the image to FunPay, then sends it via the runner with image_id - entirely
     // in the background, so it never touches the visible chat input.
+    //
     if (request.action === 'fptSendImage') {
         (async () => {
+            const sendId = request.sendId || (request.chatId + ':' + (request.dataUrl || '').slice(0, 64));
             try {
-                const result = await sendChatImageInBackground(request.chatId, request.dataUrl, request.chatName);
+                if (_imgSendInFlight.has(sendId)) {
+                    const result = await _imgSendInFlight.get(sendId);
+                    sendResponse({ ok: true, result, deduped: true });
+                    return;
+                }
+                const doneAt = _imgSendDone.get(sendId);
+                if (doneAt && Date.now() - doneAt.ts < 60000) {
+                    sendResponse({ ok: true, result: doneAt.result, deduped: true });
+                    return;
+                }
+                const p = sendChatImageInBackground(request.chatId, request.dataUrl, request.chatName);
+                _imgSendInFlight.set(sendId, p);
+                let result;
+                try { result = await p; }
+                finally { _imgSendInFlight.delete(sendId); }
+                _imgSendDone.set(sendId, { ts: Date.now(), result });
+                if (_imgSendDone.size > 200) {
+                    const cutoff = Date.now() - 60000;
+                    for (const [k, v] of _imgSendDone) if (v.ts < cutoff) _imgSendDone.delete(k);
+                }
                 sendResponse({ ok: true, result });
             } catch (e) {
+                _imgSendInFlight.delete(sendId);
                 sendResponse({ ok: false, error: e.message });
             }
         })();
@@ -1405,9 +1544,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             try {
                 const auth = await getAuthDetailsForBackground();
                 const editUrl = `https://funpay.com/lots/offerEdit?node=${request.nodeId}&offer=${request.offerId}`;
-                const response = await fetch(editUrl, { headers: { 'Cookie': `golden_key=${auth.golden_key}` } });
-                if (!response.ok) throw new Error(`Network Error: ${response.status}`);
+                const { response, seal } = await fptFetchWithSeal(editUrl, {});
+                if (!response.ok) {
+                    if (seal.present && !seal.valid) throw new Error(GOLDEN_SEAL_ERROR);
+                    throw new Error(`Network Error: ${response.status}`);
+                }
                 const html = await response.text();
+                if (/account\/login|name="login"/i.test(html) && !/form-offer-editor/i.test(html)) {
+                    throw new Error(GOLDEN_SEAL_ERROR);
+                }
                 const data = await parseHtmlViaOffscreen(html, 'parseLotEditPage');
                 sendResponse({ success: true, data: data });
             } catch (e) {
@@ -1433,9 +1578,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 const editUrl = request.nodeId
                     ? `https://funpay.com/lots/offerEdit?node=${request.nodeId}&offer=${offerId}`
                     : `https://funpay.com/lots/offerEdit?offer=${offerId}`;
-                const resp = await fetch(editUrl, { headers: { 'Cookie': `golden_key=${auth.golden_key}` } });
-                if (!resp.ok) throw new Error(`Ошибка загрузки лота: ${resp.status}`);
+                const { response: resp, seal } = await fptFetchWithSeal(editUrl, {});
+                if (!resp.ok) {
+                    if (seal.present && !seal.valid) throw new Error(GOLDEN_SEAL_ERROR);
+                    throw new Error(`Ошибка загрузки лота: ${resp.status}`);
+                }
                 const html = await resp.text();
+                if (/account\/login|name="login"/i.test(html) && !/form-offer-editor/i.test(html)) {
+                    throw new Error(GOLDEN_SEAL_ERROR);
+                }
                 const data = await parseHtmlViaOffscreen(html, 'parseLotEditPage');
                 if (!data) throw new Error('Не удалось разобрать форму лота.');
 
@@ -1816,16 +1967,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     deleted: '1',
                     csrf_token: auth.csrf_token
                 });
-                const response = await fetch('https://funpay.com/lots/offerSave', {
+                const { response, seal } = await fptFetchWithSeal('https://funpay.com/lots/offerSave', {
                     method: 'POST',
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest',
-                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                        'Cookie': `golden_key=${auth.golden_key}`
+                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
                     },
                     body
                 });
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                if (!response.ok) {
+                    if (seal.present && !seal.valid) throw new Error(GOLDEN_SEAL_ERROR);
+                    throw new Error(`HTTP ${response.status}`);
+                }
                 sendResponse({ success: true });
             } catch (e) {
                 sendResponse({ success: false, error: e.message });
@@ -1855,7 +2008,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         const editUrl = nodeId
                             ? `https://funpay.com/lots/offerEdit?node=${nodeId}&offer=${payload.offer_id}`
                             : `https://funpay.com/lots/offerEdit?offer=${payload.offer_id}`;
-                        const r = await fetch(editUrl, { headers: { 'Cookie': `golden_key=${auth.golden_key}` } });
+                        const { response: r } = await fptFetchWithSeal(editUrl, {});
                         if (r.ok) {
                             const html = await r.text();
                             const full = await parseHtmlViaOffscreen(html, 'parseLotEditPage');
@@ -1872,17 +2025,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 const formData = new URLSearchParams(payload);
                 formData.set('csrf_token', auth.csrf_token);
 
-                const response = await fetch('https://funpay.com/lots/offerSave', {
+                const { response, seal } = await fptFetchWithSeal('https://funpay.com/lots/offerSave', {
                     method: 'POST',
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest',
-                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                        'Cookie': `golden_key=${auth.golden_key}`
+                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
                     },
                     body: formData
                 });
 
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                if (!response.ok) {
+                    if (seal.present && !seal.valid) throw new Error(GOLDEN_SEAL_ERROR);
+                    throw new Error(`HTTP ${response.status}`);
+                }
                 const result = await response.json();
 
                 // FunPay returns { error: 0 } on success, or { error: 1, errors: {...} }
@@ -2597,6 +2752,7 @@ chrome.runtime.onInstalled.addListener((details) => {
             showSalesStats: true,
             hideBalance: false,
             viewSellersPromo: true,
+            enableCustomTheme: false,
             fpToolsDisabledFeatures: [],
             fpToolsDiscord: { enabled: false, webhookUrl: '', pingEveryone: false, pingHere: false }
         });

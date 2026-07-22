@@ -84,7 +84,7 @@
     font-size: 13px;
 }
 .fp-tools-ig-tab:hover { background: #282c34; color: #fff; }
-.fp-tools-ig-tab.active { color: #E879F9; border-bottom-color: #E879F9; }
+.fp-tools-ig-tab.active { color: #1b75bb; border-bottom-color: #1b75bb; }
 .fp-tools-ig-panels {
     padding: 20px;
     overflow-y: auto;
@@ -98,10 +98,10 @@
 .fp-tools-ig-inline-controls input[type="color"] { flex-shrink: 0; width: 40px; height: 40px; padding: 2px; border-radius: 6px; }
 .fp-tools-ig-inline-controls input[type="range"] { flex-grow: 1; }
 .fp-tools-ig-small-text { font-size: 12px; color: #888; margin-top: 8px; }
-.fp-tools-ig-small-text a { color: #E879F9; }
+.fp-tools-ig-small-text a { color: #1b75bb; }
 .fp-tools-ig-theme-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .fp-tools-ig-theme-item { width: 100%; padding-bottom: 100%; border-radius: 6px; cursor: pointer; border: 2px solid transparent; transition: border-color 0.2s; }
-.fp-tools-ig-theme-item:hover { border-color: #E879F9; }
+.fp-tools-ig-theme-item:hover { border-color: #1b75bb; }
 
 .fp-tools-ig-symbols-panel {
     display: none;
@@ -137,7 +137,7 @@
     background: #1e2127;
 }
 .fp-tools-ig-btn-primary {
-    background: linear-gradient(45deg, #E879F9, #92FE9D);
+    background: linear-gradient(45deg, #1b75bb, #92FE9D);
     color: white;
     border: none;
     padding: 12px 25px;
