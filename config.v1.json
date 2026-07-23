@@ -32,7 +32,7 @@
   },
   "message": null,
   "announce": {
-    "enabled": false,
+    "enabled": true,
     "id": "redesign-2026",
     "title": null,
     "body": null
