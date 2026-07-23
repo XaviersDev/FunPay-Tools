@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "updated": null,
+  "status": "off",
+  "selectors": {
+    "chatInput": null,
+    "chatSend": null,
+    "balance": null,
+    "userName": null,
+    "chatHistory": null
+  },
+  "theme": {
+    "enabled": false,
+    "targets": {
+      "primary": [],
+      "accent": [],
+      "text": [],
+      "links": []
+    }
+  },
+  "features": {
+    "templates": true,
+    "editorMode": true,
+    "aiRewrite": true,
+    "cursorFx": true,
+    "background": true,
+    "slashCommands": true,
+    "accounts": true,
+    "calculator": true,
+    "currency": true,
+    "notes": true
+  },
+  "message": null,
+  "announce": {
+    "enabled": false,
+    "id": "redesign-2026",
+    "title": null,
+    "body": null
+  }
+}
