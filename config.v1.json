@@ -7,7 +7,32 @@
     "chatSend": null,
     "balance": null,
     "userName": null,
-    "chatHistory": null
+    "chatHistory": null,
+    "orderRow": null,
+    "orderRowPending": null,
+    "orderDate": null,
+    "orderDateTime": null,
+    "orderStatus": null,
+    "orderPrice": null,
+    "lotRow": null,
+    "lotDescText": null,
+    "offerBlock": null,
+    "offersContainer": null,
+    "contentRoot": null,
+    "chatMessage": null,
+    "chatDialogs": null,
+    "lotsTable": null,
+    "lotsTableHeader": null,
+    "lotsSellerHeader": null,
+    "lotReviewCount": null,
+    "offerRowWithId": null,
+    "offerIdAttr": null,
+    "offerIconHost": null
+  },
+  "paths": {
+    "orders": ["/orders"],
+    "lots": ["/users/", "/lots/"],
+    "chat": ["/chat"]
   },
   "theme": {
     "enabled": false,
@@ -28,11 +53,15 @@
     "accounts": true,
     "calculator": true,
     "currency": true,
-    "notes": true
+    "notes": true,
+    "orderTimer": true,
+    "quickLotSearch": true,
+    "reviewSorter": true,
+    "openLotButton": true
   },
   "message": null,
   "announce": {
-    "enabled": true,
+    "enabled": false,
     "id": "redesign-2026",
     "title": null,
     "body": null
