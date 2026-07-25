@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "updated": "2026-07-25T14:26:28.811Z",
-  "status": "off",
+  "updated": "2026-07-25T15:26:28.811Z",
+  "status": "on",
   "selectors": {
     "chatInput": ".chat-form textarea",
     "chatSend": ".chat-form-btn button, .chat-form button[type=\"submit\"]",
