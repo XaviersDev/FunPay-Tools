@@ -8,31 +8,54 @@
     "balance": null,
     "userName": null,
     "chatHistory": null,
-    "orderRow": null,
-    "orderRowPending": null,
-    "orderDate": null,
-    "orderDateTime": null,
-    "orderStatus": null,
-    "orderPrice": null,
     "lotRow": null,
-    "lotDescText": null,
-    "offerBlock": null,
-    "offersContainer": null,
     "contentRoot": null,
     "chatMessage": null,
     "chatDialogs": null,
+    "offerBlock": null,
+    "lotDescText": null,
+    "offersContainer": null,
     "lotsTable": null,
     "lotsTableHeader": null,
     "lotsSellerHeader": null,
     "lotReviewCount": null,
     "offerRowWithId": null,
     "offerIdAttr": null,
-    "offerIconHost": null
+    "offerIconHost": null,
+    "balanceAll": null,
+    "raiseCategoryLink": null,
+    "profileContainer": null,
+    "orderTradeRow": null,
+    "orderTitle": null,
+    "orderBuyer": null,
+    "orderTradePrice": null,
+    "orderTradeStatus": null,
+    "orderTradeDate": null,
+    "chatHeaderControls": null,
+    "chatHeader": null,
+    "chatMsgList": null,
+    "chatMsgItem": null,
+    "chatMsgText": null,
+    "lotPriceInput": null,
+    "lotEditHeader": null,
+    "lotDescInput": null,
+    "notifyAudioSource": null,
+    "notifyAudioPlayer": null,
+    "calcTableBody": null,
+    "raiseButton": null,
+    "raiseGameAttr": null,
+    "raiseNodeAttr": null,
+    "raiseCategoryName": null,
+    "raiseModalCheckbox": null
   },
   "paths": {
-    "orders": ["/orders"],
-    "lots": ["/users/", "/lots/"],
-    "chat": ["/chat"]
+    "lots": [
+      "/users/",
+      "/lots/"
+    ],
+    "chat": [
+      "/chat"
+    ]
   },
   "theme": {
     "enabled": false,
@@ -54,16 +77,36 @@
     "calculator": true,
     "currency": true,
     "notes": true,
-    "orderTimer": true,
     "quickLotSearch": true,
     "reviewSorter": true,
-    "openLotButton": true
+    "openLotButton": true,
+    "hideBalance": true,
+    "autoBump": true,
+    "epicNicks": true,
+    "stats": true,
+    "globalChat": true,
+    "chatSearch": true,
+    "exactPrice": true,
+    "fontTools": true,
+    "customSound": true
   },
   "message": null,
-  "announce": {
+  "epicNicks": {
     "enabled": false,
+    "url": null,
+    "ttl": 60
+  },
+  "notifySound": {
+    "enabled": false,
+    "strategy": "audio-element",
+    "defaultUrl": "https://funpay.com/audio/chat_loud.mp3",
+    "presets": {}
+  },
+  "announce": {
+    "enabled": true,
     "id": "redesign-2026",
     "title": null,
     "body": null
-  }
+  },
+  "announcements": []
 }
