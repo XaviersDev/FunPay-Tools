@@ -7,6 +7,7 @@ import { fetchAIResponse, fetchAILotGeneration, fetchAITranslation, fetchAIImage
 import { BUMP_ALARM_NAME, startAutoBump, stopAutoBump, runScheduledBump, runBumpCycle } from './autobump.js';
 import { runAutoResponderCycle, resetAutoResponderState } from './autoresponder.js';
 import { startEngine, stopEngine, onHeartbeat, onKeepalivePing, ENGINE_HEARTBEAT_ALARM } from './fpt_engine.js';
+import { ensurePluginRuntime, dispatchPluginEvent, handlePluginMessage, handleRuntimeNotification } from './plugins.js';
 import {
     TELEGRAM_ALARM, telegramInit, telegramSyncAlarm, telegramPollOnce,
     telegramValidateAndResolve, telegramNotifyNewMessages, telegramNotifyNewOrders, tgSendMessage
@@ -1333,6 +1334,15 @@ function fptSnapshotForKey(key) {
 
 // --- Главный обработчик сообщений ---
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    // FunPay Cardinal plugin engine (UI actions + runtime log/notify ingestion).
+    if (handlePluginMessage(request, sendResponse)) return true;
+    if (request && (request.action === 'fptPluginLogStore' ||
+                    request.action === 'fptPluginNotify' ||
+                    request.action === 'fptPluginTelegram')) {
+        handleRuntimeNotification(request);
+        sendResponse({ ok: true });
+        return true;
+    }
     // Поднять все лоты по кнопке с профиля
     if (request && request.action === 'fptRaiseAllNow') {
         runBumpCycle()
@@ -2739,6 +2749,8 @@ function setupInitialAlarms() {
             // 3.0: start the MV3-safe active loop instead of the broken 0.25-min alarm.
             startEngine();
         }
+        // FunPay Cardinal plugins: bring up the Python runtime with enabled plugins.
+        ensurePluginRuntime().catch(() => {});
     });
 }
 
@@ -2805,6 +2817,12 @@ chrome.storage.onChanged.addListener((changes, area) => {
         } else {
             chrome.alarms.clear(BUMP_ALARM_NAME);
         }
+    }
+
+    // FunPay Cardinal plugins: reload the runtime whenever the plugin set changes.
+    if (changes.fpToolsPlugins) {
+        ensurePluginRuntime().catch(() => {});
+        startEngine().catch(() => {});
     }
 });
 

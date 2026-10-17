@@ -119,6 +119,7 @@ function createMainPopup() {
                     <li data-page="notes"><a><span class="nav-icon material-symbols-rounded">edit_note</span><span>Заметки</span></a></li>
                     <li data-page="overview"><a><span class="nav-icon material-symbols-rounded">movie</span><span>Обзор</span></a></li>
                     <li data-page="settings_io"><a><span class="nav-icon material-symbols-rounded">database</span><span>Настройки</span></a></li>
+                    <li data-page="plugins"><a><span class="nav-icon material-symbols-rounded">extension</span><span>Плагины</span></a></li>
                     <li data-page="tickets"><a><span class="nav-icon material-symbols-rounded">confirmation_number</span><span>Тикеты</span></a></li>
                     <li data-page="support"><a><span class="nav-icon material-symbols-rounded">favorite</span><span>Поддержка</span></a></li>
                 </ul>
@@ -1069,6 +1070,50 @@ function createMainPopup() {
                     </div>
                 </div>
 
+                <div class="fp-tools-page-content" data-page="plugins">
+                    <h3>Плагины FunPay Cardinal</h3>
+                    <p class="template-info">Здесь можно запускать плагины из <a href="https://github.com/sidor0912/FunPayCardinal" target="_blank" style="color:#4a9fd4;">FunPay Cardinal</a> прямо в браузере: движок на Python (Pyodide) выполняет ваш <b>*.py</b> плагин и подписывает его на события FunPay (новые сообщения, заказы, выдача, поднятие лотов и т.д.).</p>
+                    <div id="fpt-plugins-status" class="fpt-plugins-status">
+                        <span class="fpt-plugins-dot idle"></span> Проверка движка…
+                    </div>
+                    <div class="fpt-plugins-toolbar">
+                        <button id="fpt-plugins-add" class="btn"><span class="material-symbols-rounded" style="font-size:16px;vertical-align:-3px;margin-right:5px;">add</span>Добавить плагин</button>
+                        <input type="file" id="fpt-plugins-file" accept=".py,text/x-python" style="display:none;">
+                        <button id="fpt-plugins-boot" class="btn btn-default" style="padding:6px 12px;font-size:13px;">Запустить движок</button>
+                        <button id="fpt-plugins-refresh" class="btn btn-default" style="padding:6px 12px;font-size:13px;">Обновить</button>
+                    </div>
+                    <div id="fpt-plugins-list" class="fpt-plugins-list"></div>
+                    <div class="lot-io-warning" style="margin-top:14px;">
+                        <span class="material-icons">warning</span>
+                        <span>Плагины выполняют произвольный код. Устанавливайте только те, которым доверяете (как и в самом Cardinal).</span>
+                    </div>
+                    <style>
+                        .fpt-plugins-status{display:flex;align-items:center;gap:8px;font-size:13px;margin:10px 0;}
+                        .fpt-plugins-muted{color:var(--fptm-faint,#5a5f7a);}
+                        .fpt-plugins-dot{width:9px;height:9px;border-radius:50%;display:inline-block;}
+                        .fpt-plugins-dot.ok{background:#4caf82;}
+                        .fpt-plugins-dot.err{background:#ff6b6b;}
+                        .fpt-plugins-dot.idle{background:#f4c84a;}
+                        .fpt-plugins-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+                        .fpt-plugins-list{display:flex;flex-direction:column;gap:10px;}
+                        .fpt-plugin-card{background:var(--fptm-surface-2,#0e0f16);border:1px solid var(--fptm-border,#1e2030);border-radius:10px;padding:12px;}
+                        .fpt-plugin-head{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+                        .fpt-plugin-title{display:flex;align-items:center;gap:8px;font-size:14px;}
+                        .fpt-plugin-ver{font-size:11px;color:#4a9fd4;border:1px solid rgba(74,159,212,.4);border-radius:6px;padding:1px 6px;}
+                        .fpt-plugin-desc{font-size:12px;color:var(--fptm-muted,#9099b8);margin:6px 0;}
+                        .fpt-plugin-meta{font-size:11px;color:var(--fptm-faint,#5a5f7a);margin-bottom:8px;}
+                        .fpt-plugin-actions{display:flex;gap:8px;flex-wrap:wrap;}
+                        .fpt-plugin-actions .btn{padding:5px 12px;font-size:12px;}
+                        .fpt-plugin-logbox{margin-top:10px;max-height:200px;overflow:auto;background:#070810;border:1px solid #22253a;border-radius:8px;padding:8px;font-size:11px;white-space:pre-wrap;color:#b6bdd6;}
+                        .fpt-plugin-switch{position:relative;display:inline-block;width:38px;height:20px;flex-shrink:0;}
+                        .fpt-plugin-switch input{opacity:0;width:0;height:0;}
+                        .fpt-plugin-switch span{position:absolute;inset:0;background:#33374d;border-radius:20px;transition:.2s;cursor:pointer;}
+                        .fpt-plugin-switch span::before{content:'';position:absolute;width:14px;height:14px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s;}
+                        .fpt-plugin-switch input:checked + span{background:#1b75bb;}
+                        .fpt-plugin-switch input:checked + span::before{transform:translateX(18px);}
+                    </style>
+                </div>
+
                 <div class="fp-tools-page-content" data-page="support">
                     <h3>Оставьте отзыв! <span class="material-symbols-rounded" style="color:#f4c84a;vertical-align:-3px;">star</span></h3>
                     <div class="support-container">
@@ -1892,6 +1937,7 @@ function setupPopupNavigation() {
             if (pageId === 'templates') { if (typeof setupTemplateSettingsHandlers === 'function') setupTemplateSettingsHandlers(); }
             if (pageId === 'piggy_banks') { if (typeof renderPiggyBankSettings === 'function') renderPiggyBankSettings(); }
             if (pageId === 'lot_io') { if (typeof initializeLotIO === 'function') initializeLotIO(); }
+            if (pageId === 'plugins') { if (typeof initializePluginsUI === 'function') initializePluginsUI(); }
             if (pageId === 'auto_review') { if (typeof initializeAutoReviewUI === 'function') initializeAutoReviewUI(); }
             if (pageId === 'needs') { if (typeof initializeNeedsTab === 'function') initializeNeedsTab(); }
             if (pageId === 'slash_commands') { if (typeof initializeSlashCommandsUI === 'function') initializeSlashCommandsUI(); }

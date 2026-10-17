@@ -1,5 +1,7 @@
 // background/autobump.js
 
+import { dispatchPluginEvent } from './plugins.js';
+
 export const BUMP_ALARM_NAME = 'fpToolsAutoBump';
 
 async function logToConsole(message) {
@@ -181,6 +183,8 @@ export async function runBumpCycle() {
             return summary;
         }
 
+        try { dispatchPluginEvent('pre_lots_raise', { categories: categories.map(c => c.categoryName || c.id) }); } catch (_) {}
+
         let minNextWait = Infinity;
 
         for (const cat of categories) {
@@ -216,6 +220,7 @@ export async function runBumpCycle() {
 
         if (!isFinite(minNextWait)) minNextWait = 4 * 3600;
         summary.nextWaitSeconds = minNextWait;
+        try { dispatchPluginEvent('post_lots_raise', { raised: summary.raised, errors: summary.errors, skipped: summary.skipped }); } catch (_) {}
         return summary;
     } catch (error) {
         await logToConsole(`Не поднято: [Системная ошибка]. ${error.message}`);

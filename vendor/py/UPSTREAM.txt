@@ -1,0 +1,19 @@
+Vendored upstream sources
+=========================
+
+The pure-Python packages in this directory are unmodified copies of the
+corresponding sources from the FunPay Cardinal project:
+
+    https://github.com/sidor0912/FunPayCardinal
+
+  FunPayAPI/   FunPay API client used by Cardinal plugins
+  Utils/       Cardinal helper utilities
+  locales/     Cardinal localization
+  tg_bot/      Cardinal Telegram helpers (CBT/text constants only)
+
+License: GNU General Public License v3.0 (as published by the upstream project).
+These files are bundled only so the extension's embedded Python (Pyodide)
+runtime can import the real FunPayAPI/Utils/locales instead of stubs.
+
+To refresh them, re-download the paths listed in manifest.json from the
+upstream repository (default branch: main).

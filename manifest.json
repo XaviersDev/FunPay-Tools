@@ -2,7 +2,7 @@
   "update_url": "https://clients2.google.com/service/update2/crx",
   "manifest_version": 3,
   "name": "FunPay Tools",
-  "version": "2.9.9",
+  "version": "2.10.0",
   "description": "Глобальное расширение для FunPay ⚡ 299+ инструментов • ИИ-помощник • Автоответчик • Аналитика • Автоматизация • Больше продаж",
   "permissions": [
     "storage",
@@ -41,6 +41,9 @@
   "background": {
     "service_worker": "background/background.js",
     "type": "module"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
   },
   "content_scripts": [
     {
@@ -123,6 +126,7 @@
         "content/features/lot_context_menu.js",
         "content/features/ai_lot_audit.js",
         "content/features/settings_io.js",
+        "content/features/plugins_ui.js",
         "content/features/bulk_lot_editor.js",
         "content/features/buyer_history.js",
         "content/features/chat_enhancements.js",

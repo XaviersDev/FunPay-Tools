@@ -376,6 +376,7 @@
                 initializeHeaderButtonStyler();
                 initializeAnnouncementsFeature();
                 initializeLotIO();
+                initializePluginsUI();
                 initializeAutoReview();
                 initializeAILotAudit();
                 initializeSettingsIO();
