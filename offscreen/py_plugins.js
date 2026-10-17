@@ -30,8 +30,19 @@ const fptPyState = {
     loading: null,
     error: null,
     version: null,
+    packagesInstalled: false,
     loadedPlugins: new Set(),
 };
+
+// Real packages we try to have available for plugins (best-effort, offline-safe:
+// if the network is unavailable the shim's fallback finder still lets the
+// plugin load). FunPay / telebot / requests / fake_useragent / json5 are NOT
+// here on purpose - the shim provides FunPay-cookie-aware implementations.
+const FPT_PYODIDE_PACKAGES = [
+    'beautifulsoup4', 'lxml', 'numpy', 'pandas', 'pillow', 'apscheduler',
+    'python-dateutil', 'pytz', 'emoji', 'openpyxl', 'qrcode', 'aiohttp',
+    'html5lib', 'pyyaml', 'toml', 'loguru', 'colorama',
+];
 
 // ─── storage cache (synchronous access for Python) ──────────────────────────
 const fptStorageCache = Object.create(null);
@@ -177,6 +188,35 @@ async function fptRefreshShim() {
     try { py.globals.delete('__fpt_src'); } catch (_) {}
 }
 
+// Install the best-effort set of real packages so plugins that depend on them
+// get genuine implementations (Pyodide distribution first, then PyPI).
+async function fptInstallPackages() {
+    if (fptPyState.packagesInstalled) return;
+    const py = fptRequireReady();
+    const code = `
+import micropip as _mp
+import json as _json
+for _name in _json.loads(${JSON.stringify(JSON.stringify(FPT_PYODIDE_PACKAGES))}):
+    try:
+        await _mp.install(_name, keep_going=True)
+        print('[FPC] installed', _name)
+    except Exception as _e:
+        print('[FPC] skip', _name, repr(_e))
+try:
+    from pyodide_http import patch_all as _patch
+    _patch()
+    print('[FPC] pyodide_http patched')
+except Exception as _e:
+    print('[FPC] pyodide_http unavailable:', _e)
+`;
+    try {
+        await py.runPythonAsync(code);
+        fptPyState.packagesInstalled = true;
+    } catch (e) {
+        console.warn('[FPC] package install pass failed:', e && e.message || e);
+    }
+}
+
 // ─── plugin operations ──────────────────────────────────────────────────────
 function fptPyLoadPlugin(uuid, name, code) {
     const py = fptRequireReady();
@@ -225,8 +265,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             case 'fptPluginBoot': {
                 try {
                     await fptBootPyodide();
-                    // Refresh the shim, then load exactly the enabled plugin set.
+                    // Refresh the shim, make real packages available, then load
+                    // exactly the enabled plugin set.
                     await fptRefreshShim();
+                    await fptInstallPackages();
                     fptPyState.loadedPlugins.clear();
                     const loaded = [];
                     for (const pl of (message.plugins || [])) {
