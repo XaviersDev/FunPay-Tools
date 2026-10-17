@@ -148,9 +148,9 @@ function initializePluginsUI() {
 
     bootBtn?.addEventListener('click', async () => {
         showNotification('Запуск Python-движка…', false);
-        const r = await fptPluginSend('fptPluginStatus');
-        if (r && r.ok && r.ready) showNotification('Движок уже запущен.', false);
-        else showNotification(r && r.error ? ('Ошибка: ' + r.error) : 'Движок готов.', !(r && r.ok));
+        const r = await fptPluginSend('fptPluginStart');
+        if (r && r.ready) showNotification('Движок запущен.', false);
+        else showNotification(r && r.error ? ('Ошибка: ' + r.error) : 'Нет включённых плагинов — движок запустится при добавлении.', true);
         fptRenderPluginsUI();
     });
 

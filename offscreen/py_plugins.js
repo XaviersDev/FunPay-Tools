@@ -22,6 +22,7 @@
 
 const FPT_PYODIDE_CDN = 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/';
 const FPT_SHIM_PATH = 'plugins_runtime/cardinal_compat.py';
+const PLUGINS_KEY = 'fpToolsPlugins';
 
 const fptPyState = {
     pyodide: null,
@@ -212,6 +213,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             case 'fptPluginBoot': {
                 try {
                     await fptBootPyodide();
+                    // Authoritative boot: drop whatever was loaded before so the
+                    // runtime mirrors exactly the enabled plugin set.
+                    for (const uuid of Array.from(fptPyState.loadedPlugins)) {
+                        try { fptPyUnloadPlugin(uuid); } catch (_) {}
+                    }
+                    fptPyState.loadedPlugins.clear();
                     const loaded = [];
                     for (const pl of (message.plugins || [])) {
                         try {
@@ -270,5 +277,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // async response
 });
 
-// warm up the runtime in the background once the offscreen doc exists
-setTimeout(() => { fptBootPyodide().catch(() => {}); }, 1500);
+// Warm up the runtime once the offscreen doc exists, but only if at least one
+// plugin is enabled (Pyodide is ~13 MB - don't load it for nothing).
+setTimeout(() => {
+    try {
+        const map = fptStorageCache[PLUGINS_KEY] || {};
+        const any = Object.values(map).some(p => p && p.enabled);
+        if (any) fptBootPyodide().catch(() => {});
+    } catch (_) {}
+}, 1500);

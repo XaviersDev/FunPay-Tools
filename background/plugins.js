@@ -59,6 +59,57 @@ function sendToOffscreen(message) {
     return chrome.runtime.sendMessage({ target: 'offscreen', ...message });
 }
 
+// The offscreen document may not have registered its message listener the
+// instant it is created; retry a few times so callers don't see a spurious
+// "Could not establish connection" error.
+async function sendToOffscreenRetry(message, attempts = 4, delay = 400) {
+    let lastErr;
+    for (let i = 0; i < attempts; i++) {
+        try {
+            await ensureOffscreen();
+        } catch (_) { /* ignore */ }
+        try {
+            return await sendToOffscreen(message);
+        } catch (e) {
+            lastErr = e;
+            await new Promise(r => setTimeout(r, delay));
+        }
+    }
+    throw lastErr || new Error('offscreen not available');
+}
+
+// Query the runtime without treating "not started yet" as an error. The
+// offscreen document may not have registered its listener the instant it is
+// created, so retry briefly before giving up.
+async function queryRuntimeStatus() {
+    const hasPlugins = await anyPluginsEnabled();
+    try {
+        await ensureOffscreen();
+    } catch (_) { /* ignore */ }
+    for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+            const st = await sendToOffscreen({ action: 'fptPluginStatus' });
+            if (st) return { ok: true, running: true, ...st };
+        } catch (_) { /* listener not ready yet */ }
+        await new Promise(r => setTimeout(r, 250));
+    }
+    // Offscreen not reachable → the engine simply hasn't been started.
+    return { ok: true, ready: false, running: false, hasPlugins };
+}
+
+// Is the offscreen document currently alive? (never creates it)
+async function offscreenExists() {
+    try {
+        const ctxs = await chrome.runtime.getContexts({
+            contextTypes: ['OFFSCREEN_DOCUMENT'],
+            documentUrls: [chrome.runtime.getURL(OFFSCREEN_DOCUMENT_PATH)],
+        });
+        return ctxs.length > 0;
+    } catch (_) {
+        return false;
+    }
+}
+
 // Boot the runtime once and load all enabled plugins into it.
 export async function ensurePluginRuntime() {
     const map = await getPluginsMap();
@@ -66,24 +117,17 @@ export async function ensurePluginRuntime() {
         .filter(p => p && p.enabled && typeof p.code === 'string')
         .map(p => ({ uuid: p.uuid, name: p.name, code: p.code }));
 
-    // Nothing enabled → no need to spin up the (heavy) Python runtime.
+    // Nothing enabled → don't spin up the (heavy) Python runtime, but if it is
+    // already running make sure previously loaded plugins are unloaded.
     if (!enabled.length) {
-        const st = await sendToOffscreen({ action: 'fptPluginStatus' }).catch(() => null);
-        if (!st || !st.ready) return { ok: true, ready: false, skipped: true };
+        if (!(await offscreenExists())) return { ok: true, ready: false, skipped: true };
     }
 
-    await ensureOffscreen();
-    // The offscreen document may not have registered its message listener the
-    // instant it is created - retry a couple of times before giving up.
-    for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-            const res = await sendToOffscreen({ action: 'fptPluginBoot', plugins: enabled });
-            if (res && res.ok) return res;
-            if (res && res.error) return res;
-        } catch (e) { /* not ready yet */ }
-        await new Promise(r => setTimeout(r, 700));
+    try {
+        return await sendToOffscreenRetry({ action: 'fptPluginBoot', plugins: enabled });
+    } catch (e) {
+        return { ok: false, error: String(e && e.message || e) };
     }
-    return { ok: false, error: 'runtime did not respond' };
 }
 
 // ─── event dispatch ─────────────────────────────────────────────────────────
@@ -122,23 +166,27 @@ export function handlePluginMessage(request, sendResponse) {
             return true;
 
         case 'fptPluginStatus':
-            sendToOffscreen({ action: 'fptPluginStatus' })
-                .then(st => sendResponse({ ok: true, ...(st || {}) }))
-                .catch(e => sendResponse({ ok: false, error: String(e && e.message || e) }));
+            queryRuntimeStatus()
+                .then(st => sendResponse(st))
+                .catch(e => sendResponse({ ok: true, ready: false, running: false, error: String(e && e.message || e) }));
+            return true;
+
+        case 'fptPluginStart':
+            ensurePluginRuntime()
+                .then(r => sendResponse({ ok: !!(r && r.ok), ready: !!(r && r.ok), error: r && r.error }))
+                .catch(e => sendResponse({ ok: false, ready: false, error: String(e && e.message || e) }));
             return true;
 
         case 'fptPluginParse':
             (async () => {
-                await ensureOffscreen();
-                const res = await sendToOffscreen({ action: 'fptPluginParse', name: request.name, code: request.code });
+                const res = await sendToOffscreenRetry({ action: 'fptPluginParse', name: request.name, code: request.code });
                 sendResponse(res || { ok: false, error: 'no response' });
             })().catch(e => sendResponse({ ok: false, error: String(e && e.message || e) }));
             return true;
 
         case 'fptPluginAdd':
             (async () => {
-                await ensureOffscreen();
-                const parsed = await sendToOffscreen({ action: 'fptPluginParse', name: request.name, code: request.code });
+                const parsed = await sendToOffscreenRetry({ action: 'fptPluginParse', name: request.name, code: request.code });
                 if (!parsed || !parsed.ok) {
                     sendResponse({ ok: false, error: (parsed && parsed.error) || 'Не удалось разобрать плагин.' });
                     return;
@@ -161,9 +209,9 @@ export function handlePluginMessage(request, sendResponse) {
                 };
                 await setPluginsMap(map);
 
-                const loadRes = await sendToOffscreen({
+                const loadRes = await sendToOffscreenRetry({
                     action: 'fptPluginLoad', uuid, name: map[uuid].name, code: request.code
-                });
+                }).catch(e => ({ ok: false, error: String(e && e.message || e) }));
                 sendResponse({ ok: true, uuid, overwrite, loaded: !!(loadRes && loadRes.ok), error: loadRes && loadRes.error });
             })().catch(e => sendResponse({ ok: false, error: String(e && e.message || e) }));
             return true;
@@ -176,11 +224,11 @@ export function handlePluginMessage(request, sendResponse) {
                 p.enabled = !!request.enabled;
                 await setPluginsMap(map);
                 if (p.enabled) {
-                    await ensureOffscreen();
-                    const res = await sendToOffscreen({ action: 'fptPluginLoad', uuid: p.uuid, name: p.name, code: p.code });
+                    const res = await sendToOffscreenRetry({ action: 'fptPluginLoad', uuid: p.uuid, name: p.name, code: p.code })
+                        .catch(e => ({ ok: false, error: String(e && e.message || e) }));
                     sendResponse({ ok: true, enabled: true, loaded: !!(res && res.ok), error: res && res.error });
                 } else {
-                    const res = await sendToOffscreen({ action: 'fptPluginUnload', uuid: p.uuid }).catch(() => null);
+                    const res = await sendToOffscreenRetry({ action: 'fptPluginUnload', uuid: p.uuid }).catch(() => null);
                     sendResponse({ ok: true, enabled: false, unloaded: !!(res && res.ok) });
                 }
             })().catch(e => sendResponse({ ok: false, error: String(e && e.message || e) }));
@@ -191,7 +239,7 @@ export function handlePluginMessage(request, sendResponse) {
                 const map = await getPluginsMap();
                 const p = map[request.uuid];
                 if (p) {
-                    await sendToOffscreen({ action: 'fptPluginUnload', uuid: p.uuid }).catch(() => {});
+                    await sendToOffscreenRetry({ action: 'fptPluginUnload', uuid: p.uuid }).catch(() => {});
                     delete map[request.uuid];
                     await setPluginsMap(map);
                 }
@@ -226,7 +274,7 @@ export function handlePluginMessage(request, sendResponse) {
             return true;
 
         case 'fptPluginRunCommand':
-            sendToOffscreen({
+            sendToOffscreenRetry({
                 action: 'fptPluginRunCommand',
                 uuid: request.uuid, command: request.command, args: request.args || [],
             }).then(res => sendResponse(res || { ok: false, error: 'no response' }))
