@@ -198,23 +198,42 @@ class _FptModuleLoader(importlib.abc.Loader):
                     pass
 
 
-class _FptModuleFinder(importlib.abc.MetaPathFinder):
-    """Last-resort finder: if a module is genuinely not installed, hand back a
-    permissive stub instead of raising ModuleNotFoundError. Standard/pyodide
-    finders run first, so real packages (stdlib, vendored wheels, micropip
-    installs) always win; this only catches what nothing else could resolve."""
+# Roots we are willing to stub when nothing real provides them. This is a
+# deliberately EXPLICIT allowlist (not a wildcard): stubbing arbitrary modules
+# would break stdlib code that probes platform modules with try/except (e.g.
+# subprocess does `try: import msvcrt` to detect Windows).
+_FPT_STUB_ROOTS = frozenset((
+    # Cardinal / FunPay ecosystem
+    "FunPayAPI", "Utils", "locales", "cardinal", "tg_bot", "telebot", "telegram",
+    # common plugin dependencies
+    "requests", "requests_toolbelt", "urllib3", "fake_useragent", "json5", "bs4",
+    "lxml", "pycountry", "aiohttp", "colorama", "dotenv", "user_agent", "dotenv",
+    "PIL", "cv2", "numpy", "pandas", "scipy", "sklearn", "matplotlib", "seaborn",
+    "apscheduler", "dateutil", "pytz", "zoneinfo", "openpyxl", "xlsxwriter",
+    "docx", "qrcode", "yt_dlp", "pytube", "emoji", "tqdm", "redis", "psutil",
+    "yaml", "toml", "html5lib", "coloredlogs", "loguru", "rich", "aiogram",
+    "pyrogram", "telethon", "sqlalchemy", "jinja2", "pydantic", "cachetools",
+    "tenacity", "retrying", "schedule", "Crypto", "cryptography", "bcrypt",
+    "google", "vk_api", "vkbottle", "dill", "cloudpickle", "watchdog", "paramiko",
+    "mysql", "pymysql", "psycopg2", "pymongo", "openai", "socks", "httpx",
+    "regex", "Levenshtein", "rapidfuzz", "keyring", "pyperclip", "tabulate",
+    "prettytable", "colorlog", "ratelimit", "telegramify_markdown", "steam",
+    "numpy_financial", "gspread", "oauth2client", "firebase_admin", "pymsgbox",
+    "pyautogui", "mss", "pygetwindow", "pyrect",
+))
 
-    _NEVER = frozenset((
-        "js", "pyodide", "micropip", "importlib", "importlib_metadata", "sys",
-        "os", "posixpath", "typing", "asyncio", "packaging", "pkg_resources",
-        "builtins", "_frozen_importlib", "_frozen_importlib_external",
-    ))
+
+class _FptModuleFinder(importlib.abc.MetaPathFinder):
+    """Last-resort finder for the allowlisted roots above: if a module is
+    genuinely not installed, hand back a permissive stub instead of raising
+    ModuleNotFoundError. Standard/pyodide finders run first, so real packages
+    always win."""
 
     def find_spec(self, fullname, path=None, target=None):
         if fullname in sys.modules:
             return None
         root = fullname.split(".", 1)[0]
-        if root.startswith("_") or root in self._NEVER:
+        if root not in _FPT_STUB_ROOTS:
             return None
         return importlib.machinery.ModuleSpec(fullname, _FptModuleLoader(), is_package=True)
 
@@ -521,7 +540,70 @@ class Event:
         return _Dummy.__getattr__(self, name)
 
 
+def _build_real_message(payload):
+    import FunPayAPI.types as _t
+    import FunPayAPI.common.enums as _en
+    import FunPayAPI.updater.events as _ev
+    msg = _t.Message(
+        id_=int(payload.get("messageId") or 0),
+        text=payload.get("messageText"),
+        chat_id=payload.get("chatId"),
+        chat_name=payload.get("chatName") or payload.get("buyerName"),
+        interlocutor_id=None,
+        author=payload.get("buyerName"),
+        author_id=int(payload.get("authorId") or 0),
+        html="",
+        determine_msg_type=False,
+    )
+    mt = payload.get("msgType")
+    msg.type = _en.MessageTypes.__members__.get(mt, _en.MessageTypes.NON_SYSTEM)
+    return _ev.NewMessageEvent(runner_tag="FPT", message_obj=msg)
+
+
+def _build_real_order_shortcut(payload, status):
+    import FunPayAPI.types as _t
+    import FunPayAPI.common.enums as _en
+    import datetime as _dt
+    return _t.OrderShortcut(
+        id_=str(payload.get("orderId") or ""),
+        description=payload.get("title") or payload.get("description") or "",
+        price=float(payload.get("price") or 0.0),
+        currency=_en.Currency.RUB,
+        buyer_username=payload.get("buyerName") or "",
+        buyer_id=int(payload.get("buyerId") or 0),
+        chat_id=payload.get("chatId") or 0,
+        status=status,
+        date=_dt.datetime.now(),
+        subcategory_name="",
+        subcategory=None,
+        html="",
+        dont_search_amount=True,
+    )
+
+
 def _make_event(kind, payload):
+    # Prefer the REAL FunPayAPI event/type classes when the vendored sources are
+    # active, so plugins get genuine Message/OrderShortcut/NewMessageEvent etc.
+    try:
+        if kind == "new_message":
+            return _build_real_message(payload)
+        if kind == "new_order":
+            import FunPayAPI.common.enums as _en
+            import FunPayAPI.updater.events as _ev
+            return _ev.NewOrderEvent(
+                runner_tag="FPT",
+                order_obj=_build_real_order_shortcut(payload, _en.OrderStatuses.PAID))
+        if kind == "order_status_changed":
+            import FunPayAPI.common.enums as _en
+            import FunPayAPI.updater.events as _ev
+            st = payload.get("status")
+            status = _en.OrderStatuses.CLOSED if st in (None, "closed", "CLOSED") else _en.OrderStatuses.PAID
+            return _ev.OrderStatusChangedEvent(
+                runner_tag="FPT",
+                order_obj=_build_real_order_shortcut(payload, status))
+    except Exception:
+        pass  # fall back to the lightweight shim models below
+
     et = getattr(EventTypes, kind, None)
     if kind == "new_message":
         msg = Message(
@@ -750,7 +832,11 @@ def _install_modules():
             self.content = (text or "").encode("utf-8", "ignore")
             self.ok = 200 <= status < 300
             self.headers = {}
+            self.cookies = _Dummy()
+            self.url = ""
+            self.encoding = "utf-8"
             self.reason = ""
+            self.history = []
 
         def json(self):
             return json.loads(self.text)
@@ -786,8 +872,14 @@ def _install_modules():
         def get(self, url, **kw): return self.request("GET", url, **kw)
         def post(self, url, **kw): return self.request("POST", url, **kw)
         def put(self, url, **kw): return self.request("PUT", url, **kw)
+        def patch(self, url, **kw): return self.request("PATCH", url, **kw)
         def delete(self, url, **kw): return self.request("DELETE", url, **kw)
+        def head(self, url, **kw): return self.request("HEAD", url, **kw)
+        def options(self, url, **kw): return self.request("OPTIONS", url, **kw)
+        def mount(self, *a, **k): pass
         def close(self): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): pass
 
     req.Response = _Response
     req.Session = _Session
@@ -798,6 +890,17 @@ def _install_modules():
     req.put = lambda url, **kw: _Session().put(url, **kw)
     req.delete = lambda url, **kw: _Session().delete(url, **kw)
     req.exceptions = _module("requests.exceptions", req)
+    # identity bits some libraries read at import time
+    req.__version__ = "2.28.1"
+    req.__build__ = 0x022801
+    req.packages = req
+
+    # requests_toolbelt (image upload helper used by FunPayAPI)
+    rtb = _module("requests_toolbelt")
+    rtb.MultipartEncoder = _dummy_class("MultipartEncoder")
+    rtb.MultipartDecoder = _dummy_class("MultipartDecoder")
+    rtb.adapters = _module("requests_toolbelt.adapters", rtb)
+    rtb.adapters.SSLAdapter = _dummy_class("SSLAdapter")
 
     # fake_useragent
     fua = _module("fake_useragent")

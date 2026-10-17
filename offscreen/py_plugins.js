@@ -22,6 +22,8 @@
 
 const FPT_PYODIDE_CDN = 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/';
 const FPT_SHIM_PATH = 'plugins_runtime/cardinal_compat.py';
+const FPT_VENDOR_MANIFEST = 'vendor/py/manifest.json';
+const FPT_VENDOR_ROOT = 'vendor/py/';
 const PLUGINS_KEY = 'fpToolsPlugins';
 
 const fptPyState = {
@@ -31,6 +33,8 @@ const fptPyState = {
     error: null,
     version: null,
     packagesInstalled: false,
+    vendorWritten: false,
+    vendorActive: false,
     loadedPlugins: new Set(),
 };
 
@@ -217,6 +221,62 @@ except Exception as _e:
     }
 }
 
+// ─── vendored real FunPay Cardinal sources (FunPayAPI / Utils / locales) ─────
+// We ship the genuine pure-Python sources and load them into the Pyodide FS so
+// plugins import the REAL FunPayAPI.updater / types / enums instead of stubs.
+async function fptWriteVendorSources() {
+    if (fptPyState.vendorWritten) return;
+    const py = fptRequireReady();
+    const manifest = await (await fetch(chrome.runtime.getURL(FPT_VENDOR_MANIFEST), { cache: 'no-store' })).json();
+    py.FS.mkdirTree('/fpc_src');
+    for (const rel of manifest) {
+        const text = await (await fetch(chrome.runtime.getURL(FPT_VENDOR_ROOT + rel), { cache: 'no-store' })).text();
+        const full = '/fpc_src/' + rel;
+        py.FS.mkdirTree(full.split('/').slice(0, -1).join('/'));
+        py.FS.writeFile(full, text, { encoding: 'utf8' });
+    }
+    py.runPython("import sys\nif '/fpc_src' not in sys.path:\n    sys.path.insert(0, '/fpc_src')");
+    fptPyState.vendorWritten = true;
+}
+
+// Replace the shim's FunPayAPI/Utils/locales entries with the real vendored
+// packages. Returns {ok} - on failure the caller restores the shim.
+async function fptActivateVendor() {
+    if (fptPyState.vendorActive) return { ok: true };
+    const py = fptRequireReady();
+    const raw = await py.runPythonAsync(`
+import sys, importlib, json
+for _n in [n for n in list(sys.modules) if n.split('.')[0] in ('FunPayAPI', 'Utils', 'locales', 'tg_bot')]:
+    sys.modules.pop(_n, None)
+_ok = True
+_err = ''
+try:
+    import FunPayAPI
+    import FunPayAPI.types, FunPayAPI.common.enums, FunPayAPI.common.exceptions, FunPayAPI.common.utils
+    import FunPayAPI.account, FunPayAPI.updater, FunPayAPI.updater.events, FunPayAPI.updater.runner
+except Exception as _e:
+    _ok = False
+    _err = repr(_e)
+if _ok:
+    for _m in ('Utils', 'Utils.cardinal_tools', 'Utils.config_loader', 'Utils.exceptions',
+               'Utils.logger', 'Utils.updater', 'locales', 'locales.localizer',
+               'locales.ru', 'locales.en', 'locales.uk', 'tg_bot', 'tg_bot.CBT', 'tg_bot.utils'):
+        try:
+            importlib.import_module(_m)
+        except Exception as _e:
+            print('[FPC] vendor skip', _m, repr(_e))
+json.dumps({'ok': _ok, 'error': _err})
+`);
+    const res = JSON.parse(raw);
+    if (res && res.ok) {
+        fptPyState.vendorActive = true;
+        console.log('[FPC] реальный FunPayAPI/Utils/locales активирован');
+    } else {
+        console.warn('[FPC] не удалось активировать вендорные исходники:', res && res.error);
+    }
+    return res || { ok: false };
+}
+
 // ─── plugin operations ──────────────────────────────────────────────────────
 function fptPyLoadPlugin(uuid, name, code) {
     const py = fptRequireReady();
@@ -265,10 +325,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             case 'fptPluginBoot': {
                 try {
                     await fptBootPyodide();
-                    // Refresh the shim, make real packages available, then load
-                    // exactly the enabled plugin set.
+                    // Refresh the shim, load real vendored sources + packages,
+                    // then load exactly the enabled plugin set.
                     await fptRefreshShim();
+                    await fptWriteVendorSources();
                     await fptInstallPackages();
+                    const vendor = await fptActivateVendor();
+                    if (!vendor || !vendor.ok) await fptRefreshShim();
                     fptPyState.loadedPlugins.clear();
                     const loaded = [];
                     for (const pl of (message.plugins || [])) {
