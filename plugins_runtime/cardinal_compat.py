@@ -25,6 +25,8 @@ import enum
 import uuid as _uuid_lib
 import datetime
 import logging
+import importlib.abc
+import importlib.machinery
 
 # verbosity for the shim itself
 logger = logging.getLogger("FunPayCardinal")
@@ -134,8 +136,19 @@ class _Dummy:
         return "<FPT-shim dummy>"
 
 
+class _DummyMeta(type):
+    """Metaclass letting a dummy *class* answer arbitrary attribute access."""
+
+    def __getattr__(cls, name):
+        if name.startswith("__") and name.endswith("__"):
+            raise AttributeError(name)
+        child = _dummy_class(name)
+        setattr(cls, name, child)
+        return child
+
+
 def _dummy_class(name):
-    return type(name, (_Dummy,), {})
+    return _DummyMeta(name, (_Dummy,), {})
 
 
 class _Localizer:
@@ -161,6 +174,46 @@ def _module(name, parent=None):
     if parent is not None:
         setattr(parent, name.split(".")[-1], m)
     return m
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Import hook: auto-create permissive modules for any submodule we did not
+# model explicitly (e.g. `FunPayAPI.updater`, `Utils.cardinal_tools`, ...).
+# ─────────────────────────────────────────────────────────────────────────────
+
+_FPT_SHIM_ROOTS = ("FunPayAPI", "Utils", "telebot", "telegram", "locales", "cardinal")
+_FPT_OPTIONAL_ROOTS = ("requests", "fake_useragent", "json5", "bs4", "lxml",
+                       "pycountry", "aiohttp", "colorama", "dotenv", "user_agent")
+
+
+class _FptModuleLoader(importlib.abc.Loader):
+    def create_module(self, spec):
+        return _LazyModule(spec.name)
+
+    def exec_module(self, module):
+        if not hasattr(module, "__path__"):
+            module.__path__ = []  # treat as a package
+        parent_name, _, child = module.__name__.rpartition(".")
+        if parent_name:
+            parent = sys.modules.get(parent_name)
+            if parent is not None:
+                try:
+                    setattr(parent, child, module)
+                except Exception:
+                    pass
+
+
+class _FptModuleFinder(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname in sys.modules:
+            return None
+        root = fullname.split(".", 1)[0]
+        if root in _FPT_SHIM_ROOTS or root in _FPT_OPTIONAL_ROOTS:
+            return importlib.machinery.ModuleSpec(fullname, _FptModuleLoader(), is_package=True)
+        return None
+
+
+sys.meta_path.append(_FptModuleFinder())
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -679,6 +732,81 @@ def _install_modules():
     ct.load_disabled_plugins = lambda: _storage_get("fpToolsPluginDisabled", [])
     ct.load_pinned_plugins = lambda: _storage_get("fpToolsPluginPinned", [])
     ut.cardinal_tools = ct
+
+    # requests (functional, backed by the synchronous fetch bridge)
+    req = _module("requests")
+
+    class _Response:
+        def __init__(self, status, text):
+            self.status_code = status
+            self.text = text or ""
+            self.content = (text or "").encode("utf-8", "ignore")
+            self.ok = 200 <= status < 300
+            self.headers = {}
+            self.reason = ""
+
+        def json(self):
+            return json.loads(self.text)
+
+        def raise_for_status(self):
+            if not self.ok:
+                raise RequestFailedError(f"HTTP {self.status_code}")
+
+        def __repr__(self):
+            return f"<Response [{self.status_code}]>"
+
+    class _Session:
+        def __init__(self):
+            self.headers = {}
+            self.cookies = _Dummy()
+
+        def request(self, method, url, headers=None, data=None, json=None, params=None,
+                    timeout=None, verify=None, allow_redirects=True, **kw):
+            hdrs = dict(self.headers or {})
+            if headers:
+                hdrs.update(headers)
+            body = data
+            if json is not None:
+                body = __import__("json").dumps(json)
+                hdrs.setdefault("Content-Type", "application/json")
+            if params:
+                from urllib.parse import urlencode
+                sep = "&" if "?" in url else "?"
+                url = url + sep + urlencode(params)
+            status, text = _fetch(method, url, headers=hdrs, data=body, timeout=timeout or 30)
+            return _Response(status, text)
+
+        def get(self, url, **kw): return self.request("GET", url, **kw)
+        def post(self, url, **kw): return self.request("POST", url, **kw)
+        def put(self, url, **kw): return self.request("PUT", url, **kw)
+        def delete(self, url, **kw): return self.request("DELETE", url, **kw)
+        def close(self): pass
+
+    req.Response = _Response
+    req.Session = _Session
+    req.session = lambda: _Session()
+    req.request = lambda method, url, **kw: _Session().request(method, url, **kw)
+    req.get = lambda url, **kw: _Session().get(url, **kw)
+    req.post = lambda url, **kw: _Session().post(url, **kw)
+    req.put = lambda url, **kw: _Session().put(url, **kw)
+    req.delete = lambda url, **kw: _Session().delete(url, **kw)
+    req.exceptions = _module("requests.exceptions", req)
+
+    # fake_useragent
+    fua = _module("fake_useragent")
+
+    class _UserAgent:
+        def __getattr__(self, name):
+            if name.startswith("__"):
+                raise AttributeError(name)
+            return ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
+
+    fua.UserAgent = _UserAgent
+    fua.FakeUserAgent = _UserAgent
+
+    # json5 -> stdlib json (covers the common cases)
+    sys.modules.setdefault("json5", json)
 
     # telebot
     tb = _module("telebot")
