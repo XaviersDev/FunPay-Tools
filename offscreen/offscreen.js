@@ -1402,7 +1402,7 @@ function parseTicketDetails(html) {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.target !== 'offscreen') return true;
+    if (message.target !== 'offscreen' || message.action.startsWith('fptPlugin')) return false;
     
     switch (message.action) {
         case 'parseSalesPage':

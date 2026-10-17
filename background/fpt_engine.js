@@ -22,6 +22,7 @@
 // chat_bookmarks AND orders_counters, per-message dedup.
 
 import { runAutoResponderCycle } from './autoresponder.js';
+import { anyPluginsEnabled } from './plugins.js';
 
 export const ENGINE_HEARTBEAT_ALARM = 'fpToolsEngineHeartbeat';
 const OFFSCREEN_PATH = 'offscreen/offscreen.html';
@@ -51,7 +52,8 @@ async function anyAutomationEnabled() {
         fpToolsAutoReplies.bonusForReviewEnabled ||
         fpToolsAutoReplies.newOrderReplyEnabled ||
         fpToolsAutoReplies.orderConfirmReplyEnabled ||
-        fpToolsAutoReplies.autoDeliveryEnabled
+        fpToolsAutoReplies.autoDeliveryEnabled ||
+        await anyPluginsEnabled()
     );
 }
 

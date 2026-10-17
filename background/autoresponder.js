@@ -1,4 +1,6 @@
 
+import { dispatchPluginEvent, anyPluginsEnabled } from './plugins.js';
+
 function randomTag() {
     return Math.floor(Math.random() * 0xffffffff).toString(16).padStart(8, '0');
 }
@@ -639,7 +641,7 @@ async function _runAutoResponderCycleInner() {
         fpToolsAutoReplies.orderConfirmReplyEnabled ||
         fpToolsAutoReplies.autoDeliveryEnabled;
 
-    if (!anyEnabled) return;
+    if (!anyEnabled && !(await anyPluginsEnabled())) return;
 
     const auth = await getAuth();
     if (!auth.golden_key || !auth.csrf_token || !auth.userId) return;
@@ -679,6 +681,15 @@ async function _runAutoResponderCycleInner() {
         if (!chatObj || !chatObj.data?.html) return;
 
         const chats = await parseViaOffscreen(chatObj.data.html, 'parseChatList');
+        // FunPay Cardinal plugin event: full chat list changed.
+        try {
+            dispatchPluginEvent('messages_list_changed', {
+                chats: chats.map(c => ({
+                    chatId: c.chatId, name: c.chatName,
+                    lastMessage: c.messageText, unread: !!c.isUnread,
+                })),
+            });
+        } catch (_) {}
         const { fpToolsAutoReplies: fresh = {} } = await chrome.storage.local.get('fpToolsAutoReplies');
 
         const lastSeen = fresh.lastSeenMsgIds || {};
@@ -721,6 +732,17 @@ async function _runAutoResponderCycleInner() {
                 msgType
             };
 
+            // FunPay Cardinal plugin events (new message / last message changed).
+            try {
+                dispatchPluginEvent('new_message', {
+                    chatId: chat.chatId, chatName: chat.chatName, buyerName: chat.chatName,
+                    messageId: chat.msgId, messageText: chat.messageText, msgType,
+                });
+                dispatchPluginEvent('last_chat_message_changed', {
+                    chatId: chat.chatId, chatName: chat.chatName, messageText: chat.messageText,
+                });
+            } catch (_) {}
+
             const iAmInitiator = isMyOwnAction(chat.messageText, auth.username);
 
             if (msgType === 'DEAR_VENDORS') {
@@ -737,10 +759,14 @@ async function _runAutoResponderCycleInner() {
                 if (!iAmSeller) {
                     console.log(`FP Tools AR: пропуск события по заказу #${_oid} - это моя покупка, не реагируем.`);
                 } else if (msgType === 'ORDER_PURCHASED') {
+                    try { dispatchPluginEvent('new_order', { orderId: _oid, buyerName: chat.chatName, chatId: chat.chatId }); } catch (_) {}
+                    try { dispatchPluginEvent('pre_delivery', { orderId: _oid, chatId: chat.chatId, buyerName: chat.chatName }); } catch (_) {}
                     await handleOrderPurchased(msg, auth, fresh);
                     await handleAutoDelivery(msg, auth, fresh);
+                    try { dispatchPluginEvent('post_delivery', { orderId: _oid, chatId: chat.chatId, buyerName: chat.chatName }); } catch (_) {}
                 } else if (msgType === 'ORDER_CONFIRMED') {
                     await handleOrderConfirmed(msg, auth, fresh);
+                    try { dispatchPluginEvent('order_status_changed', { orderId: _oid, status: 'closed', chatId: chat.chatId }); } catch (_) {}
                 } else {
                     await handleReview(msg, auth, fresh);
                 }
