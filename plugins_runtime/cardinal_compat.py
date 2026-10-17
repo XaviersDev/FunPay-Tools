@@ -177,14 +177,9 @@ def _module(name, parent=None):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Import hook: auto-create permissive modules for any submodule we did not
-# model explicitly (e.g. `FunPayAPI.updater`, `Utils.cardinal_tools`, ...).
+# Import hook: auto-create permissive modules for anything we did not model and
+# that no real package provides (e.g. `FunPayAPI.updater`, `tg_bot`, `numpy`).
 # ─────────────────────────────────────────────────────────────────────────────
-
-_FPT_SHIM_ROOTS = ("FunPayAPI", "Utils", "telebot", "telegram", "locales", "cardinal")
-_FPT_OPTIONAL_ROOTS = ("requests", "fake_useragent", "json5", "bs4", "lxml",
-                       "pycountry", "aiohttp", "colorama", "dotenv", "user_agent")
-
 
 class _FptModuleLoader(importlib.abc.Loader):
     def create_module(self, spec):
@@ -204,15 +199,27 @@ class _FptModuleLoader(importlib.abc.Loader):
 
 
 class _FptModuleFinder(importlib.abc.MetaPathFinder):
+    """Last-resort finder: if a module is genuinely not installed, hand back a
+    permissive stub instead of raising ModuleNotFoundError. Standard/pyodide
+    finders run first, so real packages (stdlib, vendored wheels, micropip
+    installs) always win; this only catches what nothing else could resolve."""
+
+    _NEVER = frozenset((
+        "js", "pyodide", "micropip", "importlib", "importlib_metadata", "sys",
+        "os", "posixpath", "typing", "asyncio", "packaging", "pkg_resources",
+        "builtins", "_frozen_importlib", "_frozen_importlib_external",
+    ))
+
     def find_spec(self, fullname, path=None, target=None):
         if fullname in sys.modules:
             return None
         root = fullname.split(".", 1)[0]
-        if root in _FPT_SHIM_ROOTS or root in _FPT_OPTIONAL_ROOTS:
-            return importlib.machinery.ModuleSpec(fullname, _FptModuleLoader(), is_package=True)
-        return None
+        if root.startswith("_") or root in self._NEVER:
+            return None
+        return importlib.machinery.ModuleSpec(fullname, _FptModuleLoader(), is_package=True)
 
 
+sys.meta_path[:] = [f for f in sys.meta_path if type(f).__name__ != "_FptModuleFinder"]
 sys.meta_path.append(_FptModuleFinder())
 
 

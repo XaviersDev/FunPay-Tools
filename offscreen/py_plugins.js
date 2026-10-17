@@ -165,6 +165,18 @@ function fptRequireReady() {
     return fptPyState.pyodide;
 }
 
+// Re-execute the compatibility shim (fresh copy, no HTTP cache) so shim updates
+// take effect without requiring the user to reload the extension.
+async function fptRefreshShim() {
+    const py = fptRequireReady();
+    const url = chrome.runtime.getURL(FPT_SHIM_PATH) + '?v=' + Date.now();
+    const res = await fetch(url, { cache: 'no-store' });
+    const src = await res.text();
+    py.globals.set('__fpt_src', src);
+    await py.runPythonAsync('__fpt_src');
+    try { py.globals.delete('__fpt_src'); } catch (_) {}
+}
+
 // ─── plugin operations ──────────────────────────────────────────────────────
 function fptPyLoadPlugin(uuid, name, code) {
     const py = fptRequireReady();
@@ -213,11 +225,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             case 'fptPluginBoot': {
                 try {
                     await fptBootPyodide();
-                    // Authoritative boot: drop whatever was loaded before so the
-                    // runtime mirrors exactly the enabled plugin set.
-                    for (const uuid of Array.from(fptPyState.loadedPlugins)) {
-                        try { fptPyUnloadPlugin(uuid); } catch (_) {}
-                    }
+                    // Refresh the shim, then load exactly the enabled plugin set.
+                    await fptRefreshShim();
                     fptPyState.loadedPlugins.clear();
                     const loaded = [];
                     for (const pl of (message.plugins || [])) {
