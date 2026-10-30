@@ -3,6 +3,43 @@ const API_SECRET_KEY = 'fptoolsdim';
 
 const SYSTEM_PROMPT = 'You are a text editing model. Follow user instructions precisely.';
 
+export const DEFAULT_AI_PROVIDERS = {
+    gemini: {
+        id: 'gemini',
+        name: 'Google Gemini',
+        keyUrl: 'https://aistudio.google.com/app/apikey',
+        models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.6-flash'],
+        placeholder: 'AIzaSy...'
+    },
+    groq: {
+        id: 'groq',
+        name: 'Groq Cloud',
+        keyUrl: 'https://console.groq.com/keys',
+        models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'gemma2-9b-it', 'mixtral-8x7b-32768'],
+        placeholder: 'gsk_...'
+    },
+    openrouter: {
+        id: 'openrouter',
+        name: 'OpenRouter (Free)',
+        keyUrl: 'https://openrouter.ai/keys',
+        models: [
+            'google/gemini-2.5-flash:free',
+            'meta-llama/llama-3.3-70b-instruct:free',
+            'deepseek/deepseek-r1:free',
+            'deepseek/deepseek-chat:free',
+            'qwen/qwen-2.5-72b-instruct:free'
+        ],
+        placeholder: 'sk-or-v1-...'
+    },
+    mistral: {
+        id: 'mistral',
+        name: 'Mistral AI',
+        keyUrl: 'https://console.mistral.ai/api-keys',
+        models: ['mistral-small-latest', 'codestral-latest', 'open-mistral-nemo', 'open-mistral-7b'],
+        placeholder: '...'
+    }
+};
+
 // 3.0 FIX: убирает лишние пустые строки, которые ИИ-перевод/генерация любят добавлять
 // между пунктами. Схлопывает 2+ переносов в один и обрезает края.
 function fptNorm(t) {
@@ -11,9 +48,310 @@ function fptNorm(t) {
         : t;
 }
 
+/**
+ * Вызов REST API Google Gemini
+ */
+async function callGeminiAPI(apiKey, model, systemPrompt, userPrompt, timeoutMs = 12000) {
+    const cleanModel = String(model || '').trim();
+    const cleanKey = String(apiKey || '').trim();
+    if (!cleanKey) {
+        return { success: false, error: 'API-ключ Gemini не указан', canCascade: false };
+    }
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cleanModel)}:generateContent?key=${encodeURIComponent(cleanKey)}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+        const generationConfig = {
+            temperature: 0.7
+        };
+
+        // Для моделей линейки Gemini 3+ отключаем долгое размышление (thinking),
+        // чтобы ответ приходил мгновенно (1-2 сек вместо 30+ сек)
+        if (cleanModel.startsWith('gemini-3') || cleanModel.startsWith('gemini-4')) {
+            generationConfig.thinkingConfig = {
+                thinkingLevel: 'low'
+            };
+        }
+
+        const payload = {
+            contents: [
+                {
+                    role: 'user',
+                    parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }]
+                }
+            ],
+            generationConfig
+        };
+
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: controller.signal
+        });
+
+        if (res.ok) {
+            const json = await res.json();
+            const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (typeof text === 'string' && text.trim()) {
+                return { success: true, data: text.trim(), model: cleanModel };
+            }
+            const blockReason = json?.candidates?.[0]?.finishReason;
+            return {
+                success: false,
+                error: blockReason ? `Ответ заблокирован Gemini (${blockReason})` : 'Gemini вернул пустой ответ',
+                canCascade: true
+            };
+        }
+
+        const errJson = await res.json().catch(() => ({}));
+        const errMsg = errJson?.error?.message || `HTTP ${res.status} ${res.statusText}`;
+
+        // 400 with invalid key or 403
+        if (res.status === 400 && (errMsg.includes('API key') || errMsg.includes('INVALID'))) {
+            return { success: false, error: `Неверный API-ключ Gemini: ${errMsg}`, canCascade: false };
+        }
+        if (res.status === 403) {
+            return { success: false, error: `Доступ запрещён (403): ${errMsg}`, canCascade: false };
+        }
+
+        // 429 = quota / rate limit; 503 = overloaded; 404 = model not found/deprecated
+        const isQuotaOrOverload = res.status === 429 || res.status === 503 || res.status === 500 || res.status === 404;
+        return {
+            success: false,
+            error: `Ошибка Gemini [${res.status}]: ${errMsg}`,
+            canCascade: isQuotaOrOverload
+        };
+    } catch (e) {
+        if (e.name === 'AbortError') {
+            return { success: false, error: `Таймаут ожидания модели Gemini ${cleanModel} (${timeoutMs / 1000} сек)`, canCascade: true };
+        }
+        return { success: false, error: `Сетевая ошибка Gemini: ${e.message}`, canCascade: true };
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+/**
+ * Вызов OpenAI-совместимого REST API (Groq, OpenRouter, Mistral, Custom)
+ */
+async function callOpenAICompatibleAPI(baseUrl, apiKey, model, systemPrompt, userPrompt, extraHeaders = {}, timeoutMs = 12000) {
+    const cleanModel = String(model || '').trim();
+    const cleanKey = String(apiKey || '').trim();
+    const cleanBase = String(baseUrl || '').replace(/\/+$/, '');
+    const url = `${cleanBase}/chat/completions`;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+        const headers = {
+            'Content-Type': 'application/json',
+            ...extraHeaders
+        };
+        if (cleanKey) {
+            headers['Authorization'] = `Bearer ${cleanKey}`;
+        }
+
+        const payload = {
+            model: cleanModel,
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt }
+            ]
+        };
+
+        const res = await fetch(url, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(payload),
+            signal: controller.signal
+        });
+
+        if (res.ok) {
+            const json = await res.json();
+            const text = json?.choices?.[0]?.message?.content;
+            if (typeof text === 'string' && text.trim()) {
+                return { success: true, data: text.trim(), model: cleanModel };
+            }
+            return { success: false, error: 'ИИ вернул пустой ответ', canCascade: true };
+        }
+
+        const errJson = await res.json().catch(() => ({}));
+        const errMsg = errJson?.error?.message || errJson?.message || `HTTP ${res.status} ${res.statusText}`;
+
+        if (res.status === 401) {
+            return { success: false, error: `Неверный API-токен (401 Unauthorized): ${errMsg}`, canCascade: false };
+        }
+
+        const isQuotaOrOverload = res.status === 429 || res.status === 503 || res.status === 502 || res.status === 500 || res.status === 404;
+        return {
+            success: false,
+            error: `Ошибка API [${res.status}]: ${errMsg}`,
+            canCascade: isQuotaOrOverload
+        };
+    } catch (e) {
+        if (e.name === 'AbortError') {
+            return { success: false, error: `Таймаут ожидания модели ${cleanModel} (${timeoutMs / 1000} сек)`, canCascade: true };
+        }
+        return { success: false, error: `Сетевая ошибка API: ${e.message}`, canCascade: true };
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+/**
+ * Диспетчер вызова конкретной модели провайдера
+ */
+async function dispatchProviderCall(providerId, config, model, systemPrompt, userPrompt, timeoutMs = 12000) {
+    if (providerId === 'gemini') {
+        return callGeminiAPI(config.apiKey, model, systemPrompt, userPrompt, timeoutMs);
+    }
+    if (providerId === 'groq') {
+        return callOpenAICompatibleAPI('https://api.groq.com/openai/v1', config.apiKey, model, systemPrompt, userPrompt, {}, timeoutMs);
+    }
+    if (providerId === 'openrouter') {
+        return callOpenAICompatibleAPI('https://openrouter.ai/api/v1', config.apiKey, model, systemPrompt, userPrompt, {
+            'HTTP-Referer': 'https://funpay.tools',
+            'X-Title': 'FunPay Tools'
+        }, timeoutMs);
+    }
+    if (providerId === 'mistral') {
+        return callOpenAICompatibleAPI('https://api.mistral.ai/v1', config.apiKey, model, systemPrompt, userPrompt, {}, timeoutMs);
+    }
+    
+    return { success: false, error: `Неизвестный провайдер: ${providerId}`, canCascade: false };
+}
+
+/**
+ * Каскадный запрос к моделям пользователя:
+ * Если на первой модели исчерпаны токены/квота (429/503), происходит автоматический переход к следующей.
+ */
+async function makeCustomAIRequest(providerId, config, finalPrompt, timeoutMs = 12000) {
+    let modelList = [];
+    if (Array.isArray(config.models)) {
+        modelList = config.models.map(m => String(m).trim()).filter(Boolean);
+    } else if (typeof config.models === 'string') {
+        modelList = config.models.split(',').map(m => m.trim()).filter(Boolean);
+    }
+
+    if (providerId === 'gemini') {
+        const obsoletePatterns = ['gemini-2.0', 'gemini-1.5', 'gemini-1.0', 'gemini-2.5-pro', 'gemini-flash-latest'];
+        modelList = modelList.filter(m => !obsoletePatterns.some(pat => m.includes(pat)));
+    }
+
+    if (!modelList.length) {
+        modelList = DEFAULT_AI_PROVIDERS[providerId]?.models || ['default'];
+    }
+
+    const errors = [];
+    for (let i = 0; i < modelList.length; i++) {
+        const model = modelList[i];
+        console.log(`[FPT AI] [${i + 1}/${modelList.length}] Запрос через ${providerId} (${model})...`);
+        const res = await dispatchProviderCall(providerId, config, model, SYSTEM_PROMPT, finalPrompt, timeoutMs);
+        
+        if (res.success) {
+            if (i > 0) {
+                console.log(`[FPT AI] Каскадный резерв сработал! Ответ получен от модели "${model}" (предыдущие модели исчерпали квоту).`);
+            }
+            return res;
+        }
+
+        errors.push(`• ${model}: ${res.error}`);
+        if (!res.canCascade) {
+            // Ошибка авторизации или ключа — каскад не поможет
+            return {
+                success: false,
+                error: `Ошибка ключа ${DEFAULT_AI_PROVIDERS[providerId]?.name || providerId}: ${res.error}`
+            };
+        }
+        console.warn(`[FPT AI] Модель "${model}" временно недоступна или исчерпала квоту (${res.error}). Переходим к следующей модели...`);
+    }
+
+    return {
+        success: false,
+        error: `Все модели в цепочке каскада (${modelList.join(' → ')}) исчерпали лимит токенов или вернули ошибку:\n${errors.join('\n')}`
+    };
+}
+
+/**
+ * Функция проверки ключа (тестовый запрос)
+ */
+export async function testAIProviderKey(providerId, config) {
+    const start = Date.now();
+    const testPrompt = 'Ответь ровно одним словом на русском: РАБОТАЕТ';
+    const res = await makeCustomAIRequest(providerId, config, testPrompt, 7000);
+    const latencyMs = Date.now() - start;
+
+    if (res.success) {
+        return {
+            success: true,
+            model: res.model,
+            reply: res.data,
+            latencyMs
+        };
+    }
+    return {
+        success: false,
+        error: res.error,
+        latencyMs
+    };
+}
+
+/**
+ * Проверяет, указал ли пользователь хотя бы один собственный API-ключ.
+ * Возвращает конфигурацию провайдера для выполнения всех запросов.
+ */
+function findConfiguredUserProvider(settings) {
+    if (!settings || !settings.enabled || !settings.providers) return null;
+
+    // 1. Если активный выбранный сервис имеет заполненный ключ
+    const activeId = settings.activeProvider;
+    if (activeId && settings.providers[activeId]?.apiKey?.trim()) {
+        return {
+            providerId: activeId,
+            config: settings.providers[activeId]
+        };
+    }
+
+    // 2. Если у активного сервис ключ не заполнен, проверяем остальные доступные сервисы
+    const knownProviders = ['gemini', 'groq', 'openrouter', 'mistral'];
+    for (const pId of knownProviders) {
+        const cfg = settings.providers[pId];
+        if (cfg?.apiKey?.trim()) {
+            return {
+                providerId: pId,
+                config: cfg
+            };
+        }
+    }
+
+    return null;
+}
+
 async function makeAIRequest(finalPrompt) {
+    // 1. СТРОГОЕ ПРАВИЛО: если пользователь указал свой API-ключ, ВСЕ запросы к ИИ
+    // направляются исключительно через его API и ни в коем случае НЕ на сервер FunPay Tools.
+    try {
+        const { fpToolsAISettings } = await chrome.storage.local.get('fpToolsAISettings');
+        const userProvider = findConfiguredUserProvider(fpToolsAISettings);
+
+        if (userProvider) {
+            console.log(`[FPT AI] Запрос направлен через собственный API пользователя (${userProvider.providerId}) вместо сервера FunPay Tools.`);
+            return await makeCustomAIRequest(userProvider.providerId, userProvider.config, finalPrompt);
+        }
+    } catch (e) {
+        console.warn('[FPT AI] Ошибка проверки пользовательских настроек ИИ:', e);
+    }
+
+    // 2. Если свои ключи не включены или не заданы — используем сервер разработчика
     if (VERCEL_API_URL.includes('YOUR_VERCEL_PROJECT_NAME')) {
-        return { success: false, error: "URL сервера не настроен в background/ai.js" };
+        return { 
+            success: false, 
+            error: "Встроенный сервер ИИ FunPay Tools недоступен." 
+        };
     }
 
     const payload = {
@@ -25,7 +363,7 @@ async function makeAIRequest(finalPrompt) {
     try {
         // 3.0: hard timeout so the UI never waits forever if the server hangs or is unreachable.
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 45000);
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
         let response;
         try {
             response = await fetch(VERCEL_API_URL, {
@@ -49,7 +387,7 @@ async function makeAIRequest(finalPrompt) {
             if (response.status >= 500) {
                  return { 
                     success: false, 
-                    error: "ИИ на сервере разработчика устарел. Разработчик скоро обновит ИИ, и все заработает! ИЗВИНИ 🙏🏻" 
+                    error: "Встроенный сервер ИИ перегружен или временно недоступен." 
                 };
             }
             return { success: false, error: `Ошибка API: ${details}` };

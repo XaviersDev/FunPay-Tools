@@ -29,7 +29,11 @@
     "https://translate.googleapis.com/*",
     "https://fonts.gstatic.com/*",
     "https://support.funpay.com/*",
-    "https://api.telegram.org/*"
+    "https://api.telegram.org/*",
+    "https://generativelanguage.googleapis.com/*",
+    "https://api.groq.com/*",
+    "https://openrouter.ai/*",
+    "https://api.mistral.ai/*"
   ],
   "action": {
     "default_popup": "popup/popup.html",

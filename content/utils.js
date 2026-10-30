@@ -92,12 +92,184 @@ function waitForElementToBeEnabled(element, timeout = 2000) {
 }
 
 /**
- * --- НОВАЯ ВЕРСИЯ УВЕДОМЛЕНИЙ V4 (Более масштабная анимация) ---
- * Показывает уведомление с предварительной анимацией частиц.
- * @param {string} message - Текст для отображения.
- * @param {boolean} isError - Если true, уведомление будет в стиле ошибки.
+ * 3.1: Нативное уведомление FunPay Tools об ошибке ИИ с кнопками "Перейти в раздел" и "Понял".
+ * Оформлено строго в тёмном стиле FunPay Tools без AI-стилизации. Не закрывается до нажатия кнопок.
  */
+function showAIErrorNotification(rawMessage) {
+    const existing = document.getElementById('fp-tools-ai-error-banner');
+    if (existing) {
+        existing.remove();
+    }
+
+    let cleanMsg = 'Встроенный сервер ИИ перегружен или временно недоступен.';
+    if (typeof rawMessage === 'string' && rawMessage.trim()) {
+        const text = rawMessage.replace(/^[❌⚠️]?\s*Ошибка\s*(генерации|обработки\s*AI|AI|ИИ)?:\s*/i, '').trim();
+        if (text && !text.includes('Рекомендуем указать собственный')) {
+            cleanMsg = text;
+        }
+    }
+
+    const banner = document.createElement('div');
+    banner.id = 'fp-tools-ai-error-banner';
+    banner.style.cssText = `
+        position: fixed !important;
+        bottom: 20px !important;
+        right: 20px !important;
+        max-width: 440px !important;
+        width: calc(100vw - 40px) !important;
+        background: rgba(22, 24, 34, 0.96) !important;
+        backdrop-filter: blur(12px) !important;
+        -webkit-backdrop-filter: blur(12px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.12) !important;
+        border-left: 4px solid #e5484d !important;
+        border-radius: 8px !important;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5) !important;
+        padding: 12px 16px !important;
+        color: #fff !important;
+        font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+        font-size: 13px !important;
+        line-height: 1.4 !important;
+        z-index: 2147483647 !important;
+        box-sizing: border-box !important;
+        animation: fpAiToastIn 0.22s ease-out forwards !important;
+    `;
+
+    banner.innerHTML = `
+        <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;">
+            <span class="material-symbols-rounded" style="font-size:20px;color:#f87171;line-height:1.2;flex-shrink:0;">error_outline</span>
+            <div style="flex:1;font-size:13px;color:#f1f5f9;line-height:1.4;">
+                <span style="font-weight:600;color:#fff;">Сервер ИИ недоступен.</span> ${cleanMsg}
+                <div style="font-size:11.5px;color:#94a3b8;margin-top:2px;">Подключите свой бесплатный API-токен в настройках расширения.</div>
+            </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;align-items:center;">
+            <button type="button" id="fp-ai-err-dismiss-btn" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.14);color:#cbd5e1;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;transition:all .15s ease;">Понял</button>
+            <button type="button" id="fp-ai-err-goto-btn" style="background:#1b75bb;border:none;color:#fff;padding:6px 16px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s ease;">Перейти в раздел</button>
+        </div>
+    `;
+
+    if (!document.getElementById('fp-ai-error-banner-styles')) {
+        const style = document.createElement('style');
+        style.id = 'fp-ai-error-banner-styles';
+        style.textContent = `
+            @keyframes fpAiToastIn {
+                from { opacity: 0; transform: translateY(12px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            @keyframes fpAiToastOut {
+                from { opacity: 1; transform: translateY(0); }
+                to { opacity: 0; transform: translateY(12px); }
+            }
+            #fp-ai-err-dismiss-btn:hover { background: rgba(255,255,255,0.14) !important; color: #fff !important; }
+            #fp-ai-err-goto-btn:hover { background: #268bd2 !important; }
+        `;
+        document.head.appendChild(style);
+    }
+
+    const closeBanner = () => {
+        banner.style.animation = 'fpAiToastOut 0.18s ease-in forwards';
+        setTimeout(() => { if (banner.parentNode) banner.remove(); }, 180);
+    };
+
+    banner.querySelector('#fp-ai-err-dismiss-btn')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeBanner();
+    });
+
+    banner.querySelector('#fp-ai-err-goto-btn')?.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        closeBanner();
+
+        // 1. Убеждаемся, что всплывающее окно FunPay Tools создано (оно строится лениво при первом открытии)
+        if (typeof window.__fpEnsurePopup === 'function') {
+            try {
+                await window.__fpEnsurePopup();
+            } catch (_) {}
+        }
+
+        // 2. Если окна ещё нет в DOM, открываем через кнопку в шапке
+        let popup = document.querySelector('.fp-tools-popup');
+        if (!popup) {
+            const headerBtn = document.getElementById('fpToolsButton');
+            if (headerBtn) {
+                headerBtn.click();
+                await new Promise(r => setTimeout(r, 100));
+                popup = document.querySelector('.fp-tools-popup');
+            }
+        }
+
+        // 3. Активируем окно
+        if (popup) {
+            popup.classList.add('active');
+            if (typeof applyFptMenuTransparency === 'function') applyFptMenuTransparency();
+            if (typeof syncFptMenuControls === 'function') syncFptMenuControls();
+        }
+
+        // 4. Переключаемся на страницу "Настройки" (settings_io)
+        const settingsLi = document.querySelector('.fp-tools-nav li[data-page="settings_io"]');
+        if (settingsLi) {
+            settingsLi.click();
+        } else {
+            document.querySelectorAll('.fp-tools-nav li, .fp-tools-header-tab').forEach(item => item.classList.remove('active'));
+            document.querySelectorAll('.fp-tools-page-content').forEach(page => {
+                page.classList.toggle('active', page.dataset.page === 'settings_io');
+            });
+            if (typeof initializeSettingsIO === 'function') initializeSettingsIO();
+        }
+
+        // 5. Прокручиваем к блоку API-токенов ИИ и активируем его
+        setTimeout(() => {
+            const cb = document.getElementById('fpAITokensEnabled');
+            const container = document.getElementById('fpAITokensContainer');
+            if (cb && !cb.checked) {
+                cb.checked = true;
+                if (container) container.style.display = 'block';
+                cb.dispatchEvent(new Event('change'));
+            }
+            const targetEl = container || cb;
+            if (targetEl) {
+                targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                const origBorder = targetEl.style.borderColor;
+                targetEl.style.borderColor = '#1b75bb';
+                setTimeout(() => { targetEl.style.borderColor = origBorder; }, 1500);
+            }
+            const activeInput = document.querySelector('.fp-ai-panel[style*="display: block"] .fp-ai-key-input') ||
+                                document.getElementById('fp-ai-key-gemini');
+            if (activeInput) {
+                activeInput.focus();
+            } else if (cb) {
+                cb.focus();
+            }
+        }, 220);
+    });
+
+    document.body.appendChild(banner);
+}
+
+window.showAIErrorNotification = showAIErrorNotification;
+
+
 function showNotification(message, isError = false) {
+    if (isError && typeof message === 'string') {
+        const lower = message.toLowerCase();
+        if (
+            lower.includes('сервер ии') ||
+            lower.includes('ошибка генерации') ||
+            lower.includes('ошибка обработки ai') ||
+            lower.includes('ошибка связи с ai') ||
+            lower.includes('ошибка ии') ||
+            lower.includes('ошибка ai') ||
+            lower.includes('ai processing') ||
+            lower.includes('fptoolsaisettings') ||
+            lower.includes('gemini') ||
+            lower.includes('groq') ||
+            lower.includes('openrouter') ||
+            lower.includes('mistral')
+        ) {
+            showAIErrorNotification(message);
+            return;
+        }
+    }
     const NOTIFICATION_DURATION = 7000;
     const PARTICLE_ANIMATION_DURATION = 1000;
     const NOTIFICATION_APPEAR_DELAY = 500;

@@ -888,6 +888,146 @@ function createMainPopup() {
                         <button id="fp-reset-greeted-btn" class="btn btn-default" style="width:auto;padding:8px 14px;">Сбросить список поприветствованных чатов</button>
                         <button id="fp-reset-april-btn" class="btn btn-default" style="width:auto;padding:8px 14px;">Сбросить счётчик даты</button>
                     </div>
+
+                    <h3 style="margin-top:28px;">API-токены ИИ (Gemini, Groq, OpenRouter, Mistral)</h3>
+                    <p class="template-info">Помогает при перегрузке или сбоях встроенного сервера FunPay Tools. Запросы идут напрямую к выбранному сервису без задержек. При исчерпании лимита модели запрос автоматически переходит к следующей в каскаде.</p>
+
+                    <div class="checkbox-label-inline" style="margin-bottom:14px;">
+                        <input type="checkbox" id="fpAITokensEnabled">
+                        <label for="fpAITokensEnabled" style="margin-bottom:0;"><span style="font-weight:600;">Использовать собственный API-ключ ИИ</span></label>
+                    </div>
+
+                    <div id="fpAITokensContainer" style="display:none;background:var(--fptm-surface-2, #0e0f16);border:1px solid var(--fptm-border, #22253a);border-radius:10px;padding:16px 18px;margin-top:10px;margin-bottom:16px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                            <div style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--fptm-muted, #7a7f9a);letter-spacing:0.5px;">Выберите сервис:</div>
+                            <span id="fp-ai-active-badge" style="font-size:11px;padding:4px 9px;border-radius:6px;background:rgba(76,175,130,0.15);color:#4caf82;border:1px solid rgba(76,175,130,0.3);display:none;line-height:1.2;">
+                                ✓ Активен: <strong id="fp-ai-active-name">Google Gemini</strong>
+                            </span>
+                        </div>
+                        <div class="fp-ai-provider-tabs" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px;width:100%;">
+                            <button type="button" class="btn btn-default fp-ai-tab-btn active" data-provider="gemini">
+                                <span class="material-symbols-rounded" style="font-size:16px;color:#9d72ff;">auto_awesome</span>Google Gemini
+                            </button>
+                            <button type="button" class="btn btn-default fp-ai-tab-btn" data-provider="groq">
+                                <span class="material-symbols-rounded" style="font-size:16px;color:#f59e0b;">bolt</span>Groq Cloud
+                            </button>
+                            <button type="button" class="btn btn-default fp-ai-tab-btn" data-provider="openrouter">
+                                <span class="material-symbols-rounded" style="font-size:16px;color:#3b82f6;">hub</span>OpenRouter
+                            </button>
+                            <button type="button" class="btn btn-default fp-ai-tab-btn" data-provider="mistral">
+                                <span class="material-symbols-rounded" style="font-size:16px;color:#ec4899;">psychology</span>Mistral AI
+                            </button>
+                            
+                        </div>
+
+                        <!-- Panels -->
+                        <div id="fp-ai-panels-wrap">
+                            <!-- Gemini Panel -->
+                            <div class="fp-ai-panel" data-panel="gemini">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+                                    <span style="font-size:13.5px;font-weight:600;color:var(--fptm-text, #d8dae8);">Google Gemini (Google AI Studio)</span>
+                                    <a href="https://aistudio.google.com/app/apikey" target="_blank" class="fp-ai-get-key-link" style="display:inline-flex;align-items:center;gap:5px;padding:6px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:6px;font-size:12px;color:#70b6ff;text-decoration:none;">Получить ключ бесплатно <span class="material-symbols-rounded" style="font-size:14px;">open_in_new</span></a>
+                                </div>
+                                <div style="margin-bottom:12px;">
+                                    <label style="display:block;font-size:12px;color:var(--fptm-muted, #7a7f9a);margin-bottom:5px;">API-токен (API Key):</label>
+                                    <div style="display:flex;gap:6px;">
+                                        <input type="password" id="fp-ai-key-gemini" class="fp-ai-key-input" placeholder="AIzaSy..." style="flex:1;font-family:monospace;">
+                                        <button type="button" class="fp-ai-toggle-key-btn" data-target="fp-ai-key-gemini" title="Показать/скрыть">👁</button>
+                                    </div>
+                                </div>
+                                <div style="margin-bottom:14px;">
+                                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+                                        <label style="font-size:12px;color:var(--fptm-muted, #7a7f9a);margin:0;">Каскадная цепочка моделей (через запятую):</label>
+                                        <button type="button" class="fp-ai-reset-models-btn" data-provider="gemini" title="Вернуть рекомендованный список">Сбросить по умолчанию</button>
+                                    </div>
+                                    <input type="text" id="fp-ai-models-gemini" class="fp-ai-models-input" value="gemini-2.5-flash, gemini-2.5-flash-lite, gemini-3.5-flash-lite, gemini-3.8-flash, gemini-3.6-flash" style="width:100%;font-family:monospace;">
+                                    <div style="font-size:11px;color:var(--fptm-muted, #7a7f9a);margin-top:5px;line-height:1.4;">✨ Автоматический каскад: один ключ действует на все модели. При исчерпании лимита токенов (ошибка 429) запрос автоматически переключается на следующую модель в цепочке.</div>
+                                </div>
+                            </div>
+
+                            <!-- Groq Panel -->
+                            <div class="fp-ai-panel" data-panel="groq" style="display:none;">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+                                    <span style="font-size:13.5px;font-weight:600;color:var(--fptm-text, #d8dae8);">Groq Cloud (LPU-инференс)</span>
+                                    <a href="https://console.groq.com/keys" target="_blank" class="fp-ai-get-key-link" style="display:inline-flex;align-items:center;gap:5px;padding:6px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:6px;font-size:12px;color:#70b6ff;text-decoration:none;">Получить ключ бесплатно <span class="material-symbols-rounded" style="font-size:14px;">open_in_new</span></a>
+                                </div>
+                                <div style="margin-bottom:12px;">
+                                    <label style="display:block;font-size:12px;color:var(--fptm-muted, #7a7f9a);margin-bottom:5px;">API-токен (API Key):</label>
+                                    <div style="display:flex;gap:6px;">
+                                        <input type="password" id="fp-ai-key-groq" class="fp-ai-key-input" placeholder="gsk_..." style="flex:1;font-family:monospace;">
+                                        <button type="button" class="fp-ai-toggle-key-btn" data-target="fp-ai-key-groq" title="Показать/скрыть">👁</button>
+                                    </div>
+                                </div>
+                                <div style="margin-bottom:14px;">
+                                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+                                        <label style="font-size:12px;color:var(--fptm-muted, #7a7f9a);margin:0;">Каскадная цепочка моделей (через запятую):</label>
+                                        <button type="button" class="fp-ai-reset-models-btn" data-provider="groq" title="Вернуть рекомендованный список">Сбросить по умолчанию</button>
+                                    </div>
+                                    <input type="text" id="fp-ai-models-groq" class="fp-ai-models-input" value="llama-3.3-70b-versatile, llama-3.1-8b-instant, gemma2-9b-it, mixtral-8x7b-32768" style="width:100%;font-family:monospace;">
+                                    <div style="font-size:11px;color:var(--fptm-muted, #7a7f9a);margin-top:5px;line-height:1.4;">✨ Сверхбыстрый отклик на процессорах LPU (до 800+ токенов/сек). При исчерпании лимита 70B переключается на 8B или Gemma 2.</div>
+                                </div>
+                            </div>
+
+                            <!-- OpenRouter Panel -->
+                            <div class="fp-ai-panel" data-panel="openrouter" style="display:none;">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+                                    <span style="font-size:13.5px;font-weight:600;color:var(--fptm-text, #d8dae8);">OpenRouter (Бесплатные модели :free)</span>
+                                    <a href="https://openrouter.ai/keys" target="_blank" class="fp-ai-get-key-link" style="display:inline-flex;align-items:center;gap:5px;padding:6px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:6px;font-size:12px;color:#70b6ff;text-decoration:none;">Получить ключ бесплатно <span class="material-symbols-rounded" style="font-size:14px;">open_in_new</span></a>
+                                </div>
+                                <div style="margin-bottom:12px;">
+                                    <label style="display:block;font-size:12px;color:var(--fptm-muted, #7a7f9a);margin-bottom:5px;">API-токен (API Key):</label>
+                                    <div style="display:flex;gap:6px;">
+                                        <input type="password" id="fp-ai-key-openrouter" class="fp-ai-key-input" placeholder="sk-or-v1-..." style="flex:1;font-family:monospace;">
+                                        <button type="button" class="fp-ai-toggle-key-btn" data-target="fp-ai-key-openrouter" title="Показать/скрыть">👁</button>
+                                    </div>
+                                </div>
+                                <div style="margin-bottom:14px;">
+                                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+                                        <label style="font-size:12px;color:var(--fptm-muted, #7a7f9a);margin:0;">Каскадная цепочка моделей (через запятую):</label>
+                                        <button type="button" class="fp-ai-reset-models-btn" data-provider="openrouter" title="Вернуть рекомендованный список">Сбросить по умолчанию</button>
+                                    </div>
+                                    <input type="text" id="fp-ai-models-openrouter" class="fp-ai-models-input" value="google/gemini-2.5-flash:free, meta-llama/llama-3.3-70b-instruct:free, deepseek/deepseek-r1:free, deepseek/deepseek-chat:free, qwen/qwen-2.5-72b-instruct:free" style="width:100%;font-family:monospace;">
+                                    <div style="font-size:11px;color:var(--fptm-muted, #7a7f9a);margin-top:5px;line-height:1.4;">✨ Модели с суффиксом <code>:free</code> бесплатны. Если один из бесплатных провайдеров перегружен, каскад перенаправляет запрос следующей модели.</div>
+                                </div>
+                            </div>
+
+                            <!-- Mistral Panel -->
+                            <div class="fp-ai-panel" data-panel="mistral" style="display:none;">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+                                    <span style="font-size:13.5px;font-weight:600;color:var(--fptm-text, #d8dae8);">Mistral AI (План Experimenter)</span>
+                                    <a href="https://console.mistral.ai/api-keys" target="_blank" class="fp-ai-get-key-link" style="display:inline-flex;align-items:center;gap:5px;padding:6px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:6px;font-size:12px;color:#70b6ff;text-decoration:none;">Получить ключ бесплатно <span class="material-symbols-rounded" style="font-size:14px;">open_in_new</span></a>
+                                </div>
+                                <div style="margin-bottom:12px;">
+                                    <label style="display:block;font-size:12px;color:var(--fptm-muted, #7a7f9a);margin-bottom:5px;">API-токен (API Key):</label>
+                                    <div style="display:flex;gap:6px;">
+                                        <input type="password" id="fp-ai-key-mistral" class="fp-ai-key-input" placeholder="Ключ тарифа Experimenter..." style="flex:1;font-family:monospace;">
+                                        <button type="button" class="fp-ai-toggle-key-btn" data-target="fp-ai-key-mistral" title="Показать/скрыть">👁</button>
+                                    </div>
+                                </div>
+                                <div style="margin-bottom:14px;">
+                                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+                                        <label style="font-size:12px;color:var(--fptm-muted, #7a7f9a);margin:0;">Каскадная цепочка моделей (через запятую):</label>
+                                        <button type="button" class="fp-ai-reset-models-btn" data-provider="mistral" title="Вернуть рекомендованный список">Сбросить по умолчанию</button>
+                                    </div>
+                                    <input type="text" id="fp-ai-models-mistral" class="fp-ai-models-input" value="mistral-small-latest, codestral-latest, open-mistral-nemo, open-mistral-7b" style="width:100%;font-family:monospace;">
+                                    <div style="font-size:11px;color:var(--fptm-muted, #7a7f9a);margin-top:5px;line-height:1.4;">✨ Доступ к моделям Mistral Small, Codestral и Nemo без банковской карты.</div>
+                                </div>
+                            </div>
+
+                            </div>
+                        <!-- Action Controls -->
+                        <div class="fp-ai-action-buttons">
+                            <button type="button" id="fp-ai-test-btn" class="btn btn-default">
+                                <span class="material-symbols-rounded" style="font-size:16px;">wifi_protected_setup</span>Проверить ключ
+                            </button>
+                            <button type="button" id="fp-ai-save-btn" class="btn">
+                                <span class="material-symbols-rounded" style="font-size:16px;">save</span>Сохранить настройки ИИ
+                            </button>
+                        </div>
+
+                        <!-- Status Alert Display -->
+                        <div id="fp-ai-status-msg" style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;font-size:12px;line-height:1.5;"></div>
+                    </div>
                     <div style="margin-top:24px;text-align:center;border-top:1px solid rgba(255,255,255,0.06);padding-top:16px;">
                         <a href="https://funpay.tools" target="_blank" class="fp-site-footer-link"><span class="material-symbols-rounded" style="font-size:14px;vertical-align:-2px;margin-right:4px;">link</span>funpay.tools</a>
                     </div>
