@@ -259,25 +259,78 @@ ${styleExamples}
     }
 }
 
-async function googleTranslateLine(text, target) {
-    if (!text || !text.trim()) return text;
-    const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl='
-        + encodeURIComponent(target || 'en') + '&dt=t&q=' + encodeURIComponent(text);
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('TRANSLATE_HTTP_' + res.status);
-    const json = await res.json();
-    if (!json || !Array.isArray(json[0])) return text;
-    return json[0].map((s) => (s && s[0] != null ? s[0] : '')).join('');
+// ── Перевод лотов через бесплатный Google Translate (translate_a/single, client=gtx) ──
+// Что было не так: каждая строка уходила отдельным GET-запросом подряд, Google отвечал 429
+// (слишком много запросов), а ошибка молча проглатывалась и строка оставалась русской.
+// Плюс sl=auto на коротких строках ("Steam", "Gift 50$") определял язык как английский
+// и возвращал текст без перевода.
+// Теперь: текст уходит одним POST-запросом (q в теле, без ограничения длины URL), между
+// запросами пауза, на 429/5xx повтор с нарастающей задержкой, а если перевод вернулся
+// с кириллицей, повторяем с явным sl=ru. Если Google так и не ответил, показываем ошибку,
+// а не делаем вид, что перевели.
+const GT_URL = 'https://translate.googleapis.com/translate_a/single';
+const GT_CHUNK = 4000;
+let _gtLast = 0;
+const _gtSleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const _hasCyr = (t) => /[а-яё]/i.test(t || '');
+
+async function gtRequest(text, target, source) {
+    for (let attempt = 0; attempt < 4; attempt++) {
+        const wait = _gtLast + 350 - Date.now();
+        if (wait > 0) await _gtSleep(wait);
+        _gtLast = Date.now();
+        try {
+            const res = await fetch(`${GT_URL}?client=gtx&sl=${source}&tl=${encodeURIComponent(target)}&dt=t&ie=UTF-8&oe=UTF-8`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+                body: 'q=' + encodeURIComponent(text),
+            });
+            if (res.status === 429 || res.status >= 500) throw new Error('TRANSLATE_HTTP_' + res.status);
+            if (!res.ok) throw Object.assign(new Error('TRANSLATE_HTTP_' + res.status), { fatal: true });
+            const json = await res.json();
+            if (!json || !Array.isArray(json[0])) throw new Error('TRANSLATE_BAD_RESPONSE');
+            return json[0].map((s) => (s && s[0] != null ? s[0] : '')).join('');
+        } catch (e) {
+            if (e.fatal || attempt === 3) throw e;
+            await _gtSleep(800 * Math.pow(2, attempt));   // 0.8 с, 1.6 с, 3.2 с
+        }
+    }
+}
+
+async function gtTranslate(text, target) {
+    let out = await gtRequest(text, target, 'auto');
+    // auto ошибся с языком (вернул тот же русский текст): говорим прямо, что это русский
+    if (target !== 'ru' && _hasCyr(out)) out = await gtRequest(text, target, 'ru');
+    return out;
+}
+
+// Режем по строкам на куски до GT_CHUNK символов, чтобы не упираться в лимиты Google.
+function gtChunks(lines) {
+    const chunks = [];
+    let cur = [];
+    let len = 0;
+    for (const line of lines) {
+        if (cur.length && len + line.length + 1 > GT_CHUNK) { chunks.push(cur); cur = []; len = 0; }
+        cur.push(line);
+        len += line.length + 1;
+    }
+    if (cur.length) chunks.push(cur);
+    return chunks;
 }
 
 async function googleTranslatePreserve(text, target) {
     if (typeof text !== 'string' || !text.trim()) return text || '';
-    const lines = text.split('\n');
     const out = [];
-    for (const line of lines) {
-        if (!line.trim()) { out.push(line); continue; }
-        try { out.push(await googleTranslateLine(line, target)); }
-        catch { out.push(line); }
+    for (const chunk of gtChunks(text.split('\n'))) {
+        const joined = chunk.join('\n');
+        if (!joined.trim()) { out.push(...chunk); continue; }
+        const tr = (await gtTranslate(joined, target)).split('\n');
+        if (tr.length === chunk.length) {
+            out.push(...tr.map((t, i) => (chunk[i].trim() ? t : chunk[i])));
+            continue;
+        }
+        // Google склеил или разбил строки: переводим этот кусок построчно, чтобы сохранить разметку
+        for (const line of chunk) out.push(line.trim() ? await gtTranslate(line, target) : line);
     }
     return out.join('\n');
 }
@@ -297,7 +350,8 @@ export async function fetchAITranslation(data) {
             },
         };
     } catch (e) {
-        return { success: false, error: 'Ошибка перевода: ' + e.message };
+        const busy = /429|5\d\d|BAD_RESPONSE|Failed to fetch/i.test(e.message || '');
+        return { success: false, error: busy ? 'Google Переводчик сейчас не отвечает, попробуйте через минуту.' : e.message };
     }
 }
 

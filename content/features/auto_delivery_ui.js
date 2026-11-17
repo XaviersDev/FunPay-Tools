@@ -54,7 +54,7 @@ function renderDeliveryLots(lots, config, container) {
     Object.entries(byCategory).forEach(([cat, catLots]) => {
         const catEl = document.createElement('div');
         catEl.style.cssText = 'margin-bottom:16px;';
-        catEl.innerHTML = `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#4a4f68;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #1e2030;">${cat}</div>`;
+        catEl.innerHTML = `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#4a4f68;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #1e2030;">${fptEsc(cat)}</div>`;
 
         catLots.forEach(lot => {
             const lotConfig = config[String(lot.id)] || {};
@@ -66,18 +66,18 @@ function renderDeliveryLots(lots, config, container) {
 
             item.innerHTML = `
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                    <span style="font-size:13px;font-weight:600;color:var(--fpt-text, #16181d);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%;">${lot.title}</span>
+                    <span style="font-size:13px;font-weight:600;color:var(--fpt-text, #16181d);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%;">${fptEsc(lot.title)}</span>
                     <div style="display:flex;gap:6px;align-items:center;">
-                        <span class="fp-ad-product-count" data-lot-id="${lot.id}" style="font-size:11px;color:var(--fpt-text-muted, #8a90a6);">
+                        <span class="fp-ad-product-count" data-lot-id="${fptEsc(lot.id)}" style="font-size:11px;color:var(--fpt-text-muted, #8a90a6);">
                             ${lotConfig.productCount !== undefined ? `📦 ${lotConfig.productCount} шт.` : ''}
                         </span>
                         <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--fpt-text-muted, #8a90a6);cursor:pointer;">
-                            <input type="checkbox" class="fp-ad-enabled" data-lot-id="${lot.id}" ${lotConfig.enabled ? 'checked' : ''} style="accent-color:#1b75bb;">
+                            <input type="checkbox" class="fp-ad-enabled" data-lot-id="${fptEsc(lot.id)}" ${lotConfig.enabled ? 'checked' : ''} style="accent-color:#1b75bb;">
                             Авто-выдача
                         </label>
                     </div>
                 </div>
-                <div class="fp-ad-settings" data-lot-id="${lot.id}" style="display:${lotConfig.enabled ? 'block' : 'none'};">
+                <div class="fp-ad-settings" data-lot-id="${fptEsc(lot.id)}" style="display:${lotConfig.enabled ? 'block' : 'none'};">
                     <div class="fp-tools-radio-group" style="margin-bottom:8px;flex-wrap:wrap;">
                         <label class="fp-tools-radio-option">
                             <input type="radio" name="fp-ad-mode-${lot.id}" value="secrets" ${(lotConfig.mode || 'secrets') === 'secrets' ? 'checked' : ''}>
@@ -88,22 +88,22 @@ function renderDeliveryLots(lots, config, container) {
                             <span>Свой шаблон</span>
                         </label>
                     </div>
-                    <div class="fp-ad-template-area" data-lot-id="${lot.id}" style="display:${lotConfig.mode === 'template' ? 'block' : 'none'};">
-                        <textarea class="template-input fp-ad-template-text" data-lot-id="${lot.id}"
+                    <div class="fp-ad-template-area" data-lot-id="${fptEsc(lot.id)}" style="display:${lotConfig.mode === 'template' ? 'block' : 'none'};">
+                        <textarea class="template-input fp-ad-template-text" data-lot-id="${fptEsc(lot.id)}"
                             placeholder="Текст выдачи. Переменные: {buyername}, {orderid}, {orderlink}, $sleep=3&#10;Для нескольких товаров используйте $sleep=2 между ними."
-                            style="height:80px;">${lotConfig.text || ''}</textarea>
+                            style="height:80px;">${fptEsc(lotConfig.text || '')}</textarea>
                     </div>
                     <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
                         <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--fpt-text-muted, #8a90a6);cursor:pointer;">
-                            <input type="checkbox" class="fp-ad-auto-restore" data-lot-id="${lot.id}" ${lotConfig.autoRestoreEnabled !== false ? 'checked' : ''} style="accent-color:#4caf82;">
+                            <input type="checkbox" class="fp-ad-auto-restore" data-lot-id="${fptEsc(lot.id)}" ${lotConfig.autoRestoreEnabled !== false ? 'checked' : ''} style="accent-color:#4caf82;">
                             Авто-восстановление
                         </label>
                         <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--fpt-text-muted, #8a90a6);cursor:pointer;">
-                            <input type="checkbox" class="fp-ad-auto-disable" data-lot-id="${lot.id}" ${lotConfig.autoDisableEnabled !== false ? 'checked' : ''} style="accent-color:#e05252;">
+                            <input type="checkbox" class="fp-ad-auto-disable" data-lot-id="${fptEsc(lot.id)}" ${lotConfig.autoDisableEnabled !== false ? 'checked' : ''} style="accent-color:#e05252;">
                             Авто-деактивация при пустом складе
                         </label>
                     </div>
-                    <button class="btn btn-default fp-ad-save-btn" data-lot-id="${lot.id}"
+                    <button class="btn btn-default fp-ad-save-btn" data-lot-id="${fptEsc(lot.id)}"
                         style="padding:5px 12px;font-size:12px;margin-top:8px;">
                         💾 Сохранить
                     </button>

@@ -62,19 +62,19 @@ function renderHistoryPanel(orders, name, anchor) {
         <div class="fp-bh-header">
             <div class="fp-bh-title">
                 <span class="fp-bh-icon">📦</span>
-                <span>История покупок <strong>${name}</strong></span>
+                <span>История покупок <strong>${fptEsc(name)}</strong></span>
             </div>
             <button class="fp-bh-close" title="Закрыть">✕</button>
         </div>
         <div class="fp-bh-meta">${orders.length} заказ${orders.length === 1 ? '' : (orders.length < 5 ? 'а' : 'ов')} · ~${Math.round(total).toLocaleString('ru')} ₽</div>
         <div class="fp-bh-list">
             ${orders.slice(0, 20).map(o => `
-                <a href="https://funpay.com/orders/${o.orderId}/" target="_blank" class="fp-bh-item">
-                    <div class="fp-bh-item-desc">${o.desc || o.orderId}</div>
+                <a href="https://funpay.com/orders/${encodeURIComponent(String(o.orderId || ''))}/" target="_blank" class="fp-bh-item">
+                    <div class="fp-bh-item-desc">${fptEsc(o.desc || o.orderId)}</div>
                     <div class="fp-bh-item-meta">
-                        <span class="fp-bh-price">${o.price}</span>
+                        <span class="fp-bh-price">${fptEsc(o.price)}</span>
                         <span class="fp-bh-dot">·</span>
-                        <span class="fp-bh-date">${o.date}</span>
+                        <span class="fp-bh-date">${fptEsc(o.date)}</span>
                     </div>
                 </a>`).join('')}
         </div>`;
@@ -119,9 +119,12 @@ async function appendTranslation(msgTextEl) {
 
     const wrap = document.createElement('div');
     wrap.className = 'fp-trans-wrap';
-    wrap.innerHTML =
-        '<div class="fp-trans-divider"></div>' +
-        '<div class="fp-trans-text">' + translated + '</div>';
+    const divider = document.createElement('div');
+    divider.className = 'fp-trans-divider';
+    const text = document.createElement('div');
+    text.className = 'fp-trans-text';
+    text.textContent = translated;   // перевод приходит от Google: только как текст
+    wrap.append(divider, text);
 
     msgTextEl.appendChild(wrap);
 }

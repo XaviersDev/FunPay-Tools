@@ -76,26 +76,23 @@
         return a;
     }
 
-    function getOrders(range) {
-        return new Promise(async resolve => {
-            const all = await (window.fptOrdersDB || FPTSalesDB).getAllAsArray();
-            {
-                let filtered = all.filter(o => {
-                    if (range.start && o.orderDate < range.start) return false;
-                    if (range.end && o.orderDate > range.end) return false;
-                    if (!statusAllowed(o.orderStatus)) return false;
-                    return true;
-                });
-                filtered = sortOrders(filtered);
-                resolve(filtered);
-            }
+    // Ошибка IndexedDB раньше «вешала» статистику навсегда (async-executor в new Promise
+    // проглатывал исключение, промис не разрешался). Теперь при сбое - пустой список.
+    async function getOrders(range) {
+        let all = [];
+        try { all = await (window.fptOrdersDB || FPTSalesDB).getAllAsArray(); }
+        catch (e) { console.warn('FP Tools: заказы для статистики недоступны:', e && e.message); }
+        const filtered = (all || []).filter(o => {
+            if (range.start && o.orderDate < range.start) return false;
+            if (range.end && o.orderDate > range.end) return false;
+            if (!statusAllowed(o.orderStatus)) return false;
+            return true;
         });
+        return sortOrders(filtered);
     }
 
-    function countStoredOrders() {
-        return new Promise(async resolve => {
-            try { resolve(await (window.fptOrdersDB || FPTSalesDB).count()); } catch (_) { resolve(0); }
-        });
+    async function countStoredOrders() {
+        try { return await (window.fptOrdersDB || FPTSalesDB).count(); } catch (_) { return 0; }
     }
 
     let _salesUpdateTriggered = false;
@@ -161,18 +158,28 @@
     // Никакого искажения пропорций (preserveAspectRatio по умолчанию), крупные
     // подписи, ровная сетка, плавная линия с заливкой и аккуратные столбцы.
     // Так график читается легко даже когда продаж очень много.
+    // Монотонная кубическая интерполяция (Фрича-Карлсона): линия плавная, но
+    // никогда не «перелетает» точки - выручка не уходит ниже нуля между днями
+    // и пик не рисуется выше реального значения (у прежнего Catmull-Rom так было).
     function smoothPath(pts) {
-        if (pts.length < 2) return pts.length ? `M${pts[0].x},${pts[0].y}` : '';
+        const n = pts.length;
+        if (n < 2) return n ? `M${pts[0].x},${pts[0].y}` : '';
+        const dx = [], m = [];
+        for (let i = 0; i < n - 1; i++) {
+            dx[i] = pts[i + 1].x - pts[i].x;
+            m[i] = dx[i] ? (pts[i + 1].y - pts[i].y) / dx[i] : 0;
+        }
+        const t = new Array(n);
+        t[0] = m[0]; t[n - 1] = m[n - 2];
+        for (let i = 1; i < n - 1; i++) {
+            if (m[i - 1] * m[i] <= 0) { t[i] = 0; continue; }
+            const w1 = 2 * dx[i] + dx[i - 1], w2 = dx[i] + 2 * dx[i - 1];
+            t[i] = (w1 + w2) / (w1 / m[i - 1] + w2 / m[i]);
+        }
         let d = `M${pts[0].x},${pts[0].y}`;
-        for (let i = 0; i < pts.length - 1; i++) {
-            const p0 = pts[i - 1] || pts[i];
-            const p1 = pts[i];
-            const p2 = pts[i + 1];
-            const p3 = pts[i + 2] || p2;
-            const t = 0.16;
-            const c1x = p1.x + (p2.x - p0.x) * t, c1y = p1.y + (p2.y - p0.y) * t;
-            const c2x = p2.x - (p3.x - p1.x) * t, c2y = p2.y - (p3.y - p1.y) * t;
-            d += ` C${c1x},${c1y} ${c2x},${c2y} ${p2.x},${p2.y}`;
+        for (let i = 0; i < n - 1; i++) {
+            const h = dx[i] / 3;
+            d += ` C${pts[i].x + h},${pts[i].y + t[i] * h} ${pts[i + 1].x - h},${pts[i + 1].y - t[i + 1] * h} ${pts[i + 1].x},${pts[i + 1].y}`;
         }
         return d;
     }
@@ -231,7 +238,7 @@
         const uid = 'fpsmgrad' + Math.random().toString(36).slice(2, 8);
         const hits = pts.map(p =>
             `<rect class="fp-sm-hit" x="${p.x - slot / 2}" y="${PAD.t}" width="${slot}" height="${ch}" fill="transparent"
-                data-label="${esc(p.day)}" data-val="${esc(fmtVal(p.v))}" data-day="${esc(p.day)}" tabindex="0"></rect>`
+                data-label="${esc(dayLabel(p.day))}" data-val="${esc(fmtVal(p.v))}" data-day="${esc(p.day)}" tabindex="0"></rect>`
         ).join('');
         const content = `
             <defs><linearGradient id="${uid}" x1="0" y1="0" x2="0" y2="1">
@@ -251,9 +258,9 @@
             if (isLast) {
                 const tx = Math.min(x, W - PAD.r);
                 while (xlParts.length && (tx - xlParts[xlParts.length - 1].x) < MIN_GAP) xlParts.pop();
-                xlParts.push({ x: tx, anchor: 'end', label: day.slice(5) });
+                xlParts.push({ x: tx, anchor: 'end', label: dayLabel(day) });
             } else if (!xlParts.length || (x - xlParts[xlParts.length - 1].x) >= MIN_GAP) {
-                xlParts.push({ x, anchor: 'middle', label: day.slice(5) });
+                xlParts.push({ x, anchor: 'middle', label: dayLabel(day) });
             }
         });
         const xL = xlParts.map(p => `<text x="${p.x}" y="${H - 14}" text-anchor="${p.anchor}" font-size="11" fill="var(--fpt-text-muted)">${esc(p.label)}</text>`).join('');
@@ -263,8 +270,26 @@
         </svg>`;
     }
 
+    // Все дни подряд от первого до последнего: дни без продаж - нули, иначе ось X
+    // «склеивала» даты и масштаб времени был неравномерным.
+    function continuousDays(byDay) {
+        const keys = Object.keys(byDay).sort();
+        if (keys.length < 2) return keys;
+        const out = [];
+        const [y0, m0, d0] = keys[0].split('-').map(Number);
+        const last = keys[keys.length - 1];
+        for (let d = new Date(y0, m0 - 1, d0); out.length < 1200; d.setDate(d.getDate() + 1)) {
+            const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            if (!byDay[k]) byDay[k] = { count: 0, revenue: 0 };
+            out.push(k);
+            if (k === last) break;
+        }
+        return out;
+    }
+    const dayLabel = (key) => `${key.slice(8, 10)}.${key.slice(5, 7)}`;   // 2026-11-09 → 09.11
+
     function chartHTML(agg) {
-        const days = Object.keys(agg.byDay).sort();
+        const days = continuousDays(agg.byDay);
         if (!days.length) return emptyHTML('Нет данных за период');
         const isPurchases = !!(_cfg && _cfg.moneyByDayLabel && /трат/i.test(_cfg.moneyByDayLabel));
         const revLabel = isPurchases ? 'Траты' : 'Выручка';
@@ -309,7 +334,12 @@
             const col = PALETTE[i % PALETTE.length];
             const valStr = fmtVal ? fmtVal(e.value) : String(e.value);
             const ttVal = `${valStr} (${Math.round(frac * 100)}%)`;
-            paths += `<path class="fp-sm-seg" d="M${x0},${y0} A${r},${r} 0 ${large} 1 ${x1},${y1} L${xi1},${yi1} A${rin},${rin} 0 ${large} 0 ${xi0},${yi0} Z" fill="${col}" data-label="${esc(e.label)}" data-val="${esc(ttVal)}" tabindex="0"></path>`;
+            // Сектор на 100% - дуга от угла до того же угла вырождается и не рисуется:
+            // такой сектор строим как полное кольцо из двух полуокружностей.
+            const d = frac >= 0.9999
+                ? `M${cx},${cy - r} A${r},${r} 0 1 1 ${cx},${cy + r} A${r},${r} 0 1 1 ${cx},${cy - r} Z M${cx},${cy - rin} A${rin},${rin} 0 1 0 ${cx},${cy + rin} A${rin},${rin} 0 1 0 ${cx},${cy - rin} Z`
+                : `M${x0},${y0} A${r},${r} 0 ${large} 1 ${x1},${y1} L${xi1},${yi1} A${rin},${rin} 0 ${large} 0 ${xi0},${yi0} Z`;
+            paths += `<path class="fp-sm-seg" d="${d}" fill="${col}" fill-rule="evenodd" data-label="${esc(e.label)}" data-val="${esc(ttVal)}" tabindex="0"></path>`;
             const subStr = e.sub ? `<span class="fp-sm-leg-sub">${esc(e.sub)}</span>` : '';
             legend += `<div class="fp-sm-leg"><span class="fp-sm-dot" style="background:${col}"></span><span class="fp-sm-leg-label">${esc(e.label)}${subStr}</span><span class="fp-sm-leg-val">${Math.round(frac * 100)}%</span></div>`;
         });

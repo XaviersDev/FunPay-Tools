@@ -1179,9 +1179,9 @@ async function showReactivationPopup() {
                 ? `Отключен: ${new Date(lot.deactivatedAt).toLocaleString()}`
                 : 'Неактивен на FunPay';
             const itemHtml = `
-                <li class="fp-reactivate-item" data-offer-id="${lot.offerId}" data-node-id="${lot.nodeId || ''}">
+                <li class="fp-reactivate-item" data-offer-id="${fptEsc(lot.offerId)}" data-node-id="${fptEsc(lot.nodeId || '')}">
                     <div class="fp-reactivate-info">
-                        <div class="name">${lot.name}</div>
+                        <div class="name">${fptEsc(lot.name)}</div>
                         <div class="date">${dateLine}</div>
                     </div>
                     <button class="fp-reactivate-btn">Включить</button>

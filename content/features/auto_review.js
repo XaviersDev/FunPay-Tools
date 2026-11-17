@@ -314,7 +314,7 @@ function renderBonusesList(bonuses) {
 
     listContainer.innerHTML = bonuses.map((text, index) => `
         <div class="bonus-item">
-            <span class="bonus-text">${text}</span>
+            <span class="bonus-text">${fptEsc(text)}</span>
             <button class="btn btn-default delete-bonus-btn" data-index="${index}">Удалить</button>
         </div>
     `).join('');

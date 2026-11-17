@@ -70,6 +70,12 @@
             font-size:12px;opacity:.5;padding:2px;align-self:center;
         }
         #${ROOT_ID} .fpt-nc-cancel:hover{opacity:.85;text-decoration:underline;}
+        #${ROOT_ID} .fpt-nc-apps{width:100%;display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:6px;}
+        #${ROOT_ID}.open .fpt-nc-apps{display:none;}
+        #${ROOT_ID} .fpt-nc-apps-title{font-size:12px;opacity:.55;}
+        #${ROOT_ID} .fpt-nc-app{width:100%;max-width:300px;text-decoration:none;}
+        #${ROOT_ID} .fpt-nc-apps-hide{background:none;border:none;cursor:pointer;font-size:12px;opacity:.5;padding:2px;}
+        #${ROOT_ID} .fpt-nc-apps-hide:hover{opacity:.85;text-decoration:underline;}
         `;
         document.head.appendChild(s);
     }
@@ -113,7 +119,23 @@
                 <div class="fpt-nc-msg"></div>
                 <div class="fpt-nc-result"></div>
                 <button type="button" class="fpt-nc-cancel">отмена</button>
+            </div>
+            <div class="fpt-nc-apps">
+                <div class="fpt-nc-apps-title">Расширение FunPay Tools: наши приложения</div>
+                <a class="btn btn-default fpt-nc-app" href="https://funpay.tools/" target="_blank" rel="noopener">Скачать FunPay Tools на Android</a>
+                <a class="btn btn-default fpt-nc-app" href="https://funpay.tools/" target="_blank" rel="noopener">Скачать FunPay Tools на компьютер</a>
+                <button type="button" class="fpt-nc-apps-hide">больше не показывать</button>
             </div>`;
+
+        // Блок со ссылками на приложения: подписан названием расширения и убирается навсегда одной кнопкой
+        const apps = root.querySelector('.fpt-nc-apps');
+        try {
+            chrome.storage.local.get('fptHideAppLinks', r => { if (r && r.fptHideAppLinks) apps.remove(); });
+        } catch (e) {}
+        apps.querySelector('.fpt-nc-apps-hide').addEventListener('click', () => {
+            apps.remove();
+            try { chrome.storage.local.set({ fptHideAppLinks: true }); } catch (e) {}
+        });
 
         const startBtn = root.querySelector('.fpt-nc-start');
         const input = root.querySelector('.fpt-nc-input');

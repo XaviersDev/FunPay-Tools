@@ -1,0 +1,9 @@
+html.fpt-cover-early .profile-cover-img {
+  background: none !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+}
+html.fpt-cover-early .profile-cover-img::before,
+html.fpt-cover-early .profile-cover-img::after {
+  display: none !important;
+}

@@ -1,4 +1,16 @@
 
+import { getOrders as apiGetOrders, getOrder as apiGetOrder, orderTitle, orderSecretsText } from './funpay_api.js';
+
+const ORDER_EVENT_TYPES = new Set(['ORDER_PURCHASED', 'ORDER_CONFIRMED', 'NEW_FEEDBACK', 'FEEDBACK_CHANGED']);
+
+// Заказ через официальный FunPay API. null → API недоступен/нет доступа (вызывающий
+// откатывается на разбор HTML страницы заказа).
+async function apiOrder(orderId) {
+    if (!orderId) return null;
+    try { return await apiGetOrder(orderId); }
+    catch (e) { console.warn(`FP Tools AR: FunPay API для #${orderId} недоступен (${e.message}) - разбираю страницу заказа`); return null; }
+}
+
 function randomTag() {
     return Math.floor(Math.random() * 0xffffffff).toString(16).padStart(8, '0');
 }
@@ -11,9 +23,6 @@ function markOutgoing(text) {
     // don't double-mark
     if (t.startsWith(BOT_MARKER) || t.startsWith(OLD_BOT_MARKER)) return t;
     return BOT_MARKER + t;
-}
-function isBotMarked(text) {
-    return typeof text === 'string' && (text.startsWith(BOT_MARKER) || text.startsWith(OLD_BOT_MARKER));
 }
 
 
@@ -100,10 +109,7 @@ async function getAuth() {
     }
 
     try {
-        const cookieStr = phpsessid
-            ? `golden_key=${golden_key}; PHPSESSID=${phpsessid}`
-            : `golden_key=${golden_key}`;
-        const res = await fetch('https://funpay.com/', { credentials: 'include', headers: { cookie: cookieStr } });
+        const res = await fetch('https://funpay.com/', { credentials: 'include' });
         const text = await res.text();
         const m = text.match(/<body[^>]*data-app-data="([^"]+)"/);
         if (m) {
@@ -129,11 +135,6 @@ async function parseViaOffscreen(html, action) {
 }
 
 async function sendChatMessage(chatId, text, auth) {
-    // FIX: FunPay runner requires BOTH golden_key AND PHPSESSID cookies.
-    // Without PHPSESSID the request returns 200 but message is silently dropped.
-    const cookieStr = auth.phpsessid
-        ? `golden_key=${auth.golden_key}; PHPSESSID=${auth.phpsessid}`
-        : `golden_key=${auth.golden_key}`;
 
     // tag '00000000', last_message: -1 в обоих местах (objects.data и request.data)
     const markedText = markOutgoing(text);
@@ -146,8 +147,7 @@ async function sendChatMessage(chatId, text, auth) {
         method: 'POST',
         headers: {
             'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            'x-requested-with': 'XMLHttpRequest',
-            'cookie': cookieStr
+            'x-requested-with': 'XMLHttpRequest'
         },
         body: new URLSearchParams(payload)
     });
@@ -159,9 +159,6 @@ async function sendChatMessage(chatId, text, auth) {
 
 // 3.0: upload an image (data URL) to FunPay and send it to a chat, in the background.
 async function sendChatImage(chatId, dataUrl, auth) {
-    const cookieStr = auth.phpsessid
-        ? `golden_key=${auth.golden_key}; PHPSESSID=${auth.phpsessid}`
-        : `golden_key=${auth.golden_key}`;
 
     const blob = await (await fetch(dataUrl)).blob();
     const fd = new FormData();
@@ -170,7 +167,7 @@ async function sendChatImage(chatId, dataUrl, auth) {
 
     const upRes = await fetchWithRetry('https://funpay.com/file/addChatImage', {
         method: 'POST',
-        headers: { 'cookie': cookieStr, 'x-requested-with': 'XMLHttpRequest' },
+        headers: { 'x-requested-with': 'XMLHttpRequest' },
         body: fd
     });
     if (!upRes.ok) throw new Error(`uploadImage HTTP ${upRes.status}`);
@@ -185,7 +182,7 @@ async function sendChatImage(chatId, dataUrl, auth) {
     };
     const res = await fetchWithRetry('https://funpay.com/runner/', {
         method: 'POST',
-        headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest', 'cookie': cookieStr },
+        headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest' },
         body: new URLSearchParams(payload)
     });
     if (!res.ok) throw new Error(`sendImage HTTP ${res.status}`);
@@ -380,14 +377,26 @@ async function handleReview(msg, auth, settings) {
     if (alreadyReplied && msgType === 'NEW_FEEDBACK') return;
 
     try {
-        const orderRes = await fetchWithRetry(`https://funpay.com/orders/${orderId}/`, { headers: { cookie: `golden_key=${auth.golden_key}` } });
-        if (!orderRes.ok) throw new Error(`HTTP ${orderRes.status}`);
-        const orderHtml = await orderRes.text();
-        const orderData = await parseViaOffscreen(orderHtml, 'parseOrderPageForReview');
-        if (!orderData) return;
-
-        const stars   = typeof orderData === 'object' ? orderData.stars   : orderData;
-        const lotName = typeof orderData === 'object' ? (orderData.lotName || '') : '';
+        let stars = null;
+        let lotName = '';
+        const order = await apiOrder(orderId);
+        if (order) {
+            if (order.role !== 'seller') return;
+            const review = order.review;
+            if (!review || review.rating == null) return;           // отзыв удалён/ещё не виден
+            // На НОВЫЙ отзыв, на который уже есть ответ (ответили вручную или раньше) - не отвечаем повторно.
+            if (msgType === 'NEW_FEEDBACK' && review.reply && String(review.reply).trim()) return;
+            stars = Number(review.rating);
+            lotName = orderTitle(order);
+        } else {
+            const orderRes = await fetchWithRetry(`https://funpay.com/orders/${orderId}/`);
+            if (!orderRes.ok) throw new Error(`HTTP ${orderRes.status}`);
+            const orderData = await parseViaOffscreen(await orderRes.text(), 'parseOrderPageForReview');
+            if (!orderData) return;
+            stars   = typeof orderData === 'object' ? orderData.stars   : orderData;
+            lotName = typeof orderData === 'object' ? (orderData.lotName || '') : '';
+        }
+        if (!(stars >= 1 && stars <= 5)) return;
         const vars = { buyerName: msg.buyerName, lotName, orderId };
 
         if (settings.autoReviewEnabled && settings.reviewTemplates?.[stars]?.trim()) {
@@ -438,11 +447,20 @@ async function handleReview(msg, auth, settings) {
 
 // FIX 2.8.2 (№12): проверка, что в заказе Я - ПРОДАВЕЦ. Кэшируем результат по
 // orderId, чтобы не дёргать страницу заказа повторно в одном цикле.
-const _sellerCheckCache = new Map();async function verifyIAmSeller(orderId, auth) {
+const _sellerCheckCache = new Map();
+
+async function verifyIAmSeller(orderId) {
     if (!orderId) return true; // нет orderId - не блокируем (старое поведение)
     if (_sellerCheckCache.has(orderId)) return _sellerCheckCache.get(orderId);
+    const order = await apiOrder(orderId);
+    if (order) {
+        const ok = order.role === 'seller';
+        _sellerCheckCache.set(orderId, ok);
+        if (_sellerCheckCache.size > 300) _sellerCheckCache.clear();
+        return ok;
+    }
     try {
-        const res = await fetchWithRetry(`https://funpay.com/orders/${orderId}/`, { headers: { cookie: `golden_key=${auth.golden_key}` } });
+        const res = await fetchWithRetry(`https://funpay.com/orders/${orderId}/`);
         if (!res.ok) return true; // не смогли проверить - не ломаем автоответы
         const html = await res.text();
         const info = await parseViaOffscreen(html, 'parseOrderParticipants');
@@ -546,31 +564,40 @@ async function handleAutoDelivery(msg, auth, settings) {
     if (delivered.includes(orderId)) return;
 
     try {
-        
-        const orderRes = await fetchWithRetry(`https://funpay.com/orders/${orderId}/`, { headers: { cookie: `golden_key=${auth.golden_key}` } });
-        if (!orderRes.ok) return;
-        const orderHtml = await orderRes.text();
-
-        
-        const orderInfo = await parseViaOffscreen(orderHtml, 'parseOrderPageForDelivery');
-        if (!orderInfo) return;
-
-        const { secrets, lotId, nodeId, buyerChatId } = orderInfo;
-        const chatId = msg.chatId || buyerChatId;
-
-        
         const { fpToolsAutoDeliveryLots = {} } = await chrome.storage.local.get('fpToolsAutoDeliveryLots');
+        const hasLotConfigs = Object.keys(fpToolsAutoDeliveryLots).length > 0;
+
+        let secrets = null, lotId = null, buyerChatId = null;
+        const order = await apiOrder(orderId);
+        if (order) {
+            if (order.role !== 'seller') return;
+            if (order.status !== 'paid') return;                     // уже возвращён/закрыт - не выдаём
+            secrets = orderSecretsText(order) || null;
+        }
+        // ID лота (offer id) в API нет - страницу заказа читаем только если он реально нужен
+        // (есть настройки выдачи по лотам) или API недоступен.
+        if (!order || hasLotConfigs) {
+            const orderRes = await fetchWithRetry(`https://funpay.com/orders/${orderId}/`);
+            if (orderRes.ok) {
+                const orderInfo = await parseViaOffscreen(await orderRes.text(), 'parseOrderPageForDelivery');
+                if (orderInfo) {
+                    lotId = orderInfo.lotId;
+                    buyerChatId = orderInfo.buyerChatId;
+                    if (!order) secrets = orderInfo.secrets;
+                }
+            } else if (!order) {
+                return;
+            }
+        }
+        const chatId = msg.chatId || buyerChatId;
         const deliveryConfig = lotId ? fpToolsAutoDeliveryLots[String(lotId)] : null;
 
         let deliveryText = '';
-        let deliveryMode = 'secrets'; 
 
         if (deliveryConfig?.mode === 'template' && deliveryConfig.text) {
             deliveryText = applyVariables(deliveryConfig.text, { buyerName: msg.buyerName, orderId });
-            deliveryMode = 'template';
         } else if (deliveryConfig?.mode === 'secrets' && secrets) {
             deliveryText = secrets;
-            deliveryMode = 'secrets';
         } else if (secrets && !deliveryConfig) {
             
             deliveryText = secrets;
@@ -661,15 +688,11 @@ async function _runAutoResponderCycleInner() {
             csrf_token: auth.csrf_token
         };
 
-        // FunPay runner requires BOTH golden_key AND PHPSESSID - without PHPSESSID it
-        // returns 200 but silently drops the request.
-        const pollingCookieStr = auth.phpsessid
-            ? `golden_key=${auth.golden_key}; PHPSESSID=${auth.phpsessid}`
-            : `golden_key=${auth.golden_key}`;
+        // Куки (golden_key, PHPSESSID, golden_seal) прикладывает браузер: credentials:'include'.
 
         const res = await fetchWithRetry('https://funpay.com/runner/', {
             method: 'POST',
-            headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest', cookie: pollingCookieStr },
+            headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest' },
             body: new URLSearchParams(runnerPayload)
         }, { retries: 2, baseDelay: 600 });
 
@@ -682,10 +705,30 @@ async function _runAutoResponderCycleInner() {
         const { fpToolsAutoReplies: fresh = {} } = await chrome.storage.local.get('fpToolsAutoReplies');
 
         const lastSeen = fresh.lastSeenMsgIds || {};
-        const isFirstRun = !fresh.autoResponderSeeded;
+        // Состояние «что уже обработано» принадлежит конкретному аккаунту. После
+        // переключения аккаунта все его чаты выглядели бы новыми, и автоответчик ответил
+        // бы в каждый - поэтому для другого userId сначала молча «засеваем» маркеры.
+        const stateOwner = fresh.autoResponderUserId != null ? String(fresh.autoResponderUserId) : null;
+        const isFirstRun = !fresh.autoResponderSeeded || (stateOwner !== null && stateOwner !== String(auth.userId));
 
         const updates = {}; // chatId -> newest msgId to persist
         const textUpdates = {}; // chatId -> last handled message text 
+
+        // Все заказы из событий этого цикла - одним запросом к FunPay API (пачки по 10);
+        // обработчики ниже берут их из кэша клиента.
+        if (!isFirstRun) {
+            const uids = [];
+            for (const chat of chats) {
+                if (ORDER_EVENT_TYPES.has(getMessageType(chat.messageText))) {
+                    const m = String(chat.messageText).match(RX.ORDER_ID);
+                    if (m) uids.push(m[1]);
+                }
+            }
+            if (uids.length) {
+                try { await apiGetOrders(uids); }
+                catch (e) { console.warn('FP Tools AR: FunPay API (пакетно):', e.message); }
+            }
+        }
 
         for (const chat of chats) {
             const nodeMsg = chat.nodeMsg;            // last message id in the chat
@@ -732,7 +775,7 @@ async function _runAutoResponderCycleInner() {
                 if (iAmInitiator) {
                     iAmSeller = false;
                 } else {
-                    iAmSeller = await verifyIAmSeller(_oid, auth);
+                    iAmSeller = await verifyIAmSeller(_oid);
                 }
                 if (!iAmSeller) {
                     console.log(`FP Tools AR: пропуск события по заказу #${_oid} - это моя покупка, не реагируем.`);
@@ -777,6 +820,7 @@ async function _runAutoResponderCycleInner() {
                 s.lastHandledText = t;
 
                 s.autoResponderSeeded = true;
+                s.autoResponderUserId = auth.userId;
             });
         }
 
@@ -788,10 +832,9 @@ async function _runAutoResponderCycleInner() {
 export async function resetAutoResponderState() {
     await chrome.storage.local.remove(RUNNER_TAG_KEY);
     // also clear per-chat tracking so re-enabling re-seeds cleanly
-    await chrome.storage.local.get('fpToolsAutoReplies').then(({ fpToolsAutoReplies = {} }) => {
-        delete fpToolsAutoReplies.lastSeenMsgIds;
-        delete fpToolsAutoReplies.lastHandledText;
-        delete fpToolsAutoReplies.autoResponderSeeded;
-        return chrome.storage.local.set({ fpToolsAutoReplies });
-    });
+    const { fpToolsAutoReplies = {} } = await chrome.storage.local.get('fpToolsAutoReplies');
+    const keys = ['lastSeenMsgIds', 'lastHandledText', 'autoResponderSeeded', 'autoResponderUserId'];
+    if (!keys.some(k => k in fpToolsAutoReplies)) return;   // нечего сбрасывать - не пишем
+    for (const k of keys) delete fpToolsAutoReplies[k];
+    await chrome.storage.local.set({ fpToolsAutoReplies });
 }

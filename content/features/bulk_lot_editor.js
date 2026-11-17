@@ -142,10 +142,10 @@ async function openBulkEditor() {
 
                 <div id="fp-bulk-lots-list" style="border:1px solid #1e2030;border-radius:8px;max-height:240px;overflow-y:auto;">
                     ${lots.map((lot) => `
-                        <label class="fp-bulk-lot-row" data-title="${(lot.title || '').toLowerCase().replace(/"/g,'&quot;')}" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--fpt-border, rgba(0,0,0,0.12));cursor:pointer;font-size:13px;color:var(--fpt-text-muted, #6b7280);">
-                            <input type="checkbox" class="fp-bulk-lot-check" data-offer-id="${lot.id}" data-node-id="${lot.nodeId}" style="accent-color:#1b75bb;flex-shrink:0;">
-                            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${lot.title}</span>
-                            <span style="font-size:11px;color:var(--fpt-text-muted, #6b7280);flex-shrink:0;">${lot.categoryName}</span>
+                        <label class="fp-bulk-lot-row" data-title="${fptEsc((lot.title || '').toLowerCase())}" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--fpt-border, rgba(0,0,0,0.12));cursor:pointer;font-size:13px;color:var(--fpt-text-muted, #6b7280);">
+                            <input type="checkbox" class="fp-bulk-lot-check" data-offer-id="${fptEsc(lot.id)}" data-node-id="${fptEsc(lot.nodeId)}" style="accent-color:#1b75bb;flex-shrink:0;">
+                            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${fptEsc(lot.title)}</span>
+                            <span style="font-size:11px;color:var(--fpt-text-muted, #6b7280);flex-shrink:0;">${fptEsc(lot.categoryName)}</span>
                         </label>
                     `).join('')}
                 </div>

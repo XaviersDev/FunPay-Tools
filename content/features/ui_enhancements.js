@@ -128,7 +128,7 @@ function getStatsBlockHTML() {
                 <div class="fp-s3-value fp-s3-name" id="fpTools-stats-popular-category">-</div>
             </div>
             <div class="fp-s3 fp-s3-end">
-                <div class="fp-s3-label">Неподтверждённые заказы</div>
+                <div class="fp-s3-label">Неподтверждённые (всего)</div>
                 <div class="fp-s3-value" id="fpTools-stats-unconfirmed">-</div>
             </div>
         </div>
@@ -222,11 +222,13 @@ async function calculateSalesStats(allOrders, startDate, endDate) {
     return stats;
 }
 
+// Единый формат денег во всей статистике: 3 319 ₽ · 221,27 ₽ · 1 366,82 ₽
+// (раньше рядом стояли «3319 ₽», «221.27 ₽» и «1 366,82 ₽»).
 function formatCurrency(value, currency) {
     if (!value || value === 0) return "";
     const symbolMap = { "RUB": "₽", "USD": "$", "EUR": "€" };
-    const roundedValue = Math.round(value * 100) / 100;
-    return `${roundedValue} ${symbolMap[currency] || currency}`;
+    const num = (Math.round(value * 100) / 100).toLocaleString('ru-RU', { maximumFractionDigits: 2 });
+    return `${num} ${symbolMap[currency] || currency}`;
 }
 
 function formatRevenue(revenue) {
@@ -365,7 +367,9 @@ async function displaySalesStats() {
     document.getElementById("fpTools-stats-top-customer").onclick = () => { if(stats.mostActiveBuyer.id) window.open(`https://funpay.com/users/${stats.mostActiveBuyer.id}/`); };
     document.getElementById("fpTools-stats-top-sale").textContent = formatCurrency(stats.mostExpensiveSale.price, stats.mostExpensiveSale.currency) || "-";
     document.getElementById("fpTools-stats-top-sale").onclick = () => { if(stats.mostExpensiveSale.orderId) window.open(`https://funpay.com/orders/${stats.mostExpensiveSale.orderId}/`); };
-    document.getElementById("fpTools-stats-popular-product").textContent = stats.mostPopularProduct || "-";
+    const _popEl = document.getElementById("fpTools-stats-popular-product");
+    _popEl.textContent = stats.mostPopularProduct || "-";
+    _popEl.title = stats.mostPopularProduct || "";
     document.getElementById("fpTools-stats-popular-category").textContent = stats.mostPopularCategory || "-";
 
     // Fetch unconfirmed (pending) balance from live trade page
@@ -381,10 +385,10 @@ async function displaySalesStats() {
                     chrome.runtime.sendMessage({ target: 'offscreen', action: 'parseUnconfirmedBalance', html }, d => r(d))
                 );
                 if (result) {
-                    const sym = result.currency === 'USD' ? '$' : result.currency === 'EUR' ? '€' : '₽';
+                    const cur = (result.currency === 'USD' || result.currency === 'EUR') ? result.currency : 'RUB';
                     unconfEl.textContent = result.count > 0
-                        ? `${result.total.toLocaleString('ru')} ${sym} (${result.count} шт.)`
-                        : '0 ' + sym;
+                        ? `${formatCurrency(result.total, cur)} (${result.count} шт.)`
+                        : ('0 ' + ({ RUB: '₽', USD: '$', EUR: '€' })[cur]);
                     // Style: highlight if there's money waiting
                     if (result.count > 0) {
                         unconfEl.style.color = '#ffa000';

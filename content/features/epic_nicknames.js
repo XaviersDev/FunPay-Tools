@@ -1,3 +1,39 @@
+// Шрифты ника (поле ft в ключе стиля). Грузятся с Google Fonts только те, что кто-то использует.
+const FPT_NICK_FONTS = {
+    pixel:  { family: 'Press+Start+2P',           css: "'Press Start 2P', monospace", size: '0.78em', ls: '0' },
+    round:  { family: 'Comfortaa:wght@700',       css: "'Comfortaa', sans-serif",     size: '1em',    ls: '0' },
+    hand:   { family: 'Caveat:wght@700',          css: "'Caveat', cursive",           size: '1.25em', ls: '0' },
+    gothic: { family: 'Ruslan+Display',           css: "'Ruslan Display', serif",     size: '1.05em', ls: '0.02em' },
+    wide:   { family: 'Unbounded:wght@800',       css: "'Unbounded', sans-serif",     size: '0.92em', ls: '0' },
+};
+function fptLoadNickFonts(set) {
+    const want = [...set].filter((k) => FPT_NICK_FONTS[k]).sort();
+    if (!want.length) return;
+    const href = 'https://fonts.googleapis.com/css2?' + want.map((k) => 'family=' + FPT_NICK_FONTS[k].family).join('&') + '&display=swap';
+    let link = document.getElementById('fpt-nick-fonts');
+    if (link && link.href === href) return;
+    if (!link) { link = document.createElement('link'); link.id = 'fpt-nick-fonts'; link.rel = 'stylesheet'; document.head.appendChild(link); }
+    link.href = href;
+}
+// Ключ стиля приходит из общего файла: пропускаем только ожидаемые значения, чтобы чужой ключ
+// не мог подсунуть свой CSS всем пользователям расширения.
+function fptCleanStyle(cfg) {
+    if (!cfg || typeof cfg !== 'object') return null;
+    const hex = (v) => (typeof v === 'string' && /^#[0-9a-f]{3,8}$/i.test(v) ? v : null);
+    const n = (v, lo, hi, d) => { const x = Number(v); return Number.isFinite(x) ? Math.min(hi, Math.max(lo, x)) : d; };
+    const c1 = hex(cfg.c1), c2 = hex(cfg.c2);
+    if (!c1 || !c2) return null;
+    const AN = ['none', 'glow', 'wave', 'pulse', 'glitch'];
+    const OV = ['none', 'fire', 'snow', 'sparks', 'matrix', 'lightning', 'smoke', 'stars', 'orbs'];
+    const an = (Array.isArray(cfg.an) ? cfg.an : [cfg.an]).filter((a) => AN.includes(a));
+    return {
+        c1, c2, c3: hex(cfg.c3),
+        ang: n(cfg.ang, 0, 360, 180), scl: n(cfg.scl, 50, 300, 100), spd: n(cfg.spd, 1, 10, 3),
+        an: an.length ? an : ['none'], ov: OV.includes(cfg.ov) ? cfg.ov : 'none', pc: hex(cfg.pc),
+        ft: typeof cfg.ft === 'string' && FPT_NICK_FONTS[cfg.ft] ? cfg.ft : null,
+    };
+}
+
 // content/features/epic_nicknames.js - FunPay Tools
 // Epic Nicknames Engine (CSS + Canvas Particles)
 
@@ -52,7 +88,7 @@
             if (response && response.success && response.data &&
                 typeof response.data === 'object' && Object.keys(response.data).length > 0) {
 
-                const fresh = response.data;
+                const fresh = withLocal(response.data);
                 const changed = JSON.stringify(fresh) !== JSON.stringify(donatersMap);
 
                 donatersMap = fresh;
@@ -73,6 +109,35 @@
         }
     }
 
+    // свой только что сохранённый стиль: показываем сразу, пока сервер не обновился (до суток)
+    const LOCAL_NICK_KEY = 'fptNickLocal';
+    let localNicks = {};
+    async function loadLocal() {
+        try { localNicks = (await chrome.storage.local.get(LOCAL_NICK_KEY))[LOCAL_NICK_KEY] || {}; } catch (_) { localNicks = {}; }
+    }
+    function withLocal(base) {
+        const out = Object.assign({}, base || {});
+        const now = Date.now();
+        let dirty = false;
+        for (const [nick, v] of Object.entries(localNicks)) {
+            if (!v || now - v.t > 24 * 3600 * 1000 || (base && base[nick] === v.key && now - v.t > 10 * 60 * 1000)) { delete localNicks[nick]; dirty = true; continue; }
+            out[nick] = v.key;
+        }
+        if (dirty) { try { chrome.storage.local.set({ [LOCAL_NICK_KEY]: localNicks }); } catch (_) {} }
+        return out;
+    }
+    window.fptNickGetKey = (nick) => donatersMap[nick] || '';
+    window.fptNickSetLocal = async (nick, key) => {
+        await loadLocal();
+        localNicks[nick] = { key, t: Date.now() };
+        try { await chrome.storage.local.set({ [LOCAL_NICK_KEY]: localNicks }); } catch (_) {}
+        donatersMap = withLocal(donatersMap);
+        parsedConfigs = {};
+        injectGlobalCSS();
+        scanDOM(document.body);
+        startObserver();
+    };
+
     // stale-while-revalidate: мгновенно отдаём кэш, в фоне всегда обновляем.
     async function fetchDonaters() {
         const cache = await chrome.storage.local.get([CACHE_KEY, CACHE_TIME_KEY]);
@@ -82,6 +147,8 @@
 
         // Всегда сначала показываем что есть в кэше (быстрый старт)
         if (cache[CACHE_KEY]) donatersMap = cache[CACHE_KEY];
+        await loadLocal();
+        donatersMap = withLocal(donatersMap);
 
         if (fresh) {
             // Кэш свежий - рисуем из него сразу, но всё равно тихо обновим в фоне
@@ -127,10 +194,12 @@
             @keyframes fpt-glitch { 0% { transform: skew(0deg); } 20% { transform: skew(-15deg); } 21% { transform: skew(15deg); } 25% { transform: skew(0deg); } 100% { transform: skew(0deg); } }
         `;
 
+        const usedFonts = new Set();
         for (const [nick, key] of Object.entries(donatersMap)) {
             if (!key || !key.startsWith('FPT-STYLE-')) continue;
             try {
-                const cfg = JSON.parse(atob(key.split('FPT-STYLE-')[1]));
+                const cfg = fptCleanStyle(JSON.parse(atob(key.split('FPT-STYLE-')[1])));
+                if (!cfg) continue;
                 parsedConfigs[nick] = cfg;
                 
                 const clsName = `fpt-nick-${hashStr(nick)}`;
@@ -159,11 +228,14 @@
                 if (anims.includes('pulse')) activeAnimations.push(`fpt-pulse-${clsName} ${cfg.spd}s ease-in-out infinite alternate`);
                 if (anims.includes('glitch')) activeAnimations.push(`fpt-glitch calc(${cfg.spd}s / 2) infinite linear alternate-reverse`);
 
+                const font = cfg.ft && FPT_NICK_FONTS[cfg.ft];
+                if (font) usedFonts.add(cfg.ft);
                 cssRules += `
                     .${clsName} .fpt-epic-text {
                         background-image: ${bg} !important;
                         background-size: ${sclFix}% 100% !important;
                         ${activeAnimations.length > 0 ? `animation: ${activeAnimations.join(', ')} !important;` : ''}
+                        ${font ? `font-family: ${font.css} !important; font-size: ${font.size} !important; letter-spacing: ${font.ls} !important;` : ''}
                     }
                 `;
             } catch (e) {
@@ -177,6 +249,7 @@
             document.head.appendChild(globalStyleEl);
         }
         globalStyleEl.textContent = cssRules;
+        fptLoadNickFonts(usedFonts);
     }
 
     // --- 3. CANVAS ДВИЖОК ЧАСТИЦ ---
@@ -316,7 +389,9 @@
 
         const textSpan = document.createElement('span');
         textSpan.className = 'fpt-epic-text';
-        textSpan.textContent = textContent;
+        // у обёртки white-space: pre, поэтому переносы строк вокруг ника из разметки FunPay
+        // превращались в пустую строку над ником и опускали его вниз
+        textSpan.textContent = String(textContent).trim();
 
         wrap.appendChild(textSpan);
         parent.replaceChild(wrap, node);
@@ -392,21 +467,26 @@
     };
 
 
+    let nickObserver = null;
+    function startObserver() {
+        if (nickObserver) return;
+        nickObserver = new MutationObserver(mutations => {
+            mutations.forEach(m => {
+                m.addedNodes.forEach(node => {
+                    if (node.nodeType === Node.ELEMENT_NODE) scanDOM(node);
+                });
+            });
+        });
+        nickObserver.observe(document.body, { childList: true, subtree: true });
+    }
+
     // --- ИНИЦИАЛИЗАЦИЯ ---
     async function init() {
         await fetchDonaters();
         if (Object.keys(donatersMap).length > 0) {
             injectGlobalCSS();
             scanDOM(document.body);
-
-            const observer = new MutationObserver(mutations => {
-                mutations.forEach(m => {
-                    m.addedNodes.forEach(node => {
-                        if (node.nodeType === Node.ELEMENT_NODE) scanDOM(node);
-                    });
-                });
-            });
-            observer.observe(document.body, { childList: true, subtree: true });
+            startObserver();
         }
     }
 

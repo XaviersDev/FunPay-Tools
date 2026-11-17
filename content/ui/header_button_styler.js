@@ -72,7 +72,7 @@ function applyButtonStyles(settings) {
     // user's custom colour was always ignored. Setting the variable + plain color avoids
     // the specificity fight entirely and the colour now actually changes.
     styleTag.textContent = `
-        #fpToolsButton {
+        #fpToolsButton, #fpToolsButtonCompact {
             --fpt-btn-color: ${settings.color};
             color: ${settings.color} !important;
             font-size: ${settings.size}px !important;

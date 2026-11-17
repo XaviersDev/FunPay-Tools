@@ -25,9 +25,8 @@ function _fptGcStatus(msg, isError) {
 }
 
 function _fptGcEscape(str) {
-    const d = document.createElement('div');
-    d.textContent = str == null ? '' : String(str);
-    return d.innerHTML;
+    // textContent→innerHTML не экранирует кавычки, а нам надо и для атрибутов
+    return String(str == null ? '' : str).replace(/[&<>"'`]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' }[c]));
 }
 
 // =============================================================================
@@ -149,11 +148,14 @@ function _fptGcRender(messages) {
         if (m.ts && m.ts > _fptGcLastTs) _fptGcLastTs = m.ts;
 
         const mine = _fptGcSelfName && m.nick === _fptGcSelfName;
-        const avatar = m.avatar
-            ? `<img class="fpt-gc-avatar" src="${_fptGcEscape(m.avatar)}" alt="">`
+        // ссылки и картинки пропускаем только в ожидаемом виде: профиль FunPay и https-картинка
+        const safeUrl = typeof m.url === 'string' && /^https:\/\/funpay\.com\/users\/\d+\/?$/.test(m.url) ? m.url : '';
+        const safeAvatar = typeof m.avatar === 'string' && /^https:\/\/[^\s"'<>]+$/.test(m.avatar) ? m.avatar : '';
+        const avatar = safeAvatar
+            ? `<img class="fpt-gc-avatar" src="${_fptGcEscape(safeAvatar)}" alt="">`
             : '<span class="fpt-gc-avatar fpt-gc-avatar-empty"></span>';
-        const nameHtml = m.url
-            ? `<a href="${_fptGcEscape(m.url)}" target="_blank" rel="noopener" class="fpt-gc-author">${_fptGcEscape(m.nick)}</a>`
+        const nameHtml = safeUrl
+            ? `<a href="${_fptGcEscape(safeUrl)}" target="_blank" rel="noopener" class="fpt-gc-author">${_fptGcEscape(m.nick)}</a>`
             : `<span class="fpt-gc-author">${_fptGcEscape(m.nick)}</span>`;
         const time = m.ts ? new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
 
@@ -162,7 +164,7 @@ function _fptGcRender(messages) {
         row.innerHTML =
             avatar +
             '<div class="fpt-gc-body">' +
-                `<div class="fpt-gc-head">${nameHtml}<span class="fpt-gc-date">${time}</span></div>` +
+                `<div class="fpt-gc-head">${nameHtml}<span class="fpt-gc-date">${_fptGcEscape(time)}</span></div>` +
                 `<div class="fpt-gc-text">${_fptGcEscape(m.text)}</div>` +
             '</div>';
         feed.appendChild(row);

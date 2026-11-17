@@ -1,8 +1,7 @@
 {
-  "update_url": "https://clients2.google.com/service/update2/crx",
   "manifest_version": 3,
   "name": "FunPay Tools",
-  "version": "2.9.9",
+  "version": "2.10.0",
   "description": "Глобальное расширение для FunPay ⚡ 299+ инструментов • ИИ-помощник • Автоответчик • Аналитика • Автоматизация • Больше продаж",
   "permissions": [
     "storage",
@@ -10,8 +9,8 @@
     "cookies",
     "alarms",
     "offscreen",
-    "notifications",
-    "background"
+    "background",
+    "declarativeNetRequestWithHostAccess"
   ],
   "host_permissions": [
     "https://fptools-ai-server.vercel.app/*",
@@ -27,9 +26,11 @@
     "https://fpt-descs.starobinskiy01.workers.dev/*",
     "https://fonts.googleapis.com/*",
     "https://translate.googleapis.com/*",
-    "https://fonts.gstatic.com/*",
     "https://support.funpay.com/*",
-    "https://api.telegram.org/*"
+    "https://api.telegram.org/*",
+    "https://fpt-promo.starobinskiy01.workers.dev/*",
+    "https://open.er-api.com/*",
+    "https://www.cbr-xml-daily.ru/*"
   ],
   "action": {
     "default_popup": "popup/popup.html",
@@ -63,6 +64,21 @@
       ],
       "run_at": "document_start",
       "all_frames": true
+    },
+    {
+      "matches": [
+        "https://funpay.com/*"
+      ],
+      "css": [
+        "css/navbar_float.css",
+        "css/decor_early.css"
+      ],
+      "run_at": "document_start",
+      "all_frames": false,
+      "js": [
+        "content/navbar_early.js",
+        "content/decor_early.js"
+      ]
     },
     {
       "matches": [
@@ -107,7 +123,6 @@
         "content/features/currency_calculator.js",
         "content/features/notes.js",
         "content/features/global_chat.js",
-        "content/features/overview_tour.js",
         "content/features/magicstick.js",
         "content/features/piggy_bank.js",
         "content/features/lot_io.js",
@@ -115,8 +130,14 @@
         "content/features/fpt_identifier.js",
         "content/features/needs_tab.js",
         "content/features/slash_telegram_ui.js",
+        "content/features/profile_decor.js",
         "content/ui/main_popup.js",
+        "content/features/promo_account.js",
+        "content/features/lot_reorder.js",
+        "content/features/lot_profit.js",
+        "content/features/withdraw_hold.js",
         "content/ui/header_button_styler.js",
+        "content/features/navbar_settings.js",
         "content/features/lot_notes.js",
         "content/features/lot_note_buttons.js",
         "content/features/chat_lot_note.js",
@@ -156,7 +177,8 @@
         "css/image_generator.css",
         "css/ai_creator.css",
         "css/live_styler.css",
-        "css/fpt_icons_theme.css"
+        "css/fpt_icons_theme.css",
+        "css/promo_account.css"
       ],
       "run_at": "document_idle"
     }

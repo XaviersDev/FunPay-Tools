@@ -6,6 +6,7 @@ import './finance_db.js'; // FP Tools: IndexedDB-хранилище финанс
 import { fetchAIResponse, fetchAILotGeneration, fetchAITranslation, fetchAIImageGeneration } from './ai.js';
 import { BUMP_ALARM_NAME, startAutoBump, stopAutoBump, runScheduledBump, runBumpCycle } from './autobump.js';
 import { runAutoResponderCycle, resetAutoResponderState } from './autoresponder.js';
+import { getOrders as apiGetOrders, orderStatusForStats } from './funpay_api.js';
 import { startEngine, stopEngine, onHeartbeat, onKeepalivePing, ENGINE_HEARTBEAT_ALARM } from './fpt_engine.js';
 import {
     TELEGRAM_ALARM, telegramInit, telegramSyncAlarm, telegramPollOnce,
@@ -84,6 +85,34 @@ async function fptFetchResilient(url, options, { retries = 3, baseDelay = 700 } 
 // Данные хранятся в IndexedDB (self.FPTSalesDB), а не в chrome.storage.local,
 // поэтому квота ~10 МБ больше не упирается на ~18800 заказах. Между страницами —
 // небольшая вежливая пауза, чтобы FunPay не банил IP за флуд.
+// Статусы уже сохранённых, но ещё не завершённых заказов (оплачен → закрыт/возврат)
+// меняются ПОСЛЕ того, как заказ попал в базу. Инкрементальная догрузка их не видит,
+// поэтому статистика «в ожидании/возвраты/заработано» со временем врала. Освежаем
+// такие заказы через FunPay API (пачками по 10, самые новые первыми).
+async function refreshOpenOrderStatuses(db, label, limit = 300) {
+    try {
+        const all = await db.getAllAsArray();
+        const open = all.filter(o => o && o.orderStatus === 'paid')
+            .sort((a, b) => (Number(b.orderDate) || 0) - (Number(a.orderDate) || 0))
+            .slice(0, limit);
+        if (!open.length) return 0;
+        const fresh = await apiGetOrders(open.map(o => o.orderId), { include: [], fresh: true });
+        const changed = [];
+        for (const o of open) {
+            const api = fresh.get(o.orderId);
+            if (!api) continue;
+            const st = orderStatusForStats(api);
+            if (st !== o.orderStatus) changed.push({ ...o, orderStatus: st });
+        }
+        if (changed.length) await db.putOrders(changed);
+        console.log(`FP Tools: ${label}: статусы незавершённых заказов проверены через FunPay API (${open.length}), обновлено ${changed.length}.`);
+        return changed.length;
+    } catch (e) {
+        console.warn(`FP Tools: ${label}: не удалось освежить статусы через FunPay API:`, e && e.message);
+        return 0;
+    }
+}
+
 async function runSalesUpdateCycle() {
     if (_salesCycleRunning) { console.log("FP Tools: цикл продаж уже идёт — пропуск повторного запуска."); return; }
     _salesCycleRunning = true;
@@ -233,6 +262,7 @@ async function runSalesUpdateCycle() {
             continueToken = nextOrderId;
         }
 
+        await refreshOpenOrderStatuses(FPTSalesDB, 'Продажи');
     } catch (e) {
         console.error(`FP Tools: Ошибка в цикле сбора статистики: ${e.message}`);
     } finally {
@@ -507,6 +537,7 @@ async function runPurchasesUpdateCycle() {
             continueToken = nextOrderId;
         }
 
+        await refreshOpenOrderStatuses(FPTPurchasesDB, 'Покупки');
     } catch (e) {
         console.error(`FP Tools: Ошибка в цикле сбора статистики: ${e.message}`);
     } finally {
@@ -998,7 +1029,6 @@ async function cloneCalcNetPrice(auth, nodeId, buyerPrice, currencyCode) {
     if (!j || j.error) return null;
 
     const want = (currencyCode || '').toLowerCase(); // 'rub' | 'usd' | 'eur' | ''
-    const symFor = (c) => c === 'rub' ? '₽' : c === 'usd' ? '$' : c === 'eur' ? '€' : '';
 
     // Собираем цены методов с их валютой (по unit или data-cy).
     let buyerForBase = Infinity;
@@ -1092,16 +1122,12 @@ async function runDiscordCheckCycle() {
             csrf_token: auth.csrf_token
         };
 
-        const discordCookieStr = auth.phpsessid
-            ? `golden_key=${auth.golden_key}; PHPSESSID=${auth.phpsessid}`
-            : `golden_key=${auth.golden_key}`;
         const response = await fetch("https://funpay.com/runner/", {
             method: "POST",
             credentials: 'include',
             headers: {
                 "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
-                "x-requested-with": "XMLHttpRequest",
-                "cookie": discordCookieStr
+                "x-requested-with": "XMLHttpRequest"
             },
             body: new URLSearchParams(runnerPayload).toString()
         });
@@ -1109,20 +1135,6 @@ async function runDiscordCheckCycle() {
         if (!response.ok) throw new Error(`Runner-запрос для Discord провалился: ${response.status}`);
 
         const data = await response.json();
-        // 3.0: Also capture buyer_viewing data for chat header display
-        const buyerViewingObjects = data.objects.filter(o => o.type === "buyer_viewing");
-        if (buyerViewingObjects.length > 0) {
-            const tabs = await chrome.tabs.query({ url: "https://funpay.com/*" });
-            buyerViewingObjects.forEach(bv => {
-                tabs.forEach(tab => {
-                    chrome.tabs.sendMessage(tab.id, {
-                        action: 'fpToolsBuyerViewing',
-                        buyerId: bv.id,
-                        data: bv.data
-                    }).catch(() => {});
-                });
-            });
-        }
         const chatObject = data.objects.find(o => o.type === "chat_bookmarks");
 
         if (!chatObject || !chatObject.data || !chatObject.data.html) return;
@@ -1268,71 +1280,127 @@ async function processNextLotImport() {
 // =====================================================================
 // Снимок аккаунта (аватар/баланс/непрочитанные) для вкладки мультиаккаунтов.
 //
-// ВАЖНО: браузер игнорирует заголовок Cookie, выставленный вручную в fetch()
-// (это forbidden header). Поэтому единственный надёжный способ получить главную
-// страницу ПОД КОНКРЕТНЫМ аккаунтом - временно подменить cookie golden_key,
-// сделать запрос с credentials:'include', затем вернуть исходную cookie.
+// Раньше для этого ВРЕМЕННО ПОДМЕНЯЛАСЬ живая кука golden_key в браузере. Пока
+// шёл запрос, все остальные запросы (открытые вкладки FunPay, автоответчик,
+// автоподнятие) уходили под ЧУЖИМ аккаунтом, а ответ FunPay перезаписывал
+// PHPSESSID/golden_seal - после «возврата» ключ и seal принадлежали разным
+// аккаунтам, и FunPay мог сбросить сессию. Плюс возвращённая кука теряла HttpOnly.
 //
-// Все вызовы сериализуются (очередь), чтобы параллельные снимки не затирали
-// cookie друг друга и не разлогинивали активную сессию.
+// Теперь запрос изолирован: fetch с credentials:'omit' (браузер не прикладывает
+// и не сохраняет НИ ОДНОЙ куки), а нужный golden_key подставляется session-правилом
+// declarativeNetRequest ровно для этого одного URL (уникальный nonce) и сразу удаляется.
+// Живая сессия пользователя не трогается вообще.
 // =====================================================================
 let _fptSnapChain = Promise.resolve();
+let _fptSnapRuleSeq = 0;
+
+async function fptIsolatedFetchHome(key) {
+    const nonce = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+    const url = `https://funpay.com/?fpt_snap=${nonce}`;
+    const ruleId = 900000 + (++_fptSnapRuleSeq % 90000);
+    await chrome.declarativeNetRequest.updateSessionRules({
+        removeRuleIds: [ruleId],
+        addRules: [{
+            id: ruleId,
+            priority: 1,
+            condition: { urlFilter: `|${url}|`, resourceTypes: ['xmlhttprequest'] },
+            action: {
+                type: 'modifyHeaders',
+                requestHeaders: [{ header: 'cookie', operation: 'set', value: `golden_key=${key}` }],
+                responseHeaders: [{ header: 'set-cookie', operation: 'remove' }]
+            }
+        }]
+    });
+    try {
+        const resp = await fetch(url, { credentials: 'omit', cache: 'no-store' });
+        return await resp.text();
+    } finally {
+        try { await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [ruleId] }); } catch (_) {}
+    }
+}
 
 function fptSnapshotForKey(key) {
     const run = async () => {
-        // 1) Запоминаем текущую golden_key, чтобы вернуть её после запроса.
-        let original = null;
-        try { original = await chrome.cookies.get({ url: 'https://funpay.com', name: 'golden_key' }); } catch (_) {}
-
-        // Если ключ совпадает с активным - просто грузим главную как есть.
-        if (original && original.value === key) {
-            try {
-                const resp = await fetch('https://funpay.com/', { credentials: 'include', cache: 'no-store' });
-                const html = await resp.text();
-                return await parseHtmlViaOffscreen(html, 'parseAccountSnapshot');
-            } catch (e) { return null; }
-        }
-
-        const setKey = async (value) => {
-            return chrome.cookies.set({
-                url: 'https://funpay.com',
-                name: 'golden_key',
-                value,
-                domain: '.funpay.com',
-                path: '/',
-                secure: true,
-                sameSite: 'lax',
-                expirationDate: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60)
-            });
-        };
-
+        let current = null;
+        try { current = await chrome.cookies.get({ url: 'https://funpay.com', name: 'golden_key' }); } catch (_) {}
         try {
-            // 2) Ставим cookie целевого аккаунта.
-            await setKey(key);
-            // 3) Грузим главную под этим аккаунтом.
-            const resp = await fetch('https://funpay.com/', { credentials: 'include', cache: 'no-store' });
-            const html = await resp.text();
-            const snap = await parseHtmlViaOffscreen(html, 'parseAccountSnapshot');
-            return snap;
+            const html = (current && current.value === key)
+                ? await (await fetch('https://funpay.com/', { credentials: 'include', cache: 'no-store' })).text()
+                : await fptIsolatedFetchHome(key);
+            return await parseHtmlViaOffscreen(html, 'parseAccountSnapshot');
         } catch (e) {
+            console.warn('FP Tools: снимок аккаунта не получен:', e && e.message);
             return null;
-        } finally {
-            // 4) ВСЕГДА возвращаем исходную golden_key (или удаляем, если её не было).
-            try {
-                if (original && original.value) await setKey(original.value);
-                else await chrome.cookies.remove({ url: 'https://funpay.com', name: 'golden_key' });
-            } catch (_) {}
         }
     };
-    // сериализация
     const next = _fptSnapChain.then(run, run);
     _fptSnapChain = next.catch(() => {});
     return next;
 }
 
+// Сессионные куки FunPay. При смене аккаунта их нужно убрать ВСЕ: PHPSESSID и
+// golden_seal привязаны к прежнему golden_key; FunPay выдаст новые на первом запросе.
+const FUNPAY_SESSION_COOKIES = ['golden_key', 'PHPSESSID', 'golden_seal'];
+
+async function fptRemoveFunPayCookies(names) {
+    for (const name of names) {
+        let list = [];
+        try { list = await chrome.cookies.getAll({ name, domain: 'funpay.com' }); } catch (_) {}
+        for (const c of list) {
+            const host = String(c.domain || 'funpay.com').replace(/^\./, '');
+            const details = { url: `https://${host}${c.path || '/'}`, name, storeId: c.storeId };
+            if (c.partitionKey) details.partitionKey = c.partitionKey;
+            try { await chrome.cookies.remove(details); } catch (_) {}
+        }
+    }
+}
+
+async function fptSetGoldenKeyCookie(key) {
+    const base = {
+        url: 'https://funpay.com/', name: 'golden_key', value: key, path: '/',
+        secure: true, httpOnly: true, sameSite: 'lax',
+        expirationDate: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60)
+    };
+    let res = null;
+    try { res = await chrome.cookies.set({ ...base, domain: '.funpay.com' }); } catch (_) {}
+    if (!res) res = await chrome.cookies.set(base);
+    return res;
+}
+
 
 // --- Главный обработчик сообщений ---
+// Курсы валют для себестоимости (lot_profit.js): сколько единиц валюты за 1 USD, кэш на 6 часов.
+async function fptGetRates() {
+    const KEY = 'fptRatesCache';
+    try {
+        const c = (await chrome.storage.local.get(KEY))[KEY];
+        if (c && Date.now() - c.t < 6 * 3600 * 1000) return c.rates;
+    } catch (_) {}
+    let rates = null;
+    try {
+        const r = await fetch('https://open.er-api.com/v6/latest/USD');
+        const j = await r.json();
+        if (j && j.rates && j.rates.RUB) rates = j.rates;
+    } catch (_) {}
+    if (!rates) {
+        // запасной источник: ЦБ РФ (курсы к рублю)
+        try {
+            const r = await fetch('https://www.cbr-xml-daily.ru/daily_json.js');
+            const j = await r.json();
+            const usdRub = j.Valute.USD.Value / j.Valute.USD.Nominal;
+            rates = { USD: 1, RUB: usdRub };
+            for (const [code, v] of Object.entries(j.Valute)) rates[code] = usdRub / (v.Value / v.Nominal);
+        } catch (_) {}
+    }
+    if (rates) { try { await chrome.storage.local.set({ [KEY]: { t: Date.now(), rates } }); } catch (_) {} }
+    return rates;
+}
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request && request.action === 'fptGetRates') {
+        fptGetRates().then((rates) => sendResponse({ rates })).catch(() => sendResponse({ rates: null }));
+        return true;
+    }
     // Поднять все лоты по кнопке с профиля
     if (request && request.action === 'fptRaiseAllNow') {
         runBumpCycle()
@@ -1397,9 +1465,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             try {
                 const auth = await getAuthDetailsForBackground();
                 if (!auth.golden_key || !auth.csrf_token) throw new Error('Нет авторизации.');
-                const cookieStr = auth.phpsessid
-                    ? `golden_key=${auth.golden_key}; PHPSESSID=${auth.phpsessid}`
-                    : `golden_key=${auth.golden_key}`;
                 const payload = {
                     objects: JSON.stringify([{ type: 'chat_node', id: request.chatId, tag: '00000000', data: { node: request.chatId, last_message: -1, content: '' } }]),
                     request: JSON.stringify({ action: 'chat_message', data: { node: request.chatId, last_message: -1, content: request.text } }),
@@ -1408,7 +1473,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 const res = await fetch('https://funpay.com/runner/', {
                     method: 'POST',
                     credentials: 'include',
-                    headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest', 'cookie': cookieStr },
+                    headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8', 'x-requested-with': 'XMLHttpRequest' },
                     body: new URLSearchParams(payload)
                 });
                 const json = await res.json().catch(() => null);
@@ -1449,6 +1514,49 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true;
     }
 
+    // Рамки и баннеры профиля (decor.json пишет воркер fpt-promo)
+    if (request.action === 'fetchDecorAsset') {
+        (async () => {
+            const file = String(request.file || '');
+            if (!/^(frames|banners)\/[a-z0-9_]+\.webp$/.test(file)) return sendResponse({ success: false });
+            const sources = [
+                `https://funpay.tools/decor/${file}`,
+                `https://raw.githubusercontent.com/XaviersDev/FunPayTools-Site/main/decor/${file}`,
+                `https://cdn.jsdelivr.net/gh/XaviersDev/FunPayTools-Site@main/decor/${file}`,
+            ];
+            for (const url of sources) {
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) continue;
+                    const buf = new Uint8Array(await res.arrayBuffer());
+                    let bin = '';
+                    for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+                    return sendResponse({ success: true, data: 'data:image/webp;base64,' + btoa(bin) });
+                } catch (_) {}
+            }
+            sendResponse({ success: false });
+        })();
+        return true;
+    }
+    if (request.action === 'fetchDecor') {
+        (async () => {
+            const bust = Date.now() + '_' + Math.random().toString(36).slice(2);
+            const sources = [
+                `https://raw.githubusercontent.com/XaviersDev/FunPayTools-Site/main/decor.json?t=${bust}`,
+                `https://cdn.jsdelivr.net/gh/XaviersDev/FunPayTools-Site@main/decor.json?t=${bust}`,
+            ];
+            for (const url of sources) {
+                try {
+                    const res = await fetch(url, { cache: 'no-store' });
+                    if (!res.ok) continue;
+                    const data = await res.json();
+                    if (data && typeof data === 'object') return sendResponse({ success: true, data });
+                } catch (_) {}
+            }
+            sendResponse({ success: false });
+        })();
+        return true;
+    }
     if (request.action === 'fetchDonaters') {
         (async () => {
             // Уникальный bust на каждый запрос: пробивает и HTTP-кэш браузера,
@@ -1621,7 +1729,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // -------------------------------------------------------------------------------------
     // cloneGetSource:  читает публичную страницу чужого лота и (если найден node) сразу
     //                  строит черновик полей на основе НАШЕЙ пустой формы offerEdit?node=...
-    // cloneBuildFields: то же построение полей отдельно (если node меняется в UI).
     // cloneCreateLot:  собирает финальный payload и постит lots/offerSave (offer_id=0).
     // =====================================================================================
     if (request.action === 'cloneGetSource') {
@@ -1760,19 +1867,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true;
     }
 
-    if (request.action === 'cloneBuildFields') {
-        (async () => {
-            try {
-                const auth = await getAuthDetailsForBackground();
-                if (!auth.golden_key) throw new Error('Не авторизован.');
-                const fields = await cloneBuildFieldsInternal(auth, request.nodeId, request.attributes || []);
-                sendResponse({ success: true, fields });
-            } catch (e) {
-                sendResponse({ success: false, error: e.message });
-            }
-        })();
-        return true;
-    }
 
     // FP Tools: построить форму создания лота из данных страницы КУПЛЕННОГО заказа.
     // На странице заказа нет offerId исходного лота, но есть nodeId (категория) и
@@ -2180,71 +2274,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'setGoldenKey') {
         (async () => {
             try {
-                if (!request.key) throw new Error('Пустой ключ аккаунта.');
-
-                // --- Логика входа повторяет то, что делает cookie-editor ---
-                // Кук-эдитор просто МЕНЯЕТ значение golden_key и НЕ трогает PHPSESSID —
-                // FunPay сам перепривязывает сессию к новому ключу на следующем запросе.
-                // Прошлые версии УДАЛЯЛИ PHPSESSID и так роняли в пустую сессию.
-                //
-                // Важные детали, без которых вход не срабатывал:
-                //  1. FunPay ставит golden_key как httpOnly на домен ".funpay.com".
-                //     chrome.cookies.set НЕ может пометить куку httpOnly, поэтому если
-                //     просто записать новую — она будет ОТДЕЛЬНОЙ (non-httpOnly), а сервер
-                //     продолжит видеть старую httpOnly → пустая/старая сессия.
-                //     Поэтому СНАЧАЛА удаляем все существующие golden_key (remove умеет
-                //     убирать и httpOnly-куки), и только потом ставим новую.
-                //  2. domain ставим как у FunPay — с ведущей точкой ".funpay.com".
-
-                // 1) Снимаем все варианты golden_key (host-only и доменные, вкл. httpOnly).
-                try {
-                    const existing = await chrome.cookies.getAll({ name: 'golden_key', domain: 'funpay.com' });
-                    for (const c of existing) {
-                        const proto = c.secure ? 'https' : 'http';
-                        const host = c.domain.replace(/^\./, '');
-                        try {
-                            await chrome.cookies.remove({
-                                url: `${proto}://${host}${c.path || '/'}`,
-                                name: 'golden_key',
-                                storeId: c.storeId
-                            });
-                        } catch (_) {}
-                    }
-                } catch (_) {}
-
-                // 2) Ставим новый golden_key так же, как FunPay: domain ".funpay.com",
-                //    secure, path "/", долгий срок. PHPSESSID НЕ трогаем — пусть FunPay
-                //    перепривяжет сессию сам (как при смене ключа в cookie-editor).
-                let setResult = await chrome.cookies.set({
-                    url: 'https://funpay.com/',
-                    name: 'golden_key',
-                    value: request.key,
-                    domain: '.funpay.com',
-                    path: '/',
-                    secure: true,
-                    sameSite: 'lax',
-                    expirationDate: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60)
-                });
-
-                // Подстраховка: некоторые сборки Chrome капризничают с domain+url.
-                // Пробуем host-only вариант, если доменный не записался.
-                if (!setResult) {
-                    setResult = await chrome.cookies.set({
-                        url: 'https://funpay.com/',
-                        name: 'golden_key',
-                        value: request.key,
-                        path: '/',
-                        secure: true,
-                        sameSite: 'lax',
-                        expirationDate: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60)
-                    });
-                }
-
-                if (!setResult) {
-                    throw new Error('Не удалось записать куку аккаунта (cookies.set вернул null).');
-                }
-
-                // 3) Перезагружаем вкладку — FunPay выдаст/перепривяжет сессию под новый ключ.
+                const key = String(request.key || '').trim();
+                if (!/^[a-z0-9]{16,64}$/i.test(key)) throw new Error('Некорректный golden_key: ожидаются только латинские буквы и цифры.');
+                await fptRemoveFunPayCookies(FUNPAY_SESSION_COOKIES);
+                const setResult = await fptSetGoldenKeyCookie(key);
+                if (!setResult) throw new Error('Не удалось записать куку аккаунта (cookies.set вернул null).');
                 const tabId = sender.tab && sender.tab.id;
                 if (tabId != null) chrome.tabs.reload(tabId);
                 sendResponse({ success: true });
@@ -2255,7 +2289,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         })();
         return true;
     }
-    // ACCOUNT SNAPSHOT (avatar / balance / unread) для вкладки мультиаккаунтов
     if (request.action === 'getAccountSnapshot') {
         (async () => {
             try {
@@ -2707,7 +2740,9 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 });
 
 function setupInitialAlarms() {
-    chrome.storage.local.get(['autoBumpEnabled', 'fpToolsDiscord', 'fpToolsAutoReplies'], (settings) => {
+    // FIX: раньше ключи автовосстановления не запрашивались, и будильник
+    // fpToolsAutoRestore после перезапуска браузера не создавался никогда.
+    chrome.storage.local.get(['autoBumpEnabled', 'fpToolsDiscord', 'fpToolsAutoReplies', 'fpToolsAutoRestoreEnabled', 'fpToolsAutoDisableEnabled'], (settings) => {
         if (settings.autoBumpEnabled) {
             runScheduledBump();
         }
@@ -2779,6 +2814,19 @@ chrome.storage.onChanged.addListener((changes, area) => {
         });
     }
 
+    // Автовосстановление/автоотключение лотов: будильник раз в 5 минут.
+    if (changes.fpToolsAutoRestoreEnabled || changes.fpToolsAutoDisableEnabled) {
+        chrome.storage.local.get(['fpToolsAutoRestoreEnabled', 'fpToolsAutoDisableEnabled'], (s) => {
+            if (s.fpToolsAutoRestoreEnabled || s.fpToolsAutoDisableEnabled) {
+                chrome.alarms.get('fpToolsAutoRestore', (a) => {
+                    if (!a) chrome.alarms.create('fpToolsAutoRestore', { delayInMinutes: 1, periodInMinutes: 5 });
+                });
+            } else {
+                chrome.alarms.clear('fpToolsAutoRestore');
+            }
+        });
+    }
+
     // Telegram: включение/выключение и смена токена → пересоздаём/убираем опрос.
     if (changes.fpToolsTelegram) {
         telegramSyncAlarm();
@@ -2786,12 +2834,17 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
     // <-- НОВЫЙ БЛОК ДЛЯ УПРАВЛЕНИЯ БУДИЛЬНИКОМ АВТООТВЕТЧИКА -->
     if (changes.fpToolsAutoReplies) {
-        const newSettings = changes.fpToolsAutoReplies.newValue || {};
-        const isEnabled = newSettings.greetingEnabled || newSettings.keywordsEnabled || newSettings.autoReviewEnabled || newSettings.bonusForReviewEnabled ||
-            newSettings.newOrderReplyEnabled || newSettings.orderConfirmReplyEnabled || newSettings.autoDeliveryEnabled;
+        // Автоответчик сам пишет свои маркеры (lastSeenMsgIds и т.п.) в этот же ключ
+        // каждый цикл. Реагируем только на смену «включён/выключен», иначе движок
+        // перезапускался каждые 5 секунд, а при выключении reset писал в storage снова.
+        const arOn = (x) => !!(x && (x.greetingEnabled || x.keywordsEnabled || x.autoReviewEnabled || x.bonusForReviewEnabled ||
+            x.newOrderReplyEnabled || x.orderConfirmReplyEnabled || x.autoDeliveryEnabled));
+        const isEnabled = arOn(changes.fpToolsAutoReplies.newValue);
+        const wasEnabled = arOn(changes.fpToolsAutoReplies.oldValue);
 
-        // 3.0: drive the engine instead of the broken alarm
-        if (isEnabled) {
+        if (isEnabled === wasEnabled) {
+            // не переключение - ничего не делаем
+        } else if (isEnabled) {
             startEngine();
         } else {
             stopEngine();

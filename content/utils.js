@@ -62,6 +62,21 @@ function throttle(func, limit) {
     }
 }
 
+// Экранирование для всего, что попадает в innerHTML: ники, тексты сообщений, названия лотов,
+// ответы серверов. Без этого чужой текст вида <img onerror=...> выполнится на странице FunPay.
+function fptEsc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"'`]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' }[c]));
+}
+// Ссылка только на http(s): защищает href/src от javascript: и data:
+function fptSafeUrl(u, fallback = '#') {
+    try {
+        const url = new URL(String(u || ''), location.href);
+        return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : fallback;
+    } catch (_) { return fallback; }
+}
+window.fptEsc = fptEsc;
+window.fptSafeUrl = fptSafeUrl;
+
 function createElement(tag, attributes = {}, styles = {}, innerHTML = '') {
     const element = document.createElement(tag);
     for (const [key, value] of Object.entries(attributes)) {
@@ -195,7 +210,8 @@ function showNotification(message, isError = false) {
             transform: 'scale(0.8)',
             opacity: '0',
             animation: `fpToolsEmerge 0.5s cubic-bezier(0.25, 1, 0.5, 1) forwards, fpToolsFadeOut 0.5s ${FADE_OUT_DELAY / 1000}s forwards`
-        }, message);
+        }, '');
+        notification.textContent = String(message == null ? '' : message);
 
         if (!document.querySelector('style[data-fp-tools-notify-keyframes]')) {
             const keyframesStyle = `

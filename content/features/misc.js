@@ -513,7 +513,6 @@ function initializeToolsPopup() {
         showNotification('Список категорий для поднятия сохранен!', false);
     });
     
-    if (typeof renderCustomTemplatesList === 'function') renderCustomTemplatesList();
     if (typeof setupThemeCustomizationHandlers === 'function') setupThemeCustomizationHandlers();
     if (typeof updateThemePreview === 'function') updateThemePreview();
     if (typeof setupCursorFxHandlers === 'function') setupCursorFxHandlers();

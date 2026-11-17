@@ -1,0 +1,379 @@
+/* ===================================================
+   Квадратное окно FP Tools: без скруглений, тени только у самого окна
+   =================================================== */
+#fptPopupRoot,
+.fp-tools-modal-overlay .fp-tools-modal-content {
+    border-radius: 14px !important;
+}
+#fptPopupRoot *:not([class*="toggle"]):not([class*="switch"]):not([class*="slider"]):not([class*="knob"]):not([class*="thumb"]):not([class*="dot"]):not([class*="ava"]):not([class*="badge"]):not(input[type="radio"]),
+.fp-tools-modal-overlay .fp-tools-modal-content * {
+    border-radius: 7px !important;
+}
+#fptPopupRoot .fpt-acc-ava,
+#fptPopupRoot .fpt-decor-pv-ava .ava,
+#fptPopupRoot img[class*="ava"] {
+    border-radius: 50% !important;
+}
+/* крутилки загрузки остаются круглыми, иначе они выглядят как дёргающийся квадрат */
+#fptPopupRoot .spinning,
+#fptPopupRoot [class*="spinner"],
+#fptPopupRoot [class*="loader"],
+#fptPopupRoot [class*="-spin"] {
+    border-radius: 50% !important;
+}
+#fptPopupRoot * {
+    box-shadow: none !important;
+}
+#fptPopupRoot {
+    box-shadow: 0 18px 48px rgba(8, 18, 32, 0.34) !important;
+}
+#fptPopupRoot .fpt-nav-search-results {
+    box-shadow: 0 10px 24px rgba(8, 18, 32, 0.28) !important;
+}
+#fptPopupRoot :focus-visible {
+    outline: 2px solid var(--fptm-accent, #1b75bb) !important;
+    outline-offset: 1px;
+}
+
+/* ===================================================
+   Пункт меню "Аккаунт": еле видный голубой контур и бейдж NEW!
+   =================================================== */
+#fptPopupRoot .fp-tools-nav li.fpt-nav-account:not(.active) a {
+    border: 1px solid rgba(74, 159, 212, 0.38) !important;
+}
+#fptPopupRoot .fp-tools-nav li.fpt-nav-account:not(.active) a:hover {
+    border-color: rgba(74, 159, 212, 0.65) !important;
+}
+#fptPopupRoot .fp-tools-nav li.fpt-nav-account a {
+    position: relative;
+}
+#fptPopupRoot .fpt-new-badge {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    padding: 2px 5px;
+    font-size: 9px;
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: 0.04em;
+    color: #1a1400;
+    background: #ffd84d;
+}
+#fptPopupRoot .fpt-new-badge[hidden] { display: none; }
+
+/* ===================================================
+   Вкладка "Аккаунт"
+   =================================================== */
+#fptAccountRoot { display: flex; flex-direction: column; gap: 18px; }
+.fpt-acc-head { display: flex; align-items: center; gap: 14px; }
+.fpt-acc-ava {
+    width: 48px; height: 48px; flex: 0 0 48px;
+    object-fit: cover;
+    background: var(--fptm-surface-2, #1a1c26);
+    border: 1px solid var(--fptm-border, #22253a);
+}
+.fpt-acc-name { font-size: 18px; font-weight: 800; color: var(--fptm-text, #e6e8f2); }
+.fpt-acc-sub { font-size: 12px; color: var(--fptm-muted, #9099b8); margin-top: 2px; }
+.fpt-acc-block {
+    padding: 16px;
+    border: 1px solid var(--fptm-border, #22253a);
+    background: var(--fptm-surface-2, transparent);
+}
+.fpt-acc-block h4 { margin: 0 0 6px; }
+.fpt-acc-block .btn { display: inline-block; text-decoration: none; }
+.fpt-link { display: inline-block; margin-top: 8px; font-size: 12px; color: var(--fptm-accent, #4a9fd4); }
+
+/* шаги акции */
+.fpt-steps { display: flex; flex-direction: column; border: 1px solid var(--fptm-border, #22253a); }
+.fpt-step { display: flex; gap: 14px; padding: 14px 16px; }
+.fpt-step + .fpt-step { border-top: 1px solid var(--fptm-border, #22253a); }
+.fpt-step-num {
+    width: 28px; height: 28px; flex: 0 0 28px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 13px;
+    color: var(--fptm-accent, #4a9fd4);
+    border: 1px solid var(--fptm-accent, #4a9fd4);
+}
+.fpt-step-num .material-symbols-rounded { font-size: 18px; }
+.fpt-step-done .fpt-step-num { background: var(--fptm-accent, #1b75bb); border-color: var(--fptm-accent, #1b75bb); color: #fff; }
+.fpt-step-locked { opacity: 0.45; }
+.fpt-step-locked .fpt-step-num { color: var(--fptm-muted, #9099b8); border-color: var(--fptm-border, #33364a); }
+.fpt-step-body { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.fpt-step-title { font-weight: 700; color: var(--fptm-text, #e6e8f2); }
+.fpt-step-desc { font-size: 12px; color: var(--fptm-muted, #9099b8); }
+.fpt-step-body .btn { text-decoration: none; }
+.fpt-key-row { display: flex; gap: 8px; width: 100%; margin-top: 4px; }
+.fpt-key-row input { flex: 1; min-width: 0; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+
+.fpt-checking { width: 100%; max-width: 320px; font-size: 13px; color: var(--fptm-text, #e6e8f2); }
+.fpt-checking-bar { height: 3px; margin-top: 6px; background: var(--fptm-border, #22253a); overflow: hidden; }
+.fpt-checking-bar i { display: block; height: 100%; width: 0; background: var(--fptm-accent, #1b75bb); }
+
+.fpt-msg { font-size: 13px; color: var(--fptm-muted, #9099b8); min-height: 1em; }
+.fpt-msg:empty { display: none; }
+.fpt-msg-err { color: #e06c6c; }
+
+/* ===================================================
+   Карточка подарка: светлая, с мягкими пятнами цвета
+   =================================================== */
+.fpt-gift {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    gap: 26px;
+    padding: 28px;
+    background: #ffffff;
+    color: #0d1b2e;
+    border: 1px solid #dce8f5;
+    border-radius: 14px !important;
+}
+.fpt-gift-glow {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(55% 85% at 100% 0%, rgba(140, 196, 255, 0.85), transparent 72%),
+        radial-gradient(50% 95% at 0% 100%, rgba(27, 117, 187, 0.62), transparent 72%),
+        radial-gradient(38% 70% at 62% 112%, rgba(255, 210, 60, 0.55), transparent 72%);
+}
+.fpt-gift-tile {
+    position: relative;
+    flex: 0 0 auto;
+    width: 150px; height: 150px;
+    display: flex; align-items: center; justify-content: center;
+    padding: 12px;
+    background: #ffffff;
+    border: 1px solid #e3edf7;
+}
+.fpt-gift-nick {
+    font-size: 19px;
+    font-weight: 900;
+    text-align: center;
+    word-break: break-word;
+    background: linear-gradient(90deg, #1b75bb, #49b6ff, #ffc83d, #1b75bb);
+    background-size: 300% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent !important;
+    -webkit-text-fill-color: transparent;
+    animation: fpt-gift-wave 4s linear infinite;
+}
+@keyframes fpt-gift-wave { to { background-position: 300% 0; } }
+.fpt-gift-text { position: relative; min-width: 0; }
+.fpt-gift-title {
+    font-size: 34px;
+    font-weight: 900;
+    line-height: 1.02;
+    letter-spacing: -0.02em;
+    color: #0d1b2e;
+}
+.fpt-gift-sub {
+    margin-top: 10px;
+    max-width: 380px;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.45;
+    color: #24364d;
+}
+.fpt-gift-sub b { color: #0d1b2e; }
+
+/* ===================================================
+   Всплывающее уведомление о подарке
+   =================================================== */
+.fpt-gift-modal {
+    position: fixed; inset: 0; z-index: 100000;
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+    background: rgba(8, 18, 32, 0.5);
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+.fpt-gift-modal.show { opacity: 1; }
+.fpt-gift-modal-box {
+    position: relative;
+    width: min(640px, 100%);
+    background: #ffffff;
+    box-shadow: 0 24px 60px rgba(8, 18, 32, 0.35);
+    transform: translateY(12px);
+    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+}
+.fpt-gift-modal.show .fpt-gift-modal-box { transform: none; }
+.fpt-gift-modal .fpt-gift { border: 0; padding: 36px 32px 24px; background: transparent; position: relative; }
+.fpt-gift-modal .fpt-gift .fpt-gift-glow { display: none; }
+.fpt-gift-modal-box > .fpt-gift-glow { z-index: 0; }
+.fpt-gift-modal-box > .fpt-gift-actions { position: relative; z-index: 1; }
+.fpt-gift-x {
+    position: absolute; top: 8px; right: 10px; z-index: 2;
+    width: 32px; height: 32px;
+    border: 0; background: transparent;
+    font-size: 24px; line-height: 1; color: #24364d; cursor: pointer;
+}
+.fpt-gift-actions { display: flex; gap: 10px; padding: 0 32px 28px; }
+.fpt-gift-actions button {
+    padding: 12px 22px;
+    border: 1px solid #1b75bb;
+    font: 700 14px/1 'Inter', 'Segoe UI', sans-serif;
+    cursor: pointer;
+}
+.fpt-gift-go { background: #1b75bb; color: #ffffff; }
+.fpt-gift-go:hover { background: #16639f; }
+.fpt-gift-later { background: rgba(255, 255, 255, 0.7); color: #1b75bb; }
+.fpt-gift-later:hover { background: #eef5fc; }
+
+@media (max-width: 560px) {
+    .fpt-gift { flex-direction: column; align-items: flex-start; padding: 22px; }
+    .fpt-gift-tile { width: 100%; height: 110px; }
+    .fpt-gift-title { font-size: 28px; }
+    .fpt-gift-actions { padding: 0 22px 22px; flex-direction: column; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .fpt-gift-nick { animation: none; }
+    .fpt-gift-modal, .fpt-gift-modal-box { transition: none; }
+}
+
+/* ===================================================
+   Общий чат: свои сообщения без фона, но заметные
+   =================================================== */
+#fptPopupRoot .fpt-gc-msg-mine {
+    background: transparent !important;
+    border-right: 3px solid var(--fptm-accent, #1b75bb) !important;
+    padding-right: 12px !important;
+}
+#fptPopupRoot .fpt-gc-msg-mine .fpt-gc-text {
+    color: var(--fptm-text, #e2e4f0) !important;
+    font-weight: 500;
+}
+#fptPopupRoot .fpt-gc-msg-mine .fpt-gc-author {
+    color: var(--fptm-accent, #4a9fd4) !important;
+    font-weight: 700;
+}
+#fptPopupRoot .fpt-gc-msg-mine .fpt-gc-date {
+    color: var(--fptm-muted, #8a90a8) !important;
+}
+
+/* ===================================================
+   Telegram и покупки во вкладке "Аккаунт"
+   =================================================== */
+.fpt-tg-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.fpt-link-btn {
+    border: 0; background: transparent; padding: 4px 0; cursor: pointer;
+    font-size: 12px; color: var(--fptm-muted, #9099b8); text-decoration: underline;
+}
+.fpt-link-btn:hover { color: var(--fptm-text, #e6e8f2); }
+.fpt-shop-status {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+    margin-bottom: 14px; background: var(--fptm-border, #22253a);
+    border: 1px solid var(--fptm-border, #22253a);
+}
+.fpt-shop-status > div { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; background: var(--fptm-surface, #13141a); }
+.fpt-shop-status span { font-size: 11px; color: var(--fptm-muted, #9099b8); }
+.fpt-shop-status b { font-size: 14px; color: var(--fptm-text, #e6e8f2); word-break: break-word; }
+.fpt-prods { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.fpt-prod {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+    padding: 12px; text-align: left; cursor: pointer;
+    background: transparent; color: var(--fptm-text, #e6e8f2);
+    border: 1px solid var(--fptm-border, #2a2d40);
+    font: inherit;
+}
+.fpt-prod:hover { border-color: var(--fptm-accent, #4a9fd4); }
+.fpt-prod-on { border-color: var(--fptm-accent, #4a9fd4); background: var(--fptm-accent-soft, rgba(27,117,187,.12)); }
+.fpt-prod-title { font-size: 13px; font-weight: 600; }
+.fpt-prod-price { font-size: 20px; font-weight: 800; }
+.fpt-prod-note { font-size: 11px; color: var(--fptm-muted, #9099b8); }
+.fpt-pay { margin-top: 12px; padding: 12px; border: 1px solid var(--fptm-border, #2a2d40); }
+.fpt-pay-title { font-weight: 700; margin-bottom: 8px; color: var(--fptm-text, #e6e8f2); }
+.fpt-pay-methods { display: flex; flex-wrap: wrap; gap: 8px; }
+.fpt-pay-methods .btn { text-decoration: none; }
+.fpt-pay .fpt-checking { margin-top: 10px; font-size: 12px; color: var(--fptm-muted, #9099b8); }
+.fpt-nick-set { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--fptm-border, #22253a); }
+.fpt-nick-set h4 { margin: 0 0 4px; }
+/* общие стили кнопок окна не должны перекрашивать карточки товаров и ссылку "Выйти" */
+#fptPopupRoot button.fpt-prod {
+    background: transparent !important;
+    color: var(--fptm-text, #1d2433) !important;
+    border: 1px solid var(--fptm-border, #d5dbe5) !important;
+    padding: 12px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    width: 100% !important;
+    justify-content: flex-start !important;
+    text-transform: none !important;
+}
+#fptPopupRoot button.fpt-prod:hover { border-color: var(--fptm-accent, #1b75bb) !important; }
+#fptPopupRoot button.fpt-prod.fpt-prod-on {
+    border-color: var(--fptm-accent, #1b75bb) !important;
+    background: var(--fptm-accent-soft, rgba(27,117,187,.12)) !important;
+    outline: 1px solid var(--fptm-accent, #1b75bb);
+}
+#fptPopupRoot button.fpt-link-btn {
+    background: none !important;
+    border: 0 !important;
+    padding: 4px 0 !important;
+    width: auto !important;
+    height: auto !important;
+    color: var(--fptm-muted, #8a90a8) !important;
+    text-decoration: underline !important;
+}
+.fpt-nick-list { display: flex; flex-direction: column; border: 1px solid var(--fptm-border, #22253a); }
+.fpt-nick-row { padding: 10px 12px; }
+.fpt-nick-row + .fpt-nick-row { border-top: 1px solid var(--fptm-border, #22253a); }
+.fpt-nick-row-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.fpt-nick-row-head b { color: var(--fptm-text, #e6e8f2); word-break: break-all; }
+.fpt-nick-row-head .fpt-link-btn { margin-left: auto; }
+.fpt-nick-row .fpt-key-row { margin-top: 8px; }
+.fpt-nick-row .fpt-key-row[hidden] { display: none; }
+.fptm-shop-gap { height: 4px; }
+#fptShop > .fpt-link { margin-top: 12px; }
+
+/* ===================================================
+   Рамки и баннеры во вкладке "Аккаунт"
+   =================================================== */
+.fpt-new-inline { display: inline-block; margin-left: 6px; padding: 1px 5px; font-size: 9px; font-weight: 800; color: #1a1400; background: #ffd84d; vertical-align: middle; }
+.fpt-decor-show { position: relative; margin: -2px 0 14px; padding: 14px; overflow: hidden; color: #0d1b2e;
+    background: radial-gradient(60% 90% at 100% 0%, rgba(140,196,255,.8), transparent 70%), radial-gradient(50% 90% at 0% 100%, rgba(255,140,200,.55), transparent 70%), radial-gradient(40% 70% at 60% 110%, rgba(255,216,77,.55), transparent 70%), #fff;
+    border: 1px solid #dce8f5; }
+.fpt-decor-show-frames { display: flex; gap: 6px; margin-bottom: 10px; }
+.fpt-decor-show-frames img { width: 52px; height: 52px; filter: drop-shadow(0 4px 8px rgba(60,40,150,.25)); animation: fptBob 3s ease-in-out infinite alternate; }
+.fpt-decor-show-frames img:nth-child(2n) { animation-delay: -1.5s; }
+@keyframes fptBob { to { transform: translateY(-4px); } }
+.fpt-decor-show-banner { position: relative; height: 44px; display: flex; align-items: center; padding-left: 12px; margin-bottom: 10px;
+    background-size: auto 100%; background-position: right center; background-repeat: no-repeat; background-color: #f4f6fb; }
+.fpt-decor-show-banner span { font-weight: 800; color: #1b75bb; }
+.fpt-decor-show-text { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: #24364d; }
+.fpt-decor-show-text b { font-size: 14px; color: #0d1b2e; }
+
+.fpt-decor-pv { display: flex; align-items: center; gap: 16px; margin: 10px 0 14px; padding: 12px; border: 1px solid var(--fptm-border, #22253a); background: var(--fptm-surface, transparent); }
+.fpt-decor-pv-ava { position: relative; width: 56px; height: 56px; flex: 0 0 56px; }
+.fpt-decor-pv-ava .ava { width: 56px; height: 56px; border-radius: 50% !important; object-fit: cover; display: block; background: #c9d2e3; }
+#fptPopupRoot .fpt-decor-pv-ava .frm { position: absolute; left: 50%; top: 50%; width: 82px !important; height: 82px !important;
+    max-width: none !important; max-height: none !important; transform: translate(-50%, -50%); pointer-events: none; object-fit: contain; }
+#fptPopupRoot .fpt-decor-pv-ava .ava { border-radius: 50% !important; object-fit: cover; }
+.fpt-decor-pv-ava .ava { border-radius: 50%; }
+#fptPopupRoot .fpt-dc-frame img, #fptPopupRoot .fpt-decor-show-frames img { max-width: none !important; object-fit: contain; }
+.fpt-decor-pv-row { position: relative; flex: 1; min-width: 0; height: 56px; display: flex; flex-direction: column; justify-content: center; padding-left: 12px; isolation: isolate; }
+.fpt-decor-pv-row i { position: absolute; inset: 0; z-index: -1; background-size: auto 100%; background-position: right center; background-repeat: no-repeat;
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, transparent 22%, rgba(0,0,0,.45) 46%, #000 70%, #000 94%, transparent 100%);
+            mask-image: linear-gradient(to right, transparent 0%, transparent 22%, rgba(0,0,0,.45) 46%, #000 70%, #000 94%, transparent 100%); }
+.fpt-decor-pv-row .nm { font-weight: 800; color: var(--fptm-text, #e6e8f2); }
+.fpt-decor-pv-row .st { font-size: 11px; color: #f0b400; }
+.fpt-dc-head { display: flex; justify-content: space-between; align-items: baseline; margin: 12px 0 6px; font-size: 13px; color: var(--fptm-text, #e6e8f2); }
+.fpt-dc-head span { font-size: 11px; color: var(--fptm-muted, #9099b8); }
+.fpt-dc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(54px, 1fr)); gap: 6px; max-height: 196px; overflow-y: auto; padding: 2px; }
+.fpt-dc-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; max-height: 196px; overflow-y: auto; padding: 2px; }
+#fptPopupRoot .fpt-dc-frame, #fptPopupRoot .fpt-dc-banner {
+    padding: 0 !important; height: 54px !important; min-height: 0 !important; width: 100% !important;
+    background: var(--fptm-surface-2, rgba(128,128,140,.08)) !important; border: 1px solid var(--fptm-border, #2a2d40) !important;
+    display: flex !important; align-items: center !important; justify-content: center !important; color: var(--fptm-muted, #9099b8) !important; font-size: 11px !important; }
+#fptPopupRoot .fpt-dc-banner { height: 36px !important; position: relative; overflow: hidden; }
+.fpt-dc-frame img { width: 52px; height: 52px; }
+.fpt-dc-banner i { position: absolute; inset: 0; background-size: auto 100%; background-position: right center; background-repeat: no-repeat; }
+#fptPopupRoot .fpt-dc-frame.on, #fptPopupRoot .fpt-dc-banner.on { border-color: var(--fptm-accent, #1b75bb) !important; outline: 2px solid var(--fptm-accent, #1b75bb); outline-offset: -2px; }
+.fpt-dc-buy { margin-top: 8px; }
+
+/* модалки акции: мягкое скругление, как у окна */
+.fpt-gift-modal .fpt-gift-modal-box { border-radius: 14px !important; overflow: hidden; }
+.fpt-gift-modal .fpt-gift-modal-box *:not(.fpt-gift-x):not([class*="ava"]) { border-radius: 7px; }
+.fpt-gift-modal .fpt-gift-modal-box .fpt-gift { border-radius: 0 !important; }

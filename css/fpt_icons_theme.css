@@ -1417,8 +1417,7 @@ button.add-image-btn .material-symbols-rounded {
 .fp-tools-popup .template-settings-list .template-item,
 .fp-tools-popup .template-container,
 .fp-tools-popup .fpt-smart-bump-card,
-.fp-tools-popup .setting-group,
-.fp-tools-popup .overview-container {
+.fp-tools-popup .setting-group {
     background: none !important;
     border-color: transparent !important;
     box-shadow: none !important;

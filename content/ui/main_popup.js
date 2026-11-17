@@ -73,9 +73,14 @@ function createMainPopup() {
 
     const toolsPopup = document.createElement('div');
     toolsPopup.className = 'fp-tools-popup';
+    toolsPopup.id = 'fptPopupRoot'; // для квадратного стиля (css/promo_account.css)
     toolsPopup.innerHTML = `
         <div class="fp-tools-header">
             <h2 class="fp-tools-title-wrap"><a href="https://funpay.tools" target="_blank" class="fp-tools-site-link">FP Tools</a><button type="button" id="fptAccentBtn" class="fpt-accent-btn" title="Цвет акцента" aria-label="Цвет акцента"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3a9 9 0 0 0 0 18c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.36-.6-.36-.99 0-.83.67-1.5 1.5-1.5H16a5 5 0 0 0 5-5c0-4.42-4.03-8-9-8Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="7.5" cy="11.5" r="1.1" fill="currentColor"/><circle cx="10.5" cy="7.5" r="1.1" fill="currentColor"/><circle cx="15" cy="8" r="1.1" fill="currentColor"/><circle cx="16.8" cy="12" r="1.1" fill="currentColor"/></svg><input type="color" id="fptAccentInput" class="fpt-accent-input" value="#1b75bb" aria-hidden="true" tabindex="-1"></button></h2>
+            <div class="fp-tools-apps">
+                <a class="fp-tools-app-btn" href="https://funpay.tools/" target="_blank" rel="noopener" title="FunPay Tools для Android"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg><span>Скачать на Android</span></a>
+                <a class="fp-tools-app-btn" href="https://funpay.tools/" target="_blank" rel="noopener" title="FunPay Tools для Windows"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8.5 20h7M12 16v4"/></svg><span>Скачать для Windows</span></a>
+            </div>
             <div class="fp-tools-social">
                 <a class="fp-tools-social-btn" href="https://t.me/FPTOOLS" target="_blank" rel="noopener" title="Telegram" aria-label="Telegram"><img class="fp-tools-social-ico" data-icon="telegram" alt="Telegram"></a>
                 <a class="fp-tools-social-btn" href="https://discord.gg/c8A9v58CQw" target="_blank" rel="noopener" title="Discord" aria-label="Discord"><img class="fp-tools-social-ico" data-icon="discord" alt="Discord"></a>
@@ -90,6 +95,7 @@ function createMainPopup() {
                     <div id="fptNavSearchResults" class="fpt-nav-search-results"></div>
                 </div>
                 <ul>
+                    <li data-page="account" class="fpt-nav-account"><a><span class="nav-icon material-symbols-rounded">account_circle</span><span>Аккаунт</span><span class="fpt-new-badge" hidden>NEW!</span></a></li>
                     <li class="fp-nav-divider">Основное</li>
                     <li data-page="general" class="active"><a><span class="nav-icon material-symbols-rounded">settings</span><span>Общие</span></a></li>
                     <li data-page="accounts"><a><span class="nav-icon material-symbols-rounded">group</span><span>Аккаунты</span></a></li>
@@ -117,7 +123,6 @@ function createMainPopup() {
                     <li data-page="currency_calc"><a><span class="nav-icon material-symbols-rounded">currency_exchange</span><span>Валюты</span></a></li>
                     <li class="fp-nav-divider">Прочее</li>
                     <li data-page="notes"><a><span class="nav-icon material-symbols-rounded">edit_note</span><span>Заметки</span></a></li>
-                    <li data-page="overview"><a><span class="nav-icon material-symbols-rounded">movie</span><span>Обзор</span></a></li>
                     <li data-page="settings_io"><a><span class="nav-icon material-symbols-rounded">database</span><span>Настройки</span></a></li>
                     <li data-page="tickets"><a><span class="nav-icon material-symbols-rounded">confirmation_number</span><span>Тикеты</span></a></li>
                     <li data-page="support"><a><span class="nav-icon material-symbols-rounded">favorite</span><span>Поддержка</span></a></li>
@@ -125,6 +130,7 @@ function createMainPopup() {
                 <div class="fp-tools-nav-cloud"><img class="fp-tools-nav-cloud-img" data-icon="cloud" alt=""></div>
             </nav>
             <main class="fp-tools-content">
+                <div class="fp-tools-page-content" data-page="account"><div id="fptAccountRoot"></div></div>
                 <div class="fp-tools-page-content active" data-page="general">
                     <h3>Общие настройки</h3>
                     <div class="checkbox-label-inline">
@@ -152,6 +158,28 @@ function createMainPopup() {
                         <label for="fptShowRealPricesCheckbox" style="margin-bottom:0;"><span>Показывать реальные цены лотов</span></label>
                     </div>
                     
+                    <h3>Шапка сайта</h3>
+                    <div class="fpt-navbar-settings" id="fptNavbarSettings">
+                        <div class="fpt-nb-row">
+                            <span class="fpt-nb-label">Ширина</span>
+                            <div class="fpt-nb-seg" role="radiogroup" aria-label="Ширина шапки">
+                                <button type="button" data-width="compact" role="radio">Компактная</button>
+                                <button type="button" data-width="wide" role="radio">Во всю ширину</button>
+                            </div>
+                        </div>
+                        <div class="fpt-nb-row">
+                            <label class="fpt-nb-label" for="fptNavGap">Расстояние между кнопками</label>
+                            <div class="fpt-nb-slider">
+                                <input type="range" id="fptNavGap" min="2" max="15" step="1">
+                                <span class="fpt-nb-val" id="fptNavGapVal"></span>
+                            </div>
+                        </div>
+                        <div class="fpt-nb-foot">
+                            <span class="fpt-nb-note">Применяется сразу. Шапка не переносится на вторую строку даже при увеличенном масштабе страницы.</span>
+                            <button type="button" class="fpt-nb-reset" id="fptNavReset">Сбросить</button>
+                        </div>
+                    </div>
+
                     <h3>Звук уведомления</h3>
                     <div class="fp-tools-radio-group" id="notificationSoundGroup">
                         <label class="fp-tools-radio-option"><input type="radio" name="notificationSound" value="default" checked><span>Стандартный</span></label>
@@ -275,6 +303,21 @@ function createMainPopup() {
                 <!-- НАЧАЛО ВКЛАДКИ "АККАУНТЫ" -->
                 <div class="fp-tools-page-content" data-page="accounts">
                     <h3>Управление аккаунтами</h3>
+                    <div class="fpt-gk-card" id="fptGoldenKeyCard">
+                        <div class="fpt-gk-head">
+                            <span class="material-symbols-rounded fpt-gk-icon">key</span>
+                            <div class="fpt-gk-titles">
+                                <div class="fpt-gk-title">golden_key текущего аккаунта</div>
+                                <div class="fpt-gk-hint">Ключ - это полный доступ к аккаунту. Никому его не передавайте.</div>
+                            </div>
+                        </div>
+                        <div class="fpt-gk-row">
+                            <code class="fpt-gk-value" id="fptGoldenKeyPreview">••••••••</code>
+                            <button type="button" class="fpt-gk-btn" id="fptGoldenKeyCopy" disabled>
+                                <span class="material-symbols-rounded">content_copy</span><span class="fpt-gk-btn-text">Копировать</span>
+                            </button>
+                        </div>
+                    </div>
                     <p class="template-info">Добавьте текущий аккаунт в список, чтобы быстро переключаться между профилями без ввода пароля.</p>
                     <div class="support-promo" style="background: rgba(27,117,187,0.08); border-color: rgba(27,117,187,0.25); margin-bottom: 20px;">
                         <span class="nav-icon material-symbols-rounded" style="color: #1b75bb;">info</span>
@@ -823,10 +866,6 @@ function createMainPopup() {
                     <h3>Пользовательский курсор</h3>
                     <div class="checkbox-label-inline"><input type="checkbox" id="customCursorEnabled"><label for="customCursorEnabled" style="margin-bottom:0;"><span>Включить свой курсор</span></label></div>
                     <div id="customCursorControls" style="display: none;"><div class="template-container"><label>Изображение курсора:</label><div id="cursor-image-preview" style="width:64px; height:64px; background-color:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); border-radius:8px; margin-bottom:10px; background-size:contain; background-position:center; background-repeat: no-repeat; display:flex; align-items:center; justify-content:center; color: var(--fptm-muted, #888); font-size:12px;">Нет</div><button id="uploadCursorImageBtn" class="btn">Загрузить</button><button id="removeCursorImageBtn" class="btn btn-default" style="margin-left: 10px;">Удалить</button><input type="file" id="cursorImageInput" accept="image/*" style="display: none;"></div><div class="checkbox-label-inline"><input type="checkbox" id="hideSystemCursor" checked><label for="hideSystemCursor" style="margin-bottom:0;"><span>Скрыть системный курсор</span></label></div><div class="template-container"><div class="range-label"><label for="customCursorSize">Размер:</label><span id="customCursorSizeValue">32px</span></div><input type="range" id="customCursorSize" min="16" max="128" step="1" value="32"></div><div class="template-container"><div class="range-label"><label for="customCursorOpacity">Прозрачность:</label><span id="customCursorOpacityValue">100%</span></div><input type="range" id="customCursorOpacity" min="0" max="100" step="1" value="100"></div></div>
-                </div>
-                <div class="fp-tools-page-content" data-page="overview">
-                    <div class="overview-container"><h3 style="border:none">Видео-обзор функций</h3><p class="template-info">Посмотрите короткий кинематографический ролик, демонстрирующий все возможности FP Tools в действии. Откройте для себя инструменты, о которых вы могли не знать!</p><div class="overview-promo-art"></div><button id="start-overview-tour-btn" class="btn">▶️ Начать обзор</button></div>
-                    <div class="feature-list-container"><h3>Справочник по функциям</h3><div class="feature-item"><div class="feature-title"><span class="material-icons">smart_toy</span>ИИ-Ассистент в чате</div><div class="feature-location"><strong>Где найти:</strong> В любом чате, кнопка "AI" рядом с полем ввода.</div><div class="feature-desc">Улучшает ваш текст, делая его вежливым и профессиональным. Активируйте режим и нажмите Enter для обработки. Также предупреждает о грубости.</div></div><div class="feature-item"><div class="feature-title"><span class="material-icons">auto_fix_high</span>AI-Генератор лотов</div><div class="feature-location"><strong>Где найти:</strong> На странице создания/редактирования лота.</div><div class="feature-desc">Создает название и описание для лота на основе ваших идей, анализируя и копируя стиль ваших существующих предложений.</div></div><div class="feature-item"><div class="feature-title"><span class="material-icons">add_photo_alternate</span>AI-Генератор изображений</div><div class="feature-location"><strong>Где найти:</strong> На странице создания/редактирования лота, в разделе "Изображения".</div><div class="feature-desc">Создавайте уникальные и стильные превью для ваших предложений с помощью встроенного генератора, в том числе по текстовому запросу.</div></div><div class="feature-item"><div class="feature-title"><span class="material-icons">palette</span>Полная кастомизация</div><div class="feature-location"><strong>Где найти:</strong> Вкладка "Кастомизация".</div><div class="feature-desc">Измените внешний вид FunPay: установите анимированный фон, настройте цвета, шрифты, прозрачность блоков и даже расположение верхней панели.</div></div><div class="feature-item"><div class="feature-title"><span class="material-icons">auto_fix_normal</span>"Кастомизатор (режим редактора)</div><div class="feature-location"><strong>Где найти:</strong> Вкладка "Кастомизация".</div><div class="feature-desc">Редактируйте любой элемент сайта в реальном времени. Меняйте цвета, размеры или скрывайте ненужное, сохраняя стили навсегда.</div></div><div class="feature-item"><div class="feature-title"><span class="material-icons">description</span>Шаблоны и AI-переменные</div><div class="feature-location"><strong>Где найти:</strong> Под полем ввода в чате. Настраиваются во вкладке "Шаблоны".</div><div class="feature-desc">Быстрая вставка готовых сообщений. Поддерживают переменные {buyername}, {date} и даже генерацию текста через {ai:ваш запрос}.</div></div><div class="feature-item"><div class="feature-title"><span class="material-icons">checklist</span>Управление лотами и ценами</div><div class="feature-location"><strong>Где найти:</strong> На странице вашего профиля (funpay.com/users/...).</div><div class="feature-desc">Кнопка "Выбрать" позволяет выделить несколько лотов для массового удаления, дублирования, отключения или редактирования цен.</div></div><div class="feature-item"><div class="feature-title"><span class="material-icons">control_point_duplicate</span>Клонирование лотов</div><div class="feature-location"><strong>Где найти:</strong> На странице редактирования любого вашего лота.</div><div class="feature-desc">Кнопка "Копировать" позволяет создать точную копию лота или массово размножить его по разным категориям (например, по разным серверам).</div></div><div class="feature-item"><div class="feature-title"><span class="material-icons">content_copy</span>Копировать лот со страницы заказа</div><div class="feature-location"><strong>Где найти:</strong> На странице купленного заказа (funpay.com/orders/...), кнопка под блоком "Оплаченный товар".</div><div class="feature-desc">Создаёт копию купленного лота через тот же мастер, что и обычное клонирование: подтягивает описание, автоматически переводит его на английский и, если у лота была автовыдача, сразу вставляет выданный товар в поле автовыдачи.</div></div><div class="feature-item"><div class="feature-title"><span class="material-icons">public</span>Глобальный импорт лотов</div><div class="feature-location"><strong>Где найти:</strong> На странице редактирования лота, кнопка "Импорт".</div><div class="feature-desc">Импортируйте название и описание любого лота с FunPay, чтобы анализировать конкурентов или использовать как основу.</div></div><div class="feature-item"><div class="feature-title"><span class="material-icons">sort_by_alpha</span>Сортировка по отзывам</div><div class="feature-location"><strong>Где найти:</strong> На любой странице со списком лотов.</div><div class="feature-desc">Кликните на заголовок "Продавец" в таблице, чтобы отсортировать все предложения по количеству отзывов у продавцов.</div></div><div class="feature-item"><div class="feature-title"><span class="material-icons">label</span>Пометки для пользователей</div><div class="feature-location"><strong>Где найти:</strong> В выпадающем меню в заголовке чата с человеком.</div><div class="feature-desc">Устанавливайте настраиваемые цветные метки для пользователей, которые будут видны в вашем списке контактов.</div></div><div class="feature-item"><div class="feature-title"><span class="material-icons">rocket_launch</span>Авто-поднятие лотов</div><div class="feature-location"><strong>Где найти:</strong> Вкладка "Авто-поднятие".</div><div class="feature-desc">Настройте автоматическое поднятие лотов по таймеру. Можно выбрать для поднятия только определенные категории.</div></div><div class="feature-item"><div class="feature-title"><span class="material-icons">monitoring</span>Статистика</div><div class="feature-location"><strong>Где найти:</strong> Страница "Продажи" - статистика продаж, кнопка "Аналитика рынка" на странице игры.</div><div class="feature-desc">Получайте детальную статистику по своим продажам и анализируйте рыночную ситуацию в любой категории.</div></div><div class="feature-item"><div class="feature-title"><span class="material-icons">savings</span>Финансовые копилки</div><div class="feature-location"><strong>Где найти:</strong> Вкладка "Копилки" и иконка в шапке сайта.</div><div class="feature-desc">Устанавливайте финансовые цели и отслеживайте их достижение. Копилка синхронизируется с балансом FunPay.</div></div></div>
                 </div>
                 <div class="fp-tools-page-content" data-page="ai_audit">
                     <h3>ИИ-аудит лотов</h3>
@@ -1885,6 +1924,7 @@ function setupPopupNavigation() {
             contentPages.forEach(page => {
                 page.classList.toggle('active', page.dataset.page === pageId);
             });
+            if (pageId === 'account') { if (typeof fptInitAccountTab === 'function') fptInitAccountTab(); }
             if (pageId === 'epic_nicks') { if (typeof renderEpicPreviews === 'function') renderEpicPreviews(); }
             if (pageId === 'currency_calc') initializeCurrencyCalculator();
             if (pageId === 'notes') { if (typeof initializeNotes === 'function') initializeNotes(); }
@@ -1921,6 +1961,7 @@ function setupPopupNavigation() {
     }
 
     compactNav(toolsPopup);
+    if (typeof fptAccountNavInit === 'function') fptAccountNavInit(toolsPopup);
     setupNavSearch(toolsPopup);
     setupAccentPicker(toolsPopup);
     attachAutoReplyImageButtons(toolsPopup);
@@ -2220,7 +2261,8 @@ function makePopupInteractive(popupEl) {
     let hasBeenDragged = false;
 
     header.addEventListener('mousedown', (e) => {
-        if (e.target !== header) return;
+        if (e.button !== 0) return;
+        if (e.target.closest('button, a, input, select, textarea, label, [role="button"], [contenteditable], .fpt-no-drag')) return;
         isDragging = true;
         if (!hasBeenDragged) {
             const rect = popupEl.getBoundingClientRect();

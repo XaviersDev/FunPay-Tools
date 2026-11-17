@@ -3,90 +3,6 @@
 (function() {
     'use strict';
     
-    // --- НОВЫЙ БЛОК: ФУНКЦИОНАЛ ОБЪЯВЛЕНИЙ ---
-    function initializeAnnouncementsFeature() {
-        const announcementsTab = document.getElementById('announcementsNavTab');
-        if (!announcementsTab) return;
-
-        const displayAnnouncements = (announcements) => {
-            const contentArea = document.getElementById('announcements-content-area');
-            if (!contentArea) return;
-
-            if (!announcements || announcements.length === 0) {
-                contentArea.innerHTML = '<p class="announcement-empty">Пока нет никаких объявлений.</p>';
-                return;
-            }
-
-            contentArea.innerHTML = announcements.map(a => {
-                const date = new Date(a.id).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
-                return `
-                    <div class="announcement-item">
-                        <div class="announcement-item-header">
-                            <h4>${a.title}</h4>
-                            <span class="announcement-date">${date}</span>
-                        </div>
-                        <p>${a.content.replace(/\n/g, '<br>')}</p>
-                    </div>
-                `;
-            }).join('');
-        };
-
-        announcementsTab.addEventListener('click', async () => {
-            const popup = document.querySelector('.fp-tools-popup');
-            const navItems = popup.querySelectorAll('.fp-tools-nav li, .fp-tools-header-tab');
-            const contentPages = popup.querySelectorAll('.fp-tools-page-content');
-
-            navItems.forEach(item => item.classList.remove('active'));
-            announcementsTab.classList.add('active');
-            
-            contentPages.forEach(page => page.classList.remove('active'));
-            popup.querySelector('.fp-tools-page-content[data-page="announcements"]').classList.add('active');
-
-            chrome.runtime.sendMessage({ action: 'markAnnouncementsAsRead' });
-            
-            const { fpToolsAnnouncements } = await chrome.storage.local.get('fpToolsAnnouncements');
-            displayAnnouncements(fpToolsAnnouncements);
-        });
-
-        const refreshBtn = document.getElementById('refresh-announcements-btn');
-        if (refreshBtn) {
-            refreshBtn.addEventListener('click', () => {
-                refreshBtn.disabled = true;
-                refreshBtn.querySelector('.material-icons').classList.add('spinning');
-                
-                chrome.runtime.sendMessage({ action: 'forceCheckAnnouncements' }, (response) => {
-                    if (response && response.success) {
-                        showNotification('Объявления обновлены!', false);
-                    }
-                });
-
-                setTimeout(() => {
-                    refreshBtn.disabled = false;
-                    refreshBtn.querySelector('.material-icons').classList.remove('spinning');
-                }, 5000);
-            });
-        }
-
-        chrome.storage.local.get('fpToolsUnreadCount', ({ fpToolsUnreadCount }) => {
-            updateAnnouncementsBadgeUI(fpToolsUnreadCount || 0);
-        });
-    }
-
-    function updateAnnouncementsBadgeUI(unreadCount) {
-        const announcementsTab = document.getElementById('announcementsNavTab');
-        if (!announcementsTab) return;
-        const badge = announcementsTab.querySelector('.notification-badge');
-
-        if (unreadCount > 0) {
-            announcementsTab.classList.add('has-unread');
-            badge.textContent = `+${unreadCount}`;
-            badge.style.display = 'flex';
-        } else {
-            announcementsTab.classList.remove('has-unread');
-            badge.style.display = 'none';
-        }
-    }
-    // --- КОНЕЦ НОВОГО БЛОКА ---
 
     function loadGoogleFonts() {
         if (document.getElementById('google-material-icons')) return;
@@ -374,7 +290,6 @@
                 initializeMagicStickStyler();
                 initializePiggyBank();
                 initializeHeaderButtonStyler();
-                initializeAnnouncementsFeature();
                 initializeLotIO();
                 initializeAutoReview();
                 initializeAILotAudit();
@@ -383,7 +298,6 @@
                 initAutoDeliveryUI();
                 initializeResetButtons();
                 initSalesChart();
-                if (typeof initializeOverviewTour === 'function') initializeOverviewTour();
 
                 // Общий чат: опрашиваем public-chat.json раз в 16 минут.
                 // Так active/display/url меняются на лету без обновления расширения.
@@ -467,37 +381,7 @@
             }
             if (request.action === 'fpToolsCheckRestoreLots') {
                 setTimeout(checkAndRestoreLots, 5000);
-                return true;
-            }
-            if (request.action === 'updateAnnouncementsBadge') {
-                updateAnnouncementsBadgeUI(request.unreadCount);
-                return true;
-            }
-            if (request.action === 'announcementsUpdated') {
-                const announcementsArea = document.getElementById('announcements-content-area');
-                if (announcementsArea && document.querySelector('.fp-tools-page-content[data-page="announcements"]').classList.contains('active')) {
-                    const displayAnnouncements = (announcements) => {
-                        if (!announcementsArea) return;
-                        if (!announcements || announcements.length === 0) {
-                            announcementsArea.innerHTML = '<p class="announcement-empty">Пока нет никаких объявлений.</p>';
-                            return;
-                        }
-                        announcementsArea.innerHTML = announcements.map(a => {
-                            const date = new Date(a.id).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
-                            return `
-                                <div class="announcement-item">
-                                    <div class="announcement-item-header">
-                                        <h4>${a.title}</h4>
-                                        <span class="announcement-date">${date}</span>
-                                    </div>
-                                    <p>${a.content.replace(/\n/g, '<br>')}</p>
-                                </div>
-                            `;
-                        }).join('');
-                    };
-                    displayAnnouncements(request.announcements);
-                }
-                return true;
+                return false;
             }
         });
     }

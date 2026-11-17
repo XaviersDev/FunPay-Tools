@@ -42,7 +42,6 @@ const EXCLUDE_KEYS = new Set([
     'fpToolsLotImportProcess',
     'fpToolsCheckRestoreLots',
     'fpToolsBlacklistUpdated',
-    'fpToolsUnreadCount',
     // --- Кэши (большие, легко перезапросятся) ---
     'fpToolsWallpaperCache',
     'fpToolsImageStore',

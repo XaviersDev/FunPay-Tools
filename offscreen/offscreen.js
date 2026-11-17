@@ -318,8 +318,6 @@ const CLONE_EXCLUDE_CONTAINS = [
     "способ оплаты", "with your balance", "left to pay", "seller rating", "payment method",
     "discount", "balance"
 ];
-const CLONE_SUMMARY_HEADERS = ["краткое описание", "short description"];
-const CLONE_DESC_HEADERS = ["подробное описание", "detailed description"];
 
 function parsePublicLotForClone(html) {
     try {
@@ -1488,11 +1486,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             break;
         case 'parseTicketDetails':
             sendResponse(parseTicketDetails(message.html));
-            break;
-        case 'keepalivePing':
-            // 3.0: offscreen → worker keepalive. Just acknowledge; the act of receiving
-            // a message resets the service worker's idle timer.
-            sendResponse({ alive: true, t: Date.now() });
             break;
     }
 

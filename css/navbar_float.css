@@ -1,0 +1,226 @@
+@media (min-width: 768px) {
+  #header,
+  .bg-light-color #header {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    padding-top: 10px;
+  }
+  #header .navbar-default {
+    position: relative;
+    padding: 0 6px;
+    border-radius: 14px;
+    border: 1px solid rgba(20, 30, 50, .08) !important;
+    background-color: rgba(255, 255, 255, .78) !important;
+    box-shadow: 0 6px 24px rgba(20, 30, 50, .07);
+  }
+  #header .navbar-default::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
+    backdrop-filter: blur(14px) saturate(1.3);
+  }
+  html.fpt-custom-theme-on #header .navbar-default {
+    border-color: transparent !important;
+    background-color: rgba(0, 0, 0, .55) !important;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, .25);
+  }
+}
+@media (max-width: 767px) {
+  #header .navbar-default {
+    margin: 0;
+    border-radius: 0;
+  }
+}
+#header .navbar-nav .badge {
+  min-width: 20px;
+  padding: 3px 7px;
+  border-radius: 10px;
+}
+#header .dropdown-menu {
+  border-radius: 8px;
+}
+@media (max-width: 991px) {
+  #header .navbar-collapse {
+    border-radius: 0 0 12px 12px;
+  }
+}
+
+/* ── Раскладка шапки (настраивается: «Общие → Шапка сайта») ─────────────────
+   --fpt-nav-gap   внутренний отступ пунктов меню, px (2–15, по умолчанию 6)
+   .fpt-nav-wide   на <html>: шапка во всю ширину (иначе компактная, по сетке сайта) */
+@media (min-width: 768px) {
+  #header > .container,
+  #header .container {
+    width: auto !important;
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 16px;
+    padding-right: 16px;
+    box-sizing: border-box;
+  }
+  html.fpt-nav-wide #header > .container,
+  html.fpt-nav-wide #header .container {
+    max-width: 1720px;
+  }
+  #header .navbar-default .container-fluid {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  #header .navbar-nav > li > a {
+    padding-left: var(--fpt-nav-gap, 6px);
+    padding-right: var(--fpt-nav-gap, 6px);
+  }
+}
+
+/* «Продавец»: ширина ровно под текст + иконку справа (раньше «ц» упиралась
+   в иконку, а при сжатии уходила под неё). */
+#header .navbar-form.fp-rmthub-form .form-control {
+  width: 104px !important;
+  padding-right: 30px !important;
+}
+
+/* Одна строка без переносов: flex вместо float. Если места мало (масштаб 125%+),
+   сжимаются только поля поиска, а не пункты меню. */
+@media (min-width: 992px) {
+  #header .navbar-default .container-fluid,
+  #header #navbar.navbar-collapse {
+    display: flex !important;
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+  #header .navbar-default .container-fluid::before,
+  #header .navbar-default .container-fluid::after,
+  #header #navbar.navbar-collapse::before,
+  #header #navbar.navbar-collapse::after,
+  #header #navbar > .navbar-nav::before,
+  #header #navbar > .navbar-nav::after,
+  #header .navbar-header::before,
+  #header .navbar-header::after {
+    display: none;
+  }
+  #header .navbar-default .container-fluid > .hide-navbar {
+    flex: 0 0 0;
+    width: 0;
+  }
+  #header .navbar-header {
+    float: none;
+    display: flex;
+    align-items: center;
+    flex: 0 1 auto;
+  }
+  #header .nav-container {
+    flex: 1 0 auto;   /* меню не сжимается - место отдают поля поиска */
+  }
+  #header #navbar.navbar-collapse {
+    height: auto !important;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  #header #navbar > .navbar-nav {
+    float: none;
+    display: flex;
+    flex-wrap: nowrap;
+    flex: 0 0 auto;
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+  #header #navbar > .navbar-nav.navbar-right {
+    margin-left: auto !important;
+    margin-right: 0 !important;
+  }
+  #header #navbar > .navbar-nav > li {
+    float: none;
+  }
+  #header .navbar-nav > li > a {
+    white-space: nowrap;
+  }
+  #header .navbar-header > .navbar-form {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    flex: 0 0 auto;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+  #header .navbar-header > .navbar-form .form-group {
+    margin: 0;
+  }
+  #header .navbar-header > .navbar-form > .btn {
+    flex: 0 0 auto;
+  }
+  /* Поиск по играм - единственное, что сжимается: целиком, если есть место,
+     иначе до 56px с многоточием (а не обрезается кнопкой-лупой). */
+  #header .navbar-header > .navbar-form.promo-games-filter {
+    flex: 0 1 auto;
+  }
+  #header .navbar-header > .navbar-form.promo-games-filter .form-group {
+    flex: 0 1 146px;
+    min-width: 56px;
+    width: auto !important;
+  }
+  #header .navbar-header > .navbar-form.promo-games-filter .form-control {
+    width: 100% !important;
+    min-width: 0;
+    text-overflow: ellipsis;
+  }
+}
+
+@media (min-width: 992px) and (max-width: 1199px) {
+  #header > .container,
+  #header .container {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+  #header .navbar-default .container-fluid {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+  #header .navbar-nav > li > a {
+    padding-left: min(var(--fpt-nav-gap, 6px), 5px);
+    padding-right: min(var(--fpt-nav-gap, 6px), 5px);
+  }
+  #header .navbar-header > .navbar-form {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+}
+
+@media (min-width: 992px) and (max-width: 1049px) {
+  #header .navbar-nav > li > a {
+    padding-left: min(var(--fpt-nav-gap, 6px), 3px);
+    padding-right: min(var(--fpt-nav-gap, 6px), 3px);
+  }
+  #header .navbar-header > .navbar-form {
+    padding-left: 3px;
+    padding-right: 3px;
+  }
+  #header .navbar-default .container-fluid {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+}
+
+/* FP Tools на узких окнах: FunPay там прячет правую часть шапки вместе с
+   основной кнопкой. Дублёр выглядит так же, как основная ссылка. */
+#fpToolsButtonCompact {
+  display: none;
+}
+@media (max-width: 991px) {
+  #header .navbar-header > #fpToolsButtonCompact {
+    display: block;
+    float: right;
+    padding: 15px 10px;
+    line-height: 20px;
+    font-weight: bold;
+    color: #1b75bb;
+    text-decoration: none;
+    cursor: pointer;
+    user-select: none;
+  }
+}

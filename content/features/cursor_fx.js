@@ -323,3 +323,14 @@ function setupCursorFxHandlers() {
         });
     });
 }
+// эффекты и свой курсор включаются сразу при загрузке страницы, а не только после открытия окна FP Tools
+(async () => {
+    try {
+        if (window.top !== window) return;
+        const st = await chrome.storage.local.get(['fpToolsCursorFx', 'fpToolsCustomCursor']);
+        const fx = { enabled: false, type: 'sparkle', color1: '#FF6B6B', color2: '#1b75bb', rgb: false, count: 50, ...(st.fpToolsCursorFx || {}) };
+        const cc = { enabled: false, image: null, size: 32, opacity: 100, hideSystem: true, ...(st.fpToolsCustomCursor || {}) };
+        const apply = () => { if (fx.enabled) cursorFx.updateConfig(fx); if (cc.enabled) cursorFx.updateCustomCursor(cc); };
+        if (document.body) apply(); else document.addEventListener('DOMContentLoaded', apply, { once: true });
+    } catch (_) {}
+})();
